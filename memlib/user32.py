@@ -22,20 +22,20 @@ def CreateWindowExA(dwExStyle: int, lpClassName: bytes, lpWindowName: bytes,
     **See also:** `RegisterClassA
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassa>`_
 
-    :param dwExStyle: The extended window style of the window being created.
-    :param lpClassName: A null-terminated string or a class atom created by a previous call
-                        to the RegisterClass or RegisterClassEx function.
-    :param lpWindowName: The window name.
-    :param dwStyle: The style of the window being created.
-    :param X: The initial horizontal position of the window.
-    :param Y: The initial vertical position of the window.
-    :param nWidth: The width, in device units, of the window.
-    :param nHeight: The height, in device units, of the window.
-    :param hWndParent: A handle to the parent or owner window of the window being created.
-    :param hMenu: A handle to a menu, or specifies a child-window identifier, depending on the window style.
-    :param hInstance: A handle to the instance of the module to be associated with the window.
-    :param lpParam: Pointer to a value to be passed to the window through the CREATESTRUCT pointed to by the lParam
-                    param of the WM_CREATE message.
+    :param exStyle: The extended window style of the window being created.
+    :param className: A null-terminated string or a class atom created by a previous call
+                      to the RegisterClass or RegisterClassEx function.
+    :param windowName: The window name.
+    :param style: The style of the window being created.
+    :param x: The initial horizontal position of the window.
+    :param y: The initial vertical position of the window.
+    :param width: The width, in device units, of the window.
+    :param height: The height, in device units, of the window.
+    :param wndParent: A handle to the parent or owner window of the window being created.
+    :param menuHandle: A handle to a menu, or specifies a child-window identifier, depending on the window style.
+    :param instanceHandle: A handle to the instance of the module to be associated with the window.
+    :param param: Pointer to a value to be passed to the window through the CREATESTRUCT pointed to by the lParam
+                  param of the WM_CREATE message.
     :return: If the function succeeds, the return value is a handle to the new window. If the function fails, the return
              value is 0. To get extended error information, call GetLastError.
     """
@@ -47,7 +47,7 @@ def DestroyWindow(hWnd: int) -> bool:
     """
     Destroys the specified window.
 
-    :param hWnd: A handle to the window to be destroyed.
+    :param windowHandle: A handle to the window to be destroyed.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
               To get extended error information, call GetLastError.
     """
@@ -62,7 +62,7 @@ def RegisterClassA(lpWndClass: memlib.structs.WNDCLASS) -> int:
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerclassa>`_
 
 
-    :param lpWndClass: A pointer to a WNDCLASS structure.
+    :param wndClass: A pointer to a WNDCLASS structure.
     :returns: If the function succeeds, the return value is a class atom that uniquely identifies the class being
               registered. If the function fails, the return value is zero. To get extended error information, call
               GetLastError.
@@ -80,11 +80,11 @@ def GetMessageA(lpMsg: POINTER(memlib.structs.MSG), hWnd: int, wMsgFilterMin: in
     **See also:** `GetMessageA
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getmessagea>`_
 
-    :param lpMsg: A pointer to a MSG structure that receives message information from the thread's message queue.
-    :param hWnd: A handle to the window whose messages are to be retrieved.
-                 The window must belong to the current thread.
-    :param wMsgFilterMin: The integer value of the lowest message value to be retrieved.
-    :param wMsgFilterMax: The integer value of the highest message value to be retrieved.
+    :param msg: A pointer to a MSG structure that receives message information from the thread's message queue.
+    :param windowHandle: A handle to the window whose messages are to be retrieved.
+                         The window must belong to the current thread.
+    :param msgFilterMin: The integer value of the lowest message value to be retrieved.
+    :param msgFilterMax: The integer value of the highest message value to be retrieved.
     :return: If the function retrieves a message other than WM_QUIT, the return value is nonzero. If the function
              retrieves the WM_QUIT message, the return value is zero. If there is an error, the return value is -1.
     """
@@ -116,7 +116,7 @@ def DispatchMessageA(lpMsg: POINTER(memlib.structs.MSG)) -> int:
     **See also:** `DispatchMessageA
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-dispatchmessagea>`_
 
-    :param lpMsg: A pointer to a MSG structure that contains the message.
+    :param msg: A pointer to a MSG structure that contains the message.
     :returns: The return value specifies the value returned by the window procedure. Although its meaning depends on the
               message being dispatched, the return value generally is ignored.
     """
@@ -132,7 +132,7 @@ def PostQuitMessage(nExitCode: int) -> None:
     **See also:** `PostQuitMessage
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postquitmessage>`_
 
-    :param nExitCode: The application exit code. This value is used as the wParam parameter of the WM_QUIT message.
+    :param exitCode: The application exit code. This value is used as the wParam parameter of the WM_QUIT message.
     """
 
     _PostQuitMessage(nExitCode)
@@ -146,8 +146,8 @@ def PostMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
 
     **See also:** `PostMessageA <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postmessagea>`_
 
-    :param hWnd: A handle to the window whose window procedure is to receive the message.
-    :param Msg: The message to be posted.
+    :param windowHandle: A handle to the window whose window procedure is to receive the message.
+    :param msg: The message to be posted.
     :param wParam: Additional message-specific information.
     :param lParam: Additional message-specific information.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
@@ -164,8 +164,8 @@ def SendMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
 
     **See also:** `SendMessageA <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessagea>`_
 
-    :param hWnd: A handle to the window whose window procedure is to receive the message.
-    :param Msg: The message to be posted.
+    :param windowHandle: A handle to the window whose window procedure is to receive the message.
+    :param msg: The message to be posted.
     :param wParam: Additional message-specific information.
     :param lParam: Additional message-specific information.
     :returns: The return value specifies the result of the message processing; it depends on the message sent.
@@ -183,8 +183,8 @@ def DefWindowProcA(hWnd: int, Msg: int, wParam: int, lParam: int) -> int:
     **See also:** `DefWindowProcA
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-defwindowproca>`_
 
-    :param hWnd: A handle to the window procedure that received the message.
-    :param Msg: The message.
+    :param windowHandle: A handle to the window procedure that received the message.
+    :param msg: The message.
     :param wParam: Additional message information. The content of this parameter depends on the value of the Msg
                    parameter.
     :param lParam: Additional message information. The content of this parameter depends on the value of the Msg
@@ -205,12 +205,12 @@ def MessageBoxW(hWnd: int, text: str, caption: str, uType: int) -> int:
     **See also:** `MessageBoxW
     <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw>`_
 
-    :param hWnd: A handle to the owner window of the message box to be created. If this parameter is NULL, the message
+    :param hwindowHandlend: A handle to the owner window of the message box to be created. If this parameter is NULL, the message
                  box has no owner window.
     :param text: The message to be displayed. If the string consists of more than one line, you can separate the lines
                  using a carriage return and/or linefeed character between each line.
     :param caption: The dialog box title. If this parameter is NULL, the default title is Error.
-    :param uType: The contents and behavior of the dialog box.
+    :param typeFlags: The contents and behavior of the dialog box.
     :returns: If a message box has a Cancel button, the function returns the IDCANCEL value if either the ESC key is
               pressed or the Cancel button is selected. If the message box has no Cancel button, pressing ESC will no
               effect - unless an MB_OK button is present. If an MB_OK button is displayed and the user presses ESC, the

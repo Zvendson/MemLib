@@ -4,6 +4,7 @@
 .. note:: **Learn more about** `Shared Memory <https://learn.microsoft.com/en-us/windows/win32/memory/creating-named
     -shared-memory>`_
 """
+
 from ctypes import byref
 from ctypes.wintypes import DWORD, HANDLE, LARGE_INTEGER, LPVOID, ULONG
 from typing import Union
@@ -63,14 +64,16 @@ class SharedMemoryBuffer(memlib.structs.Struct):
 
 
 class SharedMemory:
-    """
-    Allows to create a shared memory between two processes. The shared memory is created in the target process and
-    then it is mapped in the current process. A shared memory can be stored in the target process, so another process
-    can reconnect to it if it knows the address where the shared memory is stored.
 
-    :param process: The process that will be used to create the shared memory.
-    :raises ValueError: If the process is None.
-    """
+    def __init__(self, process: Process):
+        """
+        Allows to create a shared memory between two processes. The shared memory is created in the target process and
+        then it is mapped in the current process. A shared memory can be stored in the target process, so another process
+        can reconnect to it if it knows the address where the shared memory is stored.
+
+        :param process: The process that will be used to create the shared memory.
+        :raises ValueError: If the process is None.
+        """
 
     def __init__(self, process: memlib.process.Process):
         if process is None:
@@ -89,6 +92,7 @@ class SharedMemory:
         :param address: The address where the shared memory is stored.
         :returns: True if the shared memory can be reconnected, False otherwise.
         """
+
         mapping: SharedMemoryBuffer = self._process.ReadStruct(address, SharedMemoryBuffer)
 
         return mapping.IsValid()
@@ -316,6 +320,7 @@ class SharedMemory:
         :returns: The handle of the shared memory of the target process.
         """
         return self._memBuffer.HandleEx
+
 
     def GetBaseAddress(self) -> int:
         """

@@ -33,10 +33,10 @@ class Hook:
     buffer and will store a struct of 14 Bytes at the address in every case.
 
     :param process: target Process.
-    :param srcAddr: the address in the Process to write the jump at.
-    :param dstAddr: the address in the Process where the jump should target to.
-    :param enable: If True it will write the jump immediately into targets process memory.
-    :param bufferAddr: the address in the Process to store the buffer.
+    :param sourceAddress: the address in the Process to write the jump at.
+    :param destinationAddress: the address in the Process where the jump should target to.
+    :param enableHook: If True it will write the jump immediately into targets process memory.
+    :param bufferAddress: the address in the Process to store the buffer.
     """
 
     def __init__(self, *,
@@ -75,7 +75,7 @@ class Hook:
         Creates a hook instance from target address.
 
         :param process: the process.
-        :param storeBufferAddress: the address in the Process to store the original opcodes.
+        :param bufferAddress: the address in the Process to store the original opcodes.
         :returns: the hook instance.
         """
 
@@ -139,8 +139,8 @@ class Hook:
         """
         Enables or disables the hook.
 
-        :param enable: If True the hook will write a jump at the source address to targets address. If False it will
-                       restore the jump to the original opcode.
+        :param enableHook: If True the hook will write a jump at the source address to targets address. If False it will
+                           restore the jump to the original opcode.
         """
 
         if self._enabled == enable:
@@ -164,7 +164,7 @@ class Hook:
         """
         Stores the buffer at the specific address
 
-        :param address: the address in the Process to store the buffer.
+        :param bufferAddress: the address in the Process to store the buffer.
         :return: True if it could store it successfully, False otherwise.
         """
 

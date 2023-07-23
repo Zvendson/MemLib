@@ -8,6 +8,7 @@ from ctypes import byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 from typing import List, Literal, TYPE_CHECKING, Type, TypeVar, Union
 
+
 import memlib.constants
 import memlib.exceptions
 import memlib.kernel32
@@ -22,6 +23,7 @@ class Process:
     """
     Represents an interactable process.
 
+    :raises ValueError: If the process does not exist.
     :param processId: The process id of the process.
     :param processHandle: The process handle of the process. If 0, the process will be opened.
     """
@@ -74,6 +76,7 @@ class Process:
         Opens the process with the given process id with `PROCESS_ALL_ACCESS`.
 
         :param processId: The process id of the process.
+        :param desiredAccess: The access to the process object.
         :returns: True if the process was opened successfully, False otherwise.
         """
 
@@ -193,7 +196,7 @@ class Process:
         :param name: The name of the module. If None, the main module will be returned.
         :raises Win32Exception: If the process is not opened, if the snapshot could not be created or if the main module
                                could not be found.
-        :returns: The module with the given name. None if the process is not opened.
+        :returns: The module with the given name. None if the process is not opened or the module was not found.
         """
 
         moduleBuffer = memlib.structs.MODULEENTRY32()
@@ -335,6 +338,7 @@ class Process:
         result: bytes = self.Read(address, length)
         if strip:
             result = result.rstrip(b'\x00') + b'\x00'
+
         return result
 
     def ReadWideString(self, address: int, length: int, strip: bool = True) -> str:
@@ -412,8 +416,8 @@ class Process:
 
         :param size: the size of the memory you want to allocate
         :param address: the address you want to allocate the memory at
-        :param alloc: the allocation type
-        :param prot: the protection type
+        :param allocationType: the allocation type
+        :param protect: the protection type
         :returns: the address of the allocated memory on success and 0 on failure
         """
 
@@ -442,6 +446,7 @@ class Process:
         """
         oldProtection = DWORD()
         if not memlib.kernel32.VirtualProtectEx(int(self._handle), address, size, newProtection, oldProtection):
+
             return 0
 
         return oldProtection.value

@@ -27,9 +27,9 @@ def Compile(src: str, mem_size: int = 0x5E8000, max_passes: int = 100) -> bytes:
     """
     Takes a string of assembly code and compiles it during runtime.
 
-    :param src: The assembly code to compile.
-    :param mem_size: The maximum size of the memory buffer that the fasm.dll can use.
-    :param max_passes: The maximum number of recursions that the fasm.dll can make.
+    :param sourceCode: The assembly code to compile.
+    :param maxMemorySize: The maximum size of the memory buffer that the fasm.dll can use.
+    :param maxIterations: The maximum number of recursions that the fasm.dll can make.
 
     :return: The machine code as a bytes object.
     """
@@ -70,8 +70,13 @@ class FasmError(Exception):
                    "INVALID_ARGUMENT", "UNEXPECTED_CHARACTERS", "INCOMPLETE_MACRO", "INVALID_MACRO_ARGUMENTS",
                    "INVALID_FILE_FORMAT", "ERROR_READING_FILE", "FILE_NOT_FOUND"]
 
-    def __init__(self, fasm_buffer: object = None, asm_code: str = None):
-        err_code, = unpack_from('I', fasm_buffer)
+    def __init__(self, fasmBuffer: object = None, sourceCode: str = None):
+        """
+        An exception with detailed info about the FASM error.
+
+        :param fasmBuffer: The ctypes fasm buffer.
+        :param sourceCode: The source code containing assembly instruction.
+        """
 
         if -9 <= err_code <= 2:
             self._buffer = fasm_buffer

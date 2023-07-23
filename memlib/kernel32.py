@@ -18,6 +18,7 @@ def GetLastError() -> int:
 
     :returns: The return value is the calling thread's last-error code.
     """
+
     return _GetLastError()
 
 
@@ -31,19 +32,20 @@ def FormatMessageW(flags: int, src: object, msgId: int, langId: int, buffer: Arr
     sequences if requested.
 
     :param flags: The formatting options, and how to interpret the lpSource parameter.
-    :param src: The location of the message definition.
-    :param msgId: The message identifier for the requested message.
-    :param langId: The language identifier for the requested message.
+    :param source: The location of the message definition.
+    :param messageId: The message identifier for the requested message.
+    :param languageId: The language identifier for the requested message.
     :param buffer: A pointer to a buffer that receives the null-terminated string that specifies the formatted message.
     :param size: If the FORMAT_MESSAGE_ALLOCATE_BUFFER flag is not set, this parameter specifies the size of the
                  output buffer, in TCHARs. If FORMAT_MESSAGE_ALLOCATE_BUFFER is set, this parameter specifies the
                  minimum number of TCHARs to allocate for an output buffer.
-    :param args: An array of values that are used as insert values in the formatted message.
+    :param arguments: An array of values that are used as insert values in the formatted message.
     :returns: If the function succeeds, the return value is the number of TCHARs stored in the output buffer, excluding
-                the terminating null character. If the function fails, the return value is zero. To get extended error
-                information, call GetLastError.
+              the terminating null character. If the function fails, the return value is zero. To get extended error
+              information, call GetLastError.
     """
     return _FormatMessageW(flags, src, msgId, langId, buffer, size, args)
+
 
 
 def CreateProcessW(name: Union[str, None], cmdl: str, pAttr: int, tAttr: int, inherit: bool, flags: int,
@@ -51,21 +53,21 @@ def CreateProcessW(name: Union[str, None], cmdl: str, pAttr: int, tAttr: int, in
     """
     Creates a new process and its primary thread. The new process runs in the security context of the calling process.
 
-    :param name: The name of the module to be executed.
-    :param cmdl: The command line to be executed.
-    :param pAttr: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle to the new
-                  process object can be inherited by child processes.
-    :param tAttr: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle to the new
-                  thread object can be inherited by child processes.
-    :param inherit: If this parameter is TRUE, each inheritable handle in the calling process is inherited by the new
-                    process.
-    :param flags: The flags that control the priority class and the creation of the process.
-    :param env: A pointer to the environment block for the new process.
-    :param currDir: The full path to the current directory for the process. f this parameter is NULL, the new process
-                    will have the same current drive and directory as the calling process.
+    :param applicationName: The name of the module to be executed.
+    :param commandLine: The command line to be executed.
+    :param processAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle
+                              to the new process object can be inherited by child processes.
+    :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle to
+                             the new thread object can be inherited by child processes.
+    :param inheritHandles: If this parameter is TRUE, each inheritable handle in the calling process is inherited by the
+                           new process.
+    :param creationFlags: The flags that control the priority class and the creation of the process.
+    :param environment: A pointer to the environment block for the new process.
+    :param currentDirectory: The full path to the current directory for the process. f this parameter is NULL, the new
+                             process will have the same current drive and directory as the calling process.
     :param startupInfo: A pointer to a StartupInfoW structure.
-    :param procInfo: A pointer to a PROCESS_INFORMATION structure that receives identification information about the new
-                     process.
+    :param processInformation: A pointer to a PROCESS_INFORMATION structure that receives identification information
+                               about the new process.
     :returns: If the function succeeds, the return value is TRUE, False otherwise. If the function fails, the return
               value is zero. To get extended error information, call GetLastError.
     """
@@ -77,7 +79,7 @@ def GetExitCodeProcess(hProc: int) -> int:
     """
     Retrieves the termination status of the specified process.
 
-    :param hProc: A handle to the process.
+    :param processHandle: A handle to the process.
     :returns: If the function succeeds, the return value is the termination status of the specified process. If the
               function fails, the return value is 0. To get extended error information, call GetLastError.
     """
@@ -94,9 +96,9 @@ def ResumeThread(hThread: int) -> int:
     Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is
     resumed.
 
-    :param hThread: A handle to the thread to be restarted.
+    :param threadHandle: A handle to the thread to be restarted.
     :returns: If the function succeeds, the return value is the thread's previous suspend count. If the function fails,
-                the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
+              the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
     """
     return _ResumeThread(hThread)
 
@@ -106,11 +108,11 @@ def OpenProcess(processId: int, inherit: bool, access: int) -> int:
     Opens an existing local process object.
 
     :param processId: The identifier of the local process to be opened.
-    :param inherit: If this value is TRUE, processes created by this process will inherit the handle. Otherwise, the
-                    processes do not inherit this handle.
-    :param access: The access to the process object.
+    :param inheritHandle: If this value is TRUE, processes created by this process will inherit the handle. Otherwise,
+                          the processes do not inherit this handle.
+    :param desiredAccess: The access to the process object.
     :returns: If the function succeeds, the return value is an open handle to the specified process. If the function
-             fails, the return value is NULL. To get extended error information, call GetLastError.
+              fails, the return value is NULL. To get extended error information, call GetLastError.
     """
 
     return _OpenProcess(access, inherit, processId)
@@ -132,15 +134,15 @@ def DuplicateHandle(hProc: int, hSrc: int, hProc2: int, hTar: Type[POINTER], acc
     """
     Duplicates an object handle.
 
-    :param hProc: A handle to the process with the handle to duplicate.
-    :param hSrc: The handle to be duplicated.
-    :param hProc2: A handle to the process that is to receive the duplicated handle.
-    :param hTar: A pointer to a variable that receives the duplicate handle.
-    :param acc: The access requested for the new handle.
-    :param inherit: A variable that indicates whether the handle is inheritable.
-    :param opt: Optional actions.
+    :param sourceProcessHandle: A handle to the process with the handle to duplicate.
+    :param sourceHandle: The handle to be duplicated.
+    :param targetProcessHandle: A handle to the process that is to receive the duplicated handle.
+    :param targetHandle: A pointer to a variable that receives the duplicate handle.
+    :param desiredAccess: The access requested for the new handle.
+    :param inheritHandle: A variable that indicates whether the handle is inheritable.
+    :param options: Optional actions.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
-             get extended error information, call GetLastError.
+              get extended error information, call GetLastError.
     """
 
     return _DuplicateHandle(hProc, hSrc, hProc2, hTar, acc, BOOL(inherit), opt)
@@ -150,8 +152,8 @@ def TerminateProcess(hProc: int, uExitCode: int) -> bool:
     """
     Terminates the specified process and all of its threads.
 
-    :param hProc: A handle to the process to be terminated.
-    :param uExitCode: The exit code to be used by the process and threads terminated as a result of this call.
+    :param processHandle: A handle to the process to be terminated.
+    :param exitCode: The exit code to be used by the process and threads terminated as a result of this call.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
               get extended error information, call GetLastError.
     """
@@ -187,8 +189,8 @@ def GetProcAddress(hModule: int, procName: str) -> int:
     """
     Retrieves the address of an exported function or variable from the specified dynamic-link library (DLL).
 
-    :param hModule: A handle to the DLL module that contains the function or variable.
-    :param procName: The function or variable name, or the function's ordinal value.
+    :param moduleHandle: A handle to the DLL module that contains the function or variable.
+    :param processName: The function or variable name, or the function's ordinal value.
     :returns: If the function succeeds, the return value is the address of the exported function or variable. If the
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
@@ -201,11 +203,12 @@ def ReadProcessMemory(hProc: int, address: int, buffer: object, size: int, bytes
     Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the
     operation fails.
 
-    :param hProc: A handle to the process with memory that is being read.
-    :param address: A pointer to the base address in the specified process from which to read.
+    :param processHandle: A handle to the process with memory that is being read.
+    :param baseAddress: A pointer to the base address in the specified process from which to read.
     :param buffer: A pointer to a buffer that receives the contents from the address space of the specified process.
     :param size: The number of bytes to be read from the specified process.
-    :param bytesRead: A pointer to a variable that receives the number of bytes transferred into the specified buffer.
+    :param numberOfBytesRead: A pointer to a variable that receives the number of bytes transferred into the specified
+                              buffer.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is 0
               (zero). To get extended error information, call GetLastError. The function fails if the requested read
               operation crosses into an area of the process that is inaccessible.
@@ -213,18 +216,19 @@ def ReadProcessMemory(hProc: int, address: int, buffer: object, size: int, bytes
     return _ReadProcessMemory(hProc, address, buffer, size, bytesRead)
 
 
+
 def WriteProcessMemory(hProc: int, address: int, buffer: object, size: int, bytesWritten: object) -> bool:
     """
     Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the
     operation fails.
 
-    :param hProc: A handle to the process with memory that is being read.
-    :param address: A pointer to the base address in the specified process from which to read.
+    :param processHandle: A handle to the process with memory that is being read.
+    :param baseAddress: A pointer to the base address in the specified process from which to read.
     :param buffer: A pointer to the buffer that contains data to be written in the address space of the specified
                    process.
     :param size: The number of bytes to be written to the specified process.
-    :param bytesWritten: A pointer to a variable that receives the number of bytes transferred into the specified
-                         process.
+    :param numberOfBytesWritten: A pointer to a variable that receives the number of bytes transferred into the
+                                 specified process.
     :returns: If the function fails, the return value is 0 (zero). To get extended error information, call GetLastError.
               The function fails if the requested read operation crosses into an area of the process that is
               inaccessible.
@@ -233,6 +237,7 @@ def WriteProcessMemory(hProc: int, address: int, buffer: object, size: int, byte
 
 
 def VirtualAlloc(address: int, size: int, alloc: int, prot: int) -> int:
+
     """
     Reserves, commits, or changes the state of a region of pages in the virtual address space of the calling process.
     Memory allocated by this function is automatically initialized to zero. To allocate memory in the address space of
@@ -241,12 +246,13 @@ def VirtualAlloc(address: int, size: int, alloc: int, prot: int) -> int:
     :param address: The starting address of the region to allocate.
     :param size: The size of the region, in bytes. If the lpAddress parameter is NULL, this value is rounded up to the
                  next page boundary.
-    :param alloc: The type of memory allocation.
-    :param prot: The memory protection for the region of pages to be allocated.
+    :param allocationType: The type of memory allocation.
+    :param protect: The memory protection for the region of pages to be allocated.
     :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
     return _VirtualAlloc(address, size, alloc, prot)
+
 
 
 def VirtualAllocEx(hProc: int, address: int, size: int, alloc: int, prot: int) -> int:
@@ -254,16 +260,17 @@ def VirtualAllocEx(hProc: int, address: int, size: int, alloc: int, prot: int) -
     Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
     process. The function initializes the memory it allocates to zero.
     
-    :param hProc: The handle to a process.
+    :param processHandle: The handle to a process.
     :param address: The pointer that specifies a desired starting address for the region of pages that you want to
                     allocate.
     :param size: The size of the region of memory to allocate, in bytes.
-    :param alloc: The type of memory allocation.
-    :param prot: The memory protection for the region of pages to be allocated.
+    :param allocationType: The type of memory allocation.
+    :param protect: The memory protection for the region of pages to be allocated.
     :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
     return _VirtualAllocEx(hProc, address, size, alloc, prot)
+
 
 
 def VirtualFree(address: int, size: int, freeType: int) -> bool:
@@ -286,7 +293,7 @@ def VirtualFreeEx(hProc: int, address: int, size: int, freeType: int) -> bool:
     Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
     process. The function initializes the memory it allocates to zero.
     
-    :param hProc: The handle to a process.
+    :param processHandle: The handle to a process.
     :param address: The pointer that specifies a desired starting address for the region of pages that you want to
                     allocate.
     :param size: The size of the region of memory to allocate, in bytes.
@@ -302,13 +309,13 @@ def VirtualProtectEx(hProc: int, address: int, size: int, newProt: int, oldProt:
     """
     Changes the protection on a region of committed pages in the virtual address space of a specified process.
     
-    :param hProc: A handle to the process whose memory protection is to be changed.
+    :param processHandle: A handle to the process whose memory protection is to be changed.
     :param address: A pointer to the base address of the region of pages whose access protection attributes are to be
                     changed.
     :param size: The size of the region whose access protection attributes are changed, in bytes.
-    :param newProt: The memory protection option.
-    :param oldProt: A pointer to a variable that receives the previous access protection of the first page in the
-                    specified region of pages.
+    :param newProtect: The memory protection option.
+    :param oldProtect: A pointer to a variable that receives the previous access protection of the first page in the
+                       specified region of pages.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
               To get extended error information, call GetLastError.
     """
@@ -320,12 +327,12 @@ def CreateFileMappingW(hFile: int, attributes: int, prot: int, sizeHi: int, size
     """
     Creates or opens a named or unnamed file mapping object for a specified file.
 
-    :param hFile: A handle to the file from which to create a file mapping object.
-    :param attributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether a returned handle can be
-                       inherited by child processes.
-    :param prot: Specifies the page protection of the file mapping object.
-    :param sizeHi: The high-order DWORD of the maximum size of the file mapping object.
-    :param sizeLo: The low-order DWORD of the maximum size of the file mapping object.
+    :param fileHandle: A handle to the file from which to create a file mapping object.
+    :param fileMappingAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether a returned handle
+                                  can be inherited by child processes.
+    :param protect: Specifies the page protection of the file mapping object.
+    :param maximumSizeHigh: The high-order DWORD of the maximum size of the file mapping object.
+    :param maximumSizeLow: The low-order DWORD of the maximum size of the file mapping object.
     :param name: The name of the file mapping object.
     :returns: If the function succeeds, the return value is a handle to the newly created file mapping object. If the
               object exists before the function call, the function returns a handle to the existing object (with its
@@ -346,11 +353,11 @@ def MapViewOfFile(hFile: int, access: int, offsetHi: int, offsetLo: int, length:
     """
     Maps a view of a file mapping into the address space of a calling process.
 
-    :param hFile: A handle to a file mapping object.
-    :param access: The type of access to a file mapping object, which determines the page protection of the pages.
-    :param offsetHi: A high-order DWORD of the file offset where the view begins.
-    :param offsetLo: A low-order DWORD of the file offset where the view is to begin.
-    :param length: The number of bytes of a file mapping to map to the view.
+    :param fileMappingObject: A handle to a file mapping object.
+    :param desiredAccess: The type of access to a file mapping object, which determines the page protection of the pages.
+    :param fileOffsetHigh: A high-order DWORD of the file offset where the view begins.
+    :param fileOffsetLow: A low-order DWORD of the file offset where the view is to begin.
+    :param numberOfBytesToMap: The number of bytes of a file mapping to map to the view.
     :returns: If the function succeeds, the return value is the starting address of the mapped view. If the function
               fails, the return value is NULL. To get extended error information, call GetLastError.
     """
@@ -362,7 +369,7 @@ def UnmapViewOfFile(address: int) -> bool:
     """
     Unmaps a mapped view of a file from the calling process's address space.
 
-    :param address: A pointer to the base address of the mapped view of a file that is to be unmapped.
+    :param baseAddress: A pointer to the base address of the mapped view of a file that is to be unmapped.
     :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
               To get extended error information, call GetLastError.
     """
@@ -375,19 +382,19 @@ def NtMapViewOfSection(hSec: int, hProc: int, base: object, zeroBits: int, size:
     """
     Maps a view of a section into the virtual address space of a subject process.
 
-    :param hSec: Handle to a section object.
-    :param hProc: Handle to the object that represents the process that the view should be mapped into.
-    :param base: Pointer to a variable that receives the base address of the view.
+    :param sectionHandle: Handle to a section object.
+    :param processHandle: Handle to the object that represents the process that the view should be mapped into.
+    :param baseAddress: Pointer to a variable that receives the base address of the view.
     :param zeroBits: Specifies the number of high-order address bits that must be zero in the base address of the
                      section view.
-    :param size: Specifies the size, in bytes, of the initially committed region of the view.
-    :param offset: A pointer to a variable that receives the offset, in bytes, from the beginning of the section to the
-                   view.
+    :param commitSize: Specifies the size, in bytes, of the initially committed region of the view.
+    :param sectionOffset: A pointer to a variable that receives the offset, in bytes, from the beginning of the section
+                          to the view.
     :param viewSize: A pointer to a SIZE_T variable.
-    :param inherit: Specifies how the view is to be shared with child processes.
-    :param alloc: Specifies a set of flags that describes the type of allocation to be performed for the specified
-                  region of pages.
-    :param prot: Specifies the type of protection for the region of initially committed pages.
+    :param inheritDisposition: Specifies how the view is to be shared with child processes.
+    :param allocationType: Specifies a set of flags that describes the type of allocation to be performed for the
+                           specified region of pages.
+    :param win32Protect: Specifies the type of protection for the region of initially committed pages.
     :returns: True if the function succeeds, False otherwise.
     """
 
@@ -396,11 +403,12 @@ def NtMapViewOfSection(hSec: int, hProc: int, base: object, zeroBits: int, size:
 
 
 def NtUnmapViewOfSection(hSec: int, address: int) -> bool:
+
     """
     Unmaps a view of a section from the virtual address space of a subject process.
 
-    :param hSec: Handle to a process object that was previously passed to NtMapViewOfSection.
-    :param address: Pointer to the base virtual address of the view to unmap.
+    :param processHandle: Handle to a process object that was previously passed to NtMapViewOfSection.
+    :param baseAddress: Pointer to the base virtual address of the view to unmap.
     :returns: True if the function succeeds, False otherwise.
     """
 
@@ -412,12 +420,12 @@ def NtQueryInformationProcess(hProc: int, procInfoClass: object, procInfo: objec
     """
     Retrieves information about the specified process.
 
-    :param hProc: A handle to the process for which information is to be retrieved.
-    :param procInfoClass: The type of process information to be retrieved.
-    :param procInfo: A pointer to a buffer supplied by the calling application into which the function writes the
-                     requested information.
-    :param infoLen: The size of the buffer pointed to by the ProcessInformation parameter, in bytes.
-    :param outLen: A pointer to a variable in which the function returns the size of the requested information.
+    :param processHandle: A handle to the process for which information is to be retrieved.
+    :param processInformationClass: The type of process information to be retrieved.
+    :param processInformation: A pointer to a buffer supplied by the calling application into which the function writes
+                               the requested information.
+    :param processInformationLength: The size of the buffer pointed to by the ProcessInformation parameter, in bytes.
+    :param returnLength: A pointer to a variable in which the function returns the size of the requested information.
     :returns: True if the function succeeds, False otherwise.
     """
 
@@ -429,7 +437,7 @@ def NtSuspendProcess(hProc: int) -> bool:
     """
     Suspend the target process.
 
-    :param hProc: A handle to the process to be suspended.
+    :param processHandle: A handle to the process to be suspended.
     :returns: True if the function succeeds, False otherwise.
     """
 
@@ -441,7 +449,7 @@ def NtResumeProcess(hProc: int) -> bool:
     """
     Resume the target process.
 
-    :param hProc: A handle to the process to be resumed.
+    :param processHandle: A handle to the process to be resumed.
     :returns: True if the function succeeds, False otherwise.
     """
 
@@ -454,7 +462,8 @@ def CreateToolhelp32Snapshot(flags: int, processId: int) -> int:
     Takes a snapshot of the specified processes, as well as the heaps, modules, and threads used by these processes.
 
     :param flags: The portions of the system to be included in the snapshot.
-    :param processId: The process identifier of the process to be included in the snapshot.
+    :param th32ProcessId: The process identifier of the process to be included in the snapshot. This parameter can be
+                          zero to indicate the current process.
     :returns: If the function succeeds, it returns an open handle to the specified snapshot.
     """
 
@@ -465,7 +474,8 @@ def Process32Next(hSnapshot: int, lppe: object) -> bool:
     """
     Retrieves information about the next process recorded in a system snapshot.
 
-    :param hSnapshot: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot function.
+    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
+                           function.
     :param lppe: A pointer to a PROCESSENTRY32 structure.
     :returns: Returns TRUE if the next entry of the process list has been copied to the buffer or FALSE otherwise.
     """
@@ -477,7 +487,8 @@ def Process32First(hSnapshot: int, lppe: object) -> bool:
     """
     Retrieves information about the first process encountered in a system snapshot.
 
-    :param hSnapshot: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot function.
+    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
+                           function.
     :param lppe: A pointer to a PROCESSENTRY32 structure.
     :returns: Returns TRUE if the first entry of the process list has been copied to the buffer or FALSE otherwise.
     """
@@ -489,7 +500,8 @@ def Module32Next(hSnapshot: int, lpme: object) -> bool:
     """
     Retrieves information about the next module associated with a process or thread.
 
-    :param hSnapshot: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot function.
+    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
+                           function.
     :param lpme: A pointer to a MODULEENTRY32 structure.
     :returns: Returns TRUE if the next entry of the module list has been copied to the buffer or FALSE otherwise.
     """
@@ -501,7 +513,8 @@ def Module32First(hSnapshot: int, lpme: object) -> bool:
     """
     Retrieves information about the first module associated with a process.
 
-    :param hSnapshot: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot function.
+    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
+                           function.
     :param lpme: A pointer to a MODULEENTRY32 structure.
     :returns: Returns TRUE if the first entry of the module list has been copied to the buffer or FALSE otherwise.
     """
@@ -513,13 +526,8 @@ def GetStdHandle(stdIdentifier: int) -> int:
     """
     Retrieves a handle to the specified standard device (standard input, standard output, or standard error).
 
-    :param stdIdentifier: The standard device identifier:\n
-                          0 - Handle to the standard input device
-                          1 - Handle to the standard output device
-                          2 - Handle to the standard error device"""
-
-    if not (0 <= stdIdentifier < 3):
-        raise ValueError("stdIdentifier must be 0, 1 or 2.")
+    :param stdHandle: The standard device identifier. Can be STD_INPUT_HANDLE, STD_OUTPUT_HANDLE or STD_ERROR_HANDLE.
+    """
 
     return _GetStdHandle(stdIdentifier)
 
@@ -528,13 +536,13 @@ def QueryFullProcessImageNameW(hProc: int, dwFlags: int, lpExeName: object, lpdw
     """
     Retrieves the full name of the executable image for the specified process.
 
-    :param hProc: A handle to the process.
-    :param dwFlags: This parameter can be one of the following values:\n
+    :param processHandle: A handle to the process.
+    :param flags: This parameter can be one of the following values:\n
                     0 - The name should use the Win32 path format.\n
                     1 - The name should use the native system path format.
-    :param lpExeName: A pointer to a buffer that receives the full path to the executable image.
-    :param lpdwSize: On input, specifies the size of the lpExeName buffer, in characters. On success, receives the
-                     number of characters written to the buffer, not including the null-terminating character.
+    :param exeName: A pointer to a buffer that receives the full path to the executable image.
+    :param ptrSize: On input, specifies the size of the lpExeName buffer, in characters. On success, receives the
+                    number of characters written to the buffer, not including the null-terminating character.
     :returns: True if the function succeeds, False otherwise.
     """
 

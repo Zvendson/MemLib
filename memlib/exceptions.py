@@ -1,6 +1,7 @@
 """
 :platform: Windows
 """
+
 from ctypes.wintypes import WCHAR
 
 import memlib.kernel32
@@ -28,14 +29,14 @@ class Win32Exception(RuntimeError):
 
     def GetErrorCode(self) -> int:
         """
-        :returns: Windows error code.
+        :returns: The error code.
         """
 
         return self._error
 
     def GetErrorMessage(self) -> str:
         """
-        :returns: Windows error message of the error code.
+        :returns: The error message of the error code.
         """
 
         return self._msg
