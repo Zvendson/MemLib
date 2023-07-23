@@ -4,14 +4,8 @@
 
 from __future__ import annotations
 
-from ctypes import wintypes
-from ctypes import (
-    Structure, WINFUNCTYPE, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long, c_size_t, c_uint,
-    c_ulong,
-    c_ulonglong,
-    c_ushort,
-    c_void_p, c_wchar, c_wchar_p, c_ubyte,
-)
+from ctypes import Structure, WINFUNCTYPE, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long, \
+    c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, wintypes
 from ctypes.wintypes import (
     BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, MAX_PATH, PBYTE, UINT, ULONG,
     WORD, WPARAM,
@@ -19,28 +13,17 @@ from ctypes.wintypes import (
 from typing import Any
 
 # noinspection PyProtectedMember
-from _ctypes import Array, _Pointer, sizeof, _SimpleCData
+from _ctypes import Array, _Pointer, sizeof
+
+from memlib.ANSI import (
+    BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO, GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE, STRAW,
+    WHITE,
+)
+
+
 
 # redeclaring, because ctypes made BYTE a signed value, which is incorrect.
 wintypes.BYTE = c_ubyte
-
-
-def __RGB2AnsiCodeFG(red: int, green: int, blue: int) -> str:
-    return f"\033[38;2;{red};{green};{blue}m"
-
-# https://www.color-blindness.com/color-name-hue/
-ANSIFG_SAFETY_ORANGE = __RGB2AnsiCodeFG(255, 111, 0)
-ANSIFG_ELECTRIC_BLUE = __RGB2AnsiCodeFG(135, 239, 255)
-ANSIFG_HELIOTROPE = __RGB2AnsiCodeFG(230, 130, 255)
-ANSIFG_GRANNY_SMITH_APPLE = __RGB2AnsiCodeFG(155, 230, 142)
-ANSIFG_FLAMENCO = __RGB2AnsiCodeFG(232, 152, 77)
-ANSIFG_BRINK_PINK = __RGB2AnsiCodeFG(250, 102, 129)
-ANSIFG_GREY = __RGB2AnsiCodeFG(120, 120, 120)
-ANSIFG_STRAW = __RGB2AnsiCodeFG(217, 187, 134)
-ANSIFG_WHITE = __RGB2AnsiCodeFG(255, 255, 255)
-ANSIFG_JADE = __RGB2AnsiCodeFG(0, 199, 103)
-
-ANSI_END = "\033[0m"
 
 
 def _ctype_get_array_type(ctype: Any):
@@ -66,7 +49,7 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
         ctype = _ctype_get_array_type(ctype)
 
         if colorized:
-            extra = f'[{ANSIFG_ELECTRIC_BLUE}{int(arr_size / sizeof(ctype))}{ANSI_END}]'
+            extra = f'[{ELECTRIC_BLUE}{int(arr_size / sizeof(ctype))}{END}]'
         else:
             extra = f'[{int(arr_size / sizeof(ctype))}]'
 
@@ -75,8 +58,8 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
     color = ""
     endcolor = ""
     if colorized:
-        color = ANSIFG_STRAW
-        endcolor = ANSI_END
+        color = STRAW
+        endcolor = END
 
     isPointer = _ctype_get_is_pointer(ctype)
 
@@ -121,7 +104,7 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
 
     name = color + name + endcolor
     if isPointer and colorized:
-        name += ANSIFG_BRINK_PINK + '*' + ANSI_END
+        name += BRINK_PINK + '*' + END
     elif isPointer:
         name += '*'
 
@@ -131,7 +114,7 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
 def _ctype_get_format(ctype, color: str = "") -> str:
     endcolor = ""
     if color != "":
-        endcolor = ANSI_END
+        endcolor = END
 
     cname = ctype.__name__
     if _ctype_get_is_pointer(ctype):
@@ -169,34 +152,34 @@ def _ctype_get_color(ctype) -> str:
     cname = ctype.__name__
 
     if _ctype_get_is_pointer(ctype):
-        return ANSIFG_BRINK_PINK
+        return BRINK_PINK
 
     if c_byte.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_ubyte.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_ushort.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_ulong.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_void_p.__name__ in cname:
-        return ANSIFG_BRINK_PINK
+        return BRINK_PINK
     if c_size_t.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_uint.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_ulonglong.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_long.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_int.__name__ in cname:
-        return ANSIFG_ELECTRIC_BLUE
+        return ELECTRIC_BLUE
     if c_float.__name__ in cname:
-        return ANSIFG_HELIOTROPE
+        return HELIOTROPE
     if c_double.__name__ in cname:
-        return ANSIFG_HELIOTROPE
+        return HELIOTROPE
 
-    return ANSIFG_GRANNY_SMITH_APPLE
+    return GRANNY_SMITH_APPLE
 
 
 def _ctype_format_value(cvalue, ctype, colorized: bool = False) -> str:
@@ -274,8 +257,8 @@ class Struct(Structure):
             address = addressof(self)
 
         if colorized:
-            out = ANSIFG_JADE + out + ANSI_END + f"({ANSIFG_FLAMENCO}{addrName}{ANSI_END}={ANSIFG_BRINK_PINK}0" \
-                                                 f"x{address:X}{ANSI_END}"
+            out = JADE + out + END + f"({FLAMENCO}{addrName}{END}={BRINK_PINK}0" \
+                                                 f"x{address:X}{END}"
         else:
             out += f'({addrName}=0x{address:X}'
 
@@ -283,14 +266,14 @@ class Struct(Structure):
             if isinstance(self.IDENTIFIER, list) or isinstance(self.IDENTIFIER, tuple):
                 for key, fmt in self.IDENTIFIER:
                     if colorized:
-                        out += f", {ANSIFG_FLAMENCO}{key}{ANSI_END}={ANSIFG_WHITE}{fmt % getattr(self, key)}{ANSI_END}"
+                        out += f", {FLAMENCO}{key}{END}={WHITE}{fmt % getattr(self, key)}{END}"
                     else:
                         out += f', {key}={fmt % getattr(self, key)}'
 
         size = sizeof(self)
         if colorized:
-            out += f', {ANSIFG_FLAMENCO}Size{ANSI_END}={ANSIFG_ELECTRIC_BLUE}0x{size:X}{ANSI_END}/' \
-                   f'{ANSIFG_ELECTRIC_BLUE}{size}{ANSI_END})'
+            out += f', {FLAMENCO}Size{END}={ELECTRIC_BLUE}0x{size:X}{END}/' \
+                   f'{ELECTRIC_BLUE}{size}{END})'
         else:
             out += f', Size=0x{size}/{size})'
 
@@ -344,9 +327,9 @@ class Struct(Structure):
 
                 if colorized:
                     spaces = vartype_len - len(_ctype_get_name(vartype)) + 2
-                    out += f"{address + localoffset:X}:{' ' * Indention}    {ANSIFG_GREY}|{offset:04X}|{ANSI_END}  " \
-                           f"{vartype_name} " + " " * spaces + f"{ANSIFG_WHITE}" \
-                           f"{varname:{varname_len}}{ANSI_END} = {value}\n"
+                    out += f"{address + localoffset:X}:{' ' * Indention}    {GREY}|{offset:04X}|{END}  " \
+                           f"{vartype_name} " + " " * spaces + f"{WHITE}" \
+                           f"{varname:{varname_len}}{END} = {value}\n"
 
                 else:
                     out += f"{address + localoffset:X}:{' ' * Indention}    |{offset:04X}|  " \
@@ -354,13 +337,13 @@ class Struct(Structure):
 
                 if isFirst and Indention:
                     isFirst = False
-                    out = out.rstrip('\n') + f" {ANSIFG_GREY}// Start: {self.ToString()}{ANSI_END}\n"
+                    out = out.rstrip('\n') + f" {GREY}// Start: {self.ToString()}{END}\n"
 
                 offset += sizeof(vartype)
                 localoffset += sizeof(vartype)
 
         if Indention:
-            return out.rstrip('\n') + f" {ANSIFG_GREY}// End: {self.__class__.__name__ + ANSI_END}"
+            return out.rstrip('\n') + f" {GREY}// End: {self.__class__.__name__ + END}"
         else:
             return out.rstrip('\n')
 

@@ -7,16 +7,23 @@
 
 from ctypes import byref
 from ctypes.wintypes import DWORD, HANDLE, LARGE_INTEGER, LPVOID, ULONG
-from typing import Union
+from typing import List
 
-import memlib.constants
-import memlib.exceptions
-import memlib.kernel32
-import memlib.process
-import memlib.structs
+from memlib.constants import (
+    DUPLICATE_CLOSE_SOURCE, DUPLICATE_SAME_ACCESS, FILE_MAP_EXECUTE, FILE_MAP_WRITE, PAGE_EXECUTE_READWRITE,
+    SECTION_INHERIT_VIEW_UNMAP,
+)
+from memlib.exceptions import Win32Exception
+from memlib.kernel32 import (
+    CloseHandle, CreateFileMappingW, DuplicateHandle, MapViewOfFile, NtMapViewOfSection,
+    NtUnmapViewOfSection, UnmapViewOfFile,
+)
+from memlib.process import Process
+from memlib.structs import Struct
 
 
-class SharedMemoryBuffer(memlib.structs.Struct):
+
+class SharedMemoryBuffer(Struct):
     """
     SharedMemoryBuffer is a structure that contains the information about the shared memory.
 
@@ -51,13 +58,9 @@ class SharedMemoryBuffer(memlib.structs.Struct):
         :returns: True if the SharedMemoryBuffer is valid, False otherwise.
         """
 
-        if self.Handle is None:
+        if not self.HandleEx:
             return False
-        if self.HandleEx is None:
-            return False
-        if self.BaseAddress is None:
-            return False
-        if self.BaseAddressEx is None:
+        if not self.BaseAddressEx:
             return False
 
         return True
@@ -75,13 +78,12 @@ class SharedMemory:
         :raises ValueError: If the process is None.
         """
 
-    def __init__(self, process: memlib.process.Process):
         if process is None:
             raise ValueError("'process' cannot be None.")
 
-        self._process = process
-        self._memBuffer: Union[SharedMemoryBuffer, None] = None
-        self._storedAt = None
+        self._process: Process                        = process
+        self._memoryBuffer: SharedMemoryBuffer | None = None
+        self._bufferAddress: int                      = 0
 
     def CanReconnect(self, address: int) -> bool:
         """
@@ -110,41 +112,25 @@ class SharedMemory:
         if size < 0:
             raise ValueError(f"invalid size: 0x{size:X}")
 
-        mapping = SharedMemoryBuffer()
-        mapping.SizeHigh = size >> 32 & 0xFFFFFFFF
-        mapping.SizeLow = size & 0xFFFFFFFF
+        mapping: SharedMemoryBuffer = SharedMemoryBuffer()
+        mapping.SizeHigh            = size >> 32 & 0xFFFFFFFF
+        mapping.SizeLow             = size & 0xFFFFFFFF
 
-        # Handle
-        handle = memlib.kernel32.CreateFileMappingW(
-            -1,
-            0,
-            memlib.constants.PAGE_EXECUTE_READWRITE,
-            mapping.SizeHigh,
-            mapping.SizeLow,
-            None
-        )
+        mapping.Handle = CreateFileMappingW(-1, 0, PAGE_EXECUTE_READWRITE, mapping.SizeHigh, mapping.SizeLow, None)
+        if not mapping.Handle:
+            raise Win32Exception()
 
-        if not handle:
-            raise memlib.exceptions.Win32Exception()
-        mapping.Handle = handle
-
-        # BaseAddress
-        mapping.BaseAddress = memlib.kernel32.MapViewOfFile(
-            mapping.Handle,
-            memlib.constants.FILE_MAP_EXECUTE | memlib.constants.FILE_MAP_WRITE,
-            0,
-            0,
-            0
-        )
-
+        mapping.BaseAddress = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
         if not mapping.BaseAddress:
-            memlib.kernel32.CloseHandle(mapping.Handle)
-            raise memlib.exceptions.Win32Exception()
+            error: Win32Exception = Win32Exception()
+            CloseHandle(mapping.Handle)
+            raise error
 
         # BaseAddressEx
-        procHandle = self._process.GetHandle()
-        void = LPVOID(0)
-        memlib.kernel32.NtMapViewOfSection(
+        procHandle: int = self._process.GetHandle()
+        void: LPVOID    = LPVOID(0)
+
+        NtMapViewOfSection(
             mapping.Handle,
             procHandle,
             byref(void),
@@ -152,40 +138,29 @@ class SharedMemory:
             0,
             byref(LARGE_INTEGER()),
             byref(ULONG()),
-            memlib.constants.SECTION_INHERIT_VIEW_UNMAP,
+            SECTION_INHERIT_VIEW_UNMAP,
             0,
-            memlib.constants.PAGE_EXECUTE_READWRITE
+            PAGE_EXECUTE_READWRITE
         )
-
         if not void.value:
-            error = memlib.exceptions.Win32Exception()
-            memlib.kernel32.UnmapViewOfFile(mapping.BaseAddress)
-            memlib.kernel32.CloseHandle(mapping.Handle)
+            error: Win32Exception = Win32Exception()
+            UnmapViewOfFile(mapping.BaseAddress)
+            CloseHandle(mapping.Handle)
             raise error
         mapping.BaseAddressEx = void.value
 
-        # HandleEx
-        handleEx = HANDLE()
-        memlib.kernel32.DuplicateHandle(
-            -1,
-            mapping.Handle,
-            procHandle,
-            handleEx,
-            0,
-            False,
-            memlib.constants.DUPLICATE_SAME_ACCESS
-        )
-
-        if not handleEx:
-            error = memlib.exceptions.Win32Exception()
-            memlib.kernel32.NtUnmapViewOfSection(procHandle, mapping.BaseAddressEx)
-            memlib.kernel32.UnmapViewOfFile(mapping.BaseAddress)
-            memlib.kernel32.CloseHandle(mapping.Handle)
+        handleEx: HANDLE = HANDLE()
+        duplicated: bool = DuplicateHandle(-1, mapping.Handle, procHandle, handleEx, 0, False, DUPLICATE_SAME_ACCESS)
+        if not handleEx or not duplicated:
+            error: Win32Exception = Win32Exception()
+            NtUnmapViewOfSection(procHandle, mapping.BaseAddressEx)
+            UnmapViewOfFile(mapping.BaseAddress)
+            CloseHandle(mapping.Handle)
             raise error
 
         mapping.HandleEx = handleEx
 
-        self._memBuffer = mapping
+        self._memoryBuffer = mapping
 
     def Connect(self, address: int) -> None:
         """
@@ -205,38 +180,22 @@ class SharedMemory:
             raise ValueError(f"Invalid SharedMemory stored at address 0x{address:X}.")
 
         # Handle
-        handle = HANDLE()
-        memlib.kernel32.DuplicateHandle(
-            self._process.GetHandle(),
-            mapping.HandleEx,
-            -1,
-            handle,
-            0,
-            False,
-            memlib.constants.DUPLICATE_SAME_ACCESS
-        )
-
-        if not handle:
-            raise memlib.exceptions.Win32Exception()
+        handle: HANDLE = HANDLE()
+        duplicated: bool = DuplicateHandle(self._process.GetHandle(), mapping.HandleEx, -1, handle, 0, False, DUPLICATE_SAME_ACCESS)
+        if not handle or duplicated:
+            raise Win32Exception()
         mapping.Handle = handle.value
 
         # BaseAddress
-        base = memlib.kernel32.MapViewOfFile(
-            mapping.Handle,
-            memlib.constants.FILE_MAP_EXECUTE | memlib.constants.FILE_MAP_WRITE,
-            0,
-            0,
-            0
-        )
-
+        base: int = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
         if not base:
-            error = memlib.exceptions.Win32Exception()
-            memlib.kernel32.CloseHandle(mapping.Handle)
+            error: Win32Exception = Win32Exception()
+            CloseHandle(mapping.Handle)
             raise error
         mapping.BaseAddress = base
 
-        self._memBuffer = mapping
-        self._storedAt = address
+        self._memoryBuffer  = mapping
+        self._bufferAddress = address
 
     def Destroy(self) -> None:
         """
@@ -251,39 +210,34 @@ class SharedMemory:
         :returns: None
         """
 
-        errors = []
-        procHandle = self._process.GetHandle()
-        handle = self._memBuffer.Handle
-        handleEx = self._memBuffer.HandleEx
-        baseAddr = self._memBuffer.BaseAddress
-        baseAddrEx = self._memBuffer.BaseAddressEx
+        errors: List[Win32Exception] = list()
+        procHandle: int              = self._process.GetHandle()
+        handle: int                  = self._memoryBuffer.Handle
+        handleEx: int                = self._memoryBuffer.HandleEx
+        baseAddr: int                = self._memoryBuffer.BaseAddress
+        baseAddrEx: int              = self._memoryBuffer.BaseAddressEx
 
-        if baseAddr and not memlib.kernel32.UnmapViewOfFile(self._memBuffer.BaseAddress):
-            errors.append(memlib.exceptions.Win32Exception())
-            print("err1")
+        if baseAddr and not UnmapViewOfFile(self._memoryBuffer.BaseAddress):
+            errors.append(Win32Exception())
 
-        if handle and not memlib.kernel32.CloseHandle(self._memBuffer.Handle):
-            errors.append(memlib.exceptions.Win32Exception())
+        if handle and not CloseHandle(self._memoryBuffer.Handle):
+            errors.append(Win32Exception())
 
-        if baseAddrEx and self._memBuffer.BaseAddressEx and not memlib.kernel32.NtUnmapViewOfSection(procHandle, baseAddrEx):
-            errors.append(memlib.exceptions.Win32Exception())
+        if baseAddrEx and self._memoryBuffer.BaseAddressEx and not NtUnmapViewOfSection(procHandle, baseAddrEx):
+            errors.append(Win32Exception())
 
-        closed = memlib.kernel32.DuplicateHandle(
-            procHandle,
-            handleEx,
-            -1,
-            None,
-            0,
-            False,
-            memlib.constants.DUPLICATE_CLOSE_SOURCE
-        )
-
+        closed: bool = DuplicateHandle(procHandle, handleEx, -1, None, 0, False, DUPLICATE_CLOSE_SOURCE)
         if handleEx and not closed:
-            errors.append(memlib.exceptions.Win32Exception())
+            errors.append(Win32Exception())
 
         if len(errors):
             fmtError = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
             raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
+
+        self._memoryBuffer.Handle        = 0
+        self._memoryBuffer.HandleEx      = 0
+        self._memoryBuffer.BaseAddress   = 0
+        self._memoryBuffer.BaseAddressEx = 0
 
     def Store(self, address: int) -> bool:
         """
@@ -294,7 +248,7 @@ class SharedMemory:
         """
 
         if self._process.WriteStruct(address, self.GetBuffer()):
-            self._storedAt = address
+            self._bufferAddress = address
             return True
 
         return False
@@ -306,58 +260,58 @@ class SharedMemory:
         :returns: True if the shared memory buffer was freed successfully, False otherwise.
         """
 
-        return self._process.ZeroMemory(self._storedAt, self._memBuffer.GetSize())
+        return self._process.ZeroMemory(self._bufferAddress, self._memoryBuffer.GetSize())
 
     def GetHandle(self) -> int:
         """
         :returns: The handle of the shared memory of the python process.
         """
 
-        return self._memBuffer.Handle
+        return self._memoryBuffer.Handle
 
     def GetHandleEx(self) -> int:
         """
         :returns: The handle of the shared memory of the target process.
         """
-        return self._memBuffer.HandleEx
 
+        return self._memoryBuffer.HandleEx
 
     def GetBaseAddress(self) -> int:
         """
         :returns: The base address of the shared memory of the python process.
         """
 
-        return self._memBuffer.BaseAddress
+        return self._memoryBuffer.BaseAddress
 
     def GetBaseAddressEx(self) -> int:
         """
         :returns: The base address of the shared memory of the target process.
         """
 
-        return self._memBuffer.BaseAddressEx
+        return self._memoryBuffer.BaseAddressEx
 
     def GetSizeHigh(self) -> int:
         """
         :returns: The high size of the shared memory.
         """
 
-        return self._memBuffer.SizeHigh
+        return self._memoryBuffer.SizeHigh
 
     def GetSizeLow(self) -> int:
         """
         :returns: The low size of the shared memory.
         """
 
-        return self._memBuffer.SizeLow
+        return self._memoryBuffer.SizeLow
 
     def GetBuffer(self) -> SharedMemoryBuffer:
         """
         :returns: A reference to the shared memory buffer.
         """
 
-        return self._memBuffer
+        return self._memoryBuffer
 
-    def GetProcess(self) -> memlib.process.Process:
+    def GetProcess(self) -> Process:
         """
         :returns: A reference to the target process.
         """
@@ -365,7 +319,7 @@ class SharedMemory:
         return self._process
 
     def __str__(self) -> str:
-        return f'SharedMemory(Address=0x{self._memBuffer.BaseAddress:X} ' \
+        return f'SharedMemory(Address=0x{self._memoryBuffer.BaseAddress:X} ' \
                f'Process={self._process.GetProcessId()} ' \
                f'at 0x{self.GetBaseAddressEx():X})'
 

@@ -1,11 +1,61 @@
 """
 :platform: Windows
 """
-from typing import Any
+
+from typing import Any, TYPE_CHECKING, Tuple
 # noinspection PyCompatibility
 from winreg import CloseKey, OpenKeyEx, QueryValueEx, SetValueEx
 
-# copied the constants, cause importing winreg causes a compatibility error but its a bug.
+
+if TYPE_CHECKING:
+    # noinspection PyCompatibility
+    from winreg import HKEYType
+
+def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
+    """
+    Get a value from the registry.
+
+    :param key: The HKEY type
+    :param key_path: The path to the key
+    :param key_name: The name of the key
+    :returns: The value of the key
+    """
+
+    try:
+        keyHandle: HKEYType = OpenKeyEx(key, key_path)
+    except FileNotFoundError:
+        return None
+
+    try:
+        value: Tuple[Any, int] = QueryValueEx(keyHandle, key_name)
+    except FileNotFoundError:
+        CloseKey(keyHandle)
+        return None
+
+    CloseKey(keyHandle)
+    return value[0]
+
+
+def SetRegistryValue(key: int, key_path: str, key_name: str, key_type: int, value: str) -> None:
+    """
+    Set a value in the registry.
+
+    :param key: The HKEY type
+    :param key_path: The path to the key
+    :param key_name: The name of the key
+    :param key_type: The type of the key
+    :param value: The value of the key
+    :returns: None
+    """
+
+    keyHandle: HKEYType = OpenKeyEx(key, key_path, 0, KEY_ALL_ACCESS)
+
+    SetValueEx(keyHandle, key_name, 0, key_type, value)
+
+    if keyHandle:
+        CloseKey(keyHandle)
+
+# copied the constants from winreg, cause importing winreg causes a compatibility error but its a bug.
 HKEY_CLASSES_ROOT = 2147483648
 
 HKEY_CURRENT_CONFIG = 2147483653
@@ -101,46 +151,3 @@ REG_SZ = 1
 
 REG_WHOLE_HIVE_VOLATILE = 1
 
-
-def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
-    """
-    Get a value from the registry.
-
-    :param key: The HKEY type
-    :param key_path: The path to the key
-    :param key_name: The name of the key
-    :returns: The value of the key
-    """
-    try:
-        gw = OpenKeyEx(key, key_path)
-    except FileNotFoundError:
-        return None
-
-    try:
-        value = QueryValueEx(gw, key_name)
-    except FileNotFoundError:
-        CloseKey(gw)
-        return None
-
-    CloseKey(gw)
-    return value[0]
-
-
-def SetRegistryValue(key: int, key_path: str, key_name: str, key_type: int, value: str):
-    """
-    Set a value in the registry.
-
-    :param key: The HKEY type
-    :param key_path: The path to the key
-    :param key_name: The name of the key
-    :param key_type: The type of the key
-    :param value: The value of the key
-    :returns: None
-    """
-
-    gw = OpenKeyEx(key, key_path, 0, KEY_ALL_ACCESS)
-
-    SetValueEx(gw, key_name, 0, key_type, value)
-
-    if gw:
-        CloseKey(gw)

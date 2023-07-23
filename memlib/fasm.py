@@ -1,16 +1,17 @@
 """
 :platform: Windows
 """
-from ctypes import WinDLL, addressof
+
+from ctypes import Array, CDLL, WinDLL, addressof
 from ctypes.wintypes import CHAR, INT, LPSTR
 from os import path
 from struct import unpack_from
+from typing import Any, List, Tuple
 
 
-_fasm_directory = path.dirname(__file__)
-_fasm_path = path.join(_fasm_directory, 'fasm.dll')
-
-_FASM = WinDLL(_fasm_path)
+_FASM_DIRECTORY: str = path.dirname(__file__)
+_FASM_PATH: str      = path.join(_FASM_DIRECTORY, 'fasm.dll')
+_FASM: CDLL          = WinDLL(_FASM_PATH)
 
 
 def GetVersion() -> str:
@@ -18,12 +19,12 @@ def GetVersion() -> str:
     Returns the version of FASM.
     """
 
-    ver = _FASM.fasm_GetVersion()
-    ver = str(ver & 0xFFFF), str(ver >> 16)
-    return 'FASM v' + '.'.join(ver)
+    fasmVersion = _FASM.fasm_GetVersion()
+    fasmVersion = str(fasmVersion & 0xFFFF), str(fasmVersion >> 16)
+    return 'FASM v' + '.'.join(fasmVersion)
 
 
-def Compile(src: str, mem_size: int = 0x5E8000, max_passes: int = 100) -> bytes:
+def Compile(sourceCode: str, maxMemorySize: int = 0x5E8000, maxIterations: int = 100) -> bytes:
     """
     Takes a string of assembly code and compiles it during runtime.
 
@@ -34,19 +35,18 @@ def Compile(src: str, mem_size: int = 0x5E8000, max_passes: int = 100) -> bytes:
     :return: The machine code as a bytes object.
     """
 
-    asm_src = LPSTR(src.encode('ascii'))
-    buf = (CHAR * mem_size)()
+    assemblySource = LPSTR(sourceCode.encode('ascii'))
+    outputBuffer = (CHAR * maxMemorySize)()
 
-    err = _FASM.fasm_Assemble(asm_src, buf, mem_size, max_passes, 0)
+    errorCode = _FASM.fasm_Assemble(assemblySource, outputBuffer, maxMemorySize, maxIterations, 0)
 
-    if err:
-        raise FasmError(buf, src)
+    if errorCode:
+        raise FasmError(outputBuffer, sourceCode)
 
-    size, addr = unpack_from('II', buf, 4)
+    size, address = unpack_from('II', outputBuffer, 4)
+    offset = address - addressof(outputBuffer)
 
-
-    offset = addr - addressof(buf)
-    return bytes(buf)[offset:offset + size]
+    return bytes(outputBuffer)[offset:offset + size]
 
 
 class FasmError(Exception):
@@ -78,48 +78,53 @@ class FasmError(Exception):
         :param sourceCode: The source code containing assembly instruction.
         """
 
-        if -9 <= err_code <= 2:
-            self._buffer = fasm_buffer
-            self._asm_code = asm_code
-            self._name = "%s(%d)" % (FasmError.CODE_NAMES[err_code + 9], err_code)
-            self._msg = self._format_error(err_code)
+        errorCode, = unpack_from('I', fasmBuffer)
+
+        if -9 <= errorCode <= 2:
+            self._fasmBuffer = fasmBuffer
+            self._sourceCode = sourceCode
+            self._errorName = "%s(%d)" % (FasmError.CODE_NAMES[errorCode + 9], errorCode)
+            self._errorMessage = self._format_error(errorCode)
         else:
-            self._name = "UNKNOWN ERROR(%d)" % err_code
-            self._msg = ""
+            self._errorName = "UNKNOWN ERROR(%d)" % errorCode
+            self._errorMessage = ""
             return
 
     def __str__(self):
         return repr(self)
 
     def __repr__(self) -> str:
-        return "%s -> %s" % (self._name, self._msg)
+        return "%s -> %s" % (self._errorName, self._errorMessage)
 
-    def _format_error(self, code: int) -> str:
-        if code != 2:
+    def _format_error(self, errorCode: int) -> str:
+        if errorCode != 2:
             return ""
 
-        error, error_info_ptr = unpack_from('iI', self._buffer, 4)
-        error_buffer = (INT * 4).from_address(error_info_ptr)
+        bufferInfo: Tuple[Any, ...] = unpack_from('iI', self._fasmBuffer, 4)
+        error: int         = bufferInfo[0]
+        infoPtr: int       = bufferInfo[1]
+        errorBuffer: Array = (INT * 4).from_address(infoPtr)
 
         if -141 <= error <= -101:
-            error_info = unpack_from('iiii', error_buffer)
+            errorInfo: Tuple[Any, ...] = unpack_from('iiii', errorBuffer)
+            outString: str             = FasmError.ERROR_NAMES[error + 141]
 
-            out = FasmError.ERROR_NAMES[error + 141]
-
-            line = error_info[1] - 1
-            lines = self._asm_code.splitlines()
+            line: int        = errorInfo[1] - 1
+            lines: List[str] = self._sourceCode.splitlines()
 
             if 0 < line <= len(lines):
-                out += f"\n    -> Line: {line}"
-                out += "\n    -> ASM:"
+                outString += f"\n    -> Line: {line}"
+                outString += "\n    -> ASM:"
+
                 for i in range(line - 5, line + 6):
                     if i < 0 or i >= len(lines):
                         continue
-                    if i == line:
-                        out += f"\nERROR -> [{i}] " + lines[i]
-                    else:
-                        out += f"\n         [{i}] " + lines[i]
 
-            return out
+                    if i == line:
+                        outString += f"\nERROR -> [{i}] " + lines[i]
+                    else:
+                        outString += f"\n         [{i}] " + lines[i]
+
+            return outString
 
         return ""

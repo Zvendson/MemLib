@@ -7,11 +7,12 @@ from __future__ import annotations
 import struct
 from ctypes.wintypes import BYTE, DWORD
 
-import memlib.process
-import memlib.structs
+from memlib.process import Process
+from memlib.structs import Struct
 
 
-class HookBuffer(memlib.structs.Struct):
+
+class HookBuffer(Struct):
     """
     A buffer structure containing necessary infos about a hook. It can be stored in a process to guarantee that it
     can be restored when python crashes.
@@ -40,37 +41,37 @@ class Hook:
     """
 
     def __init__(self, *,
-                 process: memlib.process.Process,
-                 srcAddr: int,
-                 dstAddr: int,
-                 enable: bool = False,
-                 bufferAddr: int = 0):
-        self._proc    = process
-        self._srcAddr = srcAddr
-        self._dstAddr = dstAddr
-        self._opcode  = struct.pack('=Bi', 0xE9, dstAddr - srcAddr - 0x0005)
-        self._enabled = enable
-        self._bufferAddr = bufferAddr
-        self._buffer  = None
+                 process: Process,
+                 sourceAddress: int,
+                 destinationAddress: int,
+                 enableHook: bool = False,
+                 bufferAddress: int = 0):
+        self._process: Process          = process
+        self._srcAddress: int           = sourceAddress
+        self._dstAddress: int           = destinationAddress
+        self._opcode: bytes             = struct.pack('=Bi', 0xE9, destinationAddress - sourceAddress - 0x0005)
+        self._enabled: bool             = enableHook
+        self._bufferAddress: int        = bufferAddress
+        self._buffer: HookBuffer | None = None
 
-        originalOpcode = process.Read(srcAddr, 5)
-        buffer         = struct.pack('=5BII', *originalOpcode, srcAddr, dstAddr)
+        originalOpcode: bytes = self._process.Read(sourceAddress, 5)
+        buffer: bytes         = struct.pack('=5BII', *originalOpcode, sourceAddress, destinationAddress)
 
-        if bufferAddr:
-            self._buffer = process.ReadStruct(bufferAddr, HookBuffer)
+        if bufferAddress:
+            self._buffer = self._process.ReadStruct(bufferAddress, HookBuffer)
 
         if self._buffer is None or self._buffer.SourceAddress == 0:
             self._buffer = HookBuffer.from_buffer_copy(buffer)
-            self._buffer.AddressEx = bufferAddr
+            self._buffer.AddressEx = bufferAddress
 
         if originalOpcode == self._opcode:
             self._enabled = True
 
-        self.Store(bufferAddr)
-        self.Enable(enable)
+        self.Store(bufferAddress)
+        self.Enable(enableHook)
 
     @classmethod
-    def FromStoredBuffer(cls, process: memlib.process.Process, storeBufferAddress: int = 0) -> Hook:
+    def FromStoredBuffer(cls, process: Process, bufferAddress: int = 0) -> Hook:
         """
         Creates a hook instance from target address.
 
@@ -79,23 +80,19 @@ class Hook:
         :returns: the hook instance.
         """
 
-        buffer: HookBuffer = process.ReadStruct(storeBufferAddress, HookBuffer)
+        buffer: HookBuffer = process.ReadStruct(bufferAddress, HookBuffer)
 
-        print(buffer.ToPrettyString(True))
-
-        hook = cls(
+        return cls(
             process=process,
-            srcAddr=buffer.SourceAddress,
-            dstAddr=buffer.TargetAddress,
-            bufferAddr=storeBufferAddress,
+            sourceAddress=buffer.SourceAddress,
+            destinationAddress=buffer.TargetAddress,
+            bufferAddress=bufferAddress,
         )
 
-        return hook
-
     def __str__(self):
-        return f"Jump(Source=0x{self._srcAddr:08X}, Target=0x{self._dstAddr:08X}, Storage=" \
+        return f"Jump(Source=0x{self._srcAddress:08X}, Target=0x{self._dstAddress:08X}, Storage=" \
                f"0x{self._buffer.GetAddress():08X}, Jump='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
-               f"='{bytes(self._buffer.OriginalOpcode).hex(' ').upper()}', Process={self._proc.GetProcessId()})"
+               f"='{bytes(self._buffer.OriginalOpcode).hex(' ').upper()}', Process={self._process.GetProcessId()})"
 
     def __repr__(self):
         return str(self)
@@ -105,21 +102,21 @@ class Hook:
         :returns: The address where the hook is or will be written.
         """
 
-        return self._srcAddr
+        return self._srcAddress
 
     def GetDestinationAddress(self) -> int:
         """
         :returns: The target address of the jump-call.
         """
 
-        return self._dstAddr
+        return self._dstAddress
 
-    def GetProcess(self) -> memlib.process.Process:
+    def GetProcess(self) -> Process:
         """
         :returns: the process the hook is written in.
         """
 
-        return self._proc
+        return self._process
 
     def GetBuffer(self) -> HookBuffer:
         """
@@ -135,7 +132,7 @@ class Hook:
 
         return self._enabled
 
-    def Enable(self, enable: bool) -> None:
+    def Enable(self, enableHook: bool) -> None:
         """
         Enables or disables the hook.
 
@@ -143,15 +140,15 @@ class Hook:
                            restore the jump to the original opcode.
         """
 
-        if self._enabled == enable:
+        if self._enabled == enableHook:
             return
 
-        self._enabled = enable
+        self._enabled = enableHook
 
-        if enable:
-            self._proc.Write(self._srcAddr, self._opcode)
+        if enableHook:
+            self._process.Write(self._srcAddress, self._opcode)
         else:
-            self._proc.Write(self._srcAddr, bytes(self._buffer.OriginalOpcode))
+            self._process.Write(self._srcAddress, bytes(self._buffer.OriginalOpcode))
 
     def Toggle(self) -> None:
         """
@@ -160,7 +157,7 @@ class Hook:
 
         self.Enable(not self._enabled)
 
-    def Store(self, address: int) -> bool:
+    def Store(self, bufferAddress: int) -> bool:
         """
         Stores the buffer at the specific address
 
@@ -168,8 +165,8 @@ class Hook:
         :return: True if it could store it successfully, False otherwise.
         """
 
-        if address:
-            self._bufferAddr = address
-            return self._proc.WriteStruct(self._bufferAddr, self._buffer)
+        if bufferAddress:
+            self._bufferAddr = bufferAddress
+            return self._process.WriteStruct(self._bufferAddr, self._buffer)
 
         return False

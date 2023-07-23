@@ -8,12 +8,23 @@
 from ctypes import POINTER, byref, windll
 from ctypes.wintypes import ATOM, BOOL, DWORD, HANDLE, HWND, INT, LONG, LPARAM, LPCSTR, LPCWSTR, LPVOID, UINT, WPARAM
 
-import memlib.structs
+from memlib.structs import MSG, WNDCLASS
 
 
-def CreateWindowExA(dwExStyle: int, lpClassName: bytes, lpWindowName: bytes,
-                   dwStyle: int, X: int, Y: int, nWidth: int, nHeight: int,
-                   hWndParent: int, hMenu: int, hInstance: int, lpParam: int) -> int:
+
+def CreateWindowExA(
+        exStyle: int,
+        className: bytes,
+        windowName: bytes,
+        style: int,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        wndParent: int,
+        menuHandle: int,
+        instanceHandle: int,
+        param: int) -> int:
     """
     Creates an overlapped, pop-up, or child window with an extended window style; otherwise, this function is identical
     to the CreateWindow function. For more information about creating a window and for full descriptions of the other
@@ -40,10 +51,22 @@ def CreateWindowExA(dwExStyle: int, lpClassName: bytes, lpWindowName: bytes,
              value is 0. To get extended error information, call GetLastError.
     """
 
-    return _CreateWindowExA(dwExStyle, lpClassName, lpWindowName, dwStyle, X, Y,
-                nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam)
+    return _CreateWindowExA(
+        exStyle,
+        className,
+        windowName,
+        style,
+        x,
+        y,
+        width,
+        height,
+        wndParent,
+        menuHandle,
+        instanceHandle,
+        param
+    )
 
-def DestroyWindow(hWnd: int) -> bool:
+def DestroyWindow(windowHandle: int) -> bool:
     """
     Destroys the specified window.
 
@@ -52,9 +75,9 @@ def DestroyWindow(hWnd: int) -> bool:
               To get extended error information, call GetLastError.
     """
 
-    return _DestroyWindow(hWnd)
+    return _DestroyWindow(windowHandle)
 
-def RegisterClassA(lpWndClass: memlib.structs.WNDCLASS) -> int:
+def RegisterClassA(wndClass: WNDCLASS) -> int:
     """
     Registers a window class for subsequent use in calls to the CreateWindow or CreateWindowEx function.
 
@@ -68,10 +91,10 @@ def RegisterClassA(lpWndClass: memlib.structs.WNDCLASS) -> int:
               GetLastError.
     """
 
-    return _RegisterClassA(byref(lpWndClass))
+    return _RegisterClassA(byref(wndClass))
 
 
-def GetMessageA(lpMsg: POINTER(memlib.structs.MSG), hWnd: int, wMsgFilterMin: int, wMsgFilterMax: int) -> bool:
+def GetMessageA(msg: POINTER(MSG), windowHandle: int, msgFilterMin: int, msgFilterMax: int) -> bool:
     """
     Retrieves a message from the calling thread's message queue. The function dispatches incoming sent messages until
     a posted message is available for retrieval. Unlike GetMessage, the PeekMessage function does not wait for a
@@ -89,10 +112,10 @@ def GetMessageA(lpMsg: POINTER(memlib.structs.MSG), hWnd: int, wMsgFilterMin: in
              retrieves the WM_QUIT message, the return value is zero. If there is an error, the return value is -1.
     """
 
-    return _GetMessageA(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax)
+    return _GetMessageA(msg, windowHandle, msgFilterMin, msgFilterMax)
 
 
-def TranslateMessage(lpMsg: POINTER(memlib.structs.MSG)) -> bool:
+def TranslateMessage(lpMsg: POINTER(MSG)) -> bool:
     """
     Translates virtual-key messages into character messages. The character messages are posted to the calling thread's
     message queue, to be read the next time the thread calls the GetMessage or PeekMessage function.
@@ -108,7 +131,7 @@ def TranslateMessage(lpMsg: POINTER(memlib.structs.MSG)) -> bool:
     return _TranslateMessage(lpMsg)
 
 
-def DispatchMessageA(lpMsg: POINTER(memlib.structs.MSG)) -> int:
+def DispatchMessageA(msg: POINTER(MSG)) -> int:
     """
     Dispatches a message to a window procedure. It is typically used to dispatch a message retrieved by the GetMessage
     function.
@@ -121,10 +144,10 @@ def DispatchMessageA(lpMsg: POINTER(memlib.structs.MSG)) -> int:
               message being dispatched, the return value generally is ignored.
     """
 
-    return _DispatchMessageA(lpMsg)
+    return _DispatchMessageA(msg)
 
 
-def PostQuitMessage(nExitCode: int) -> None:
+def PostQuitMessage(exitCode: int) -> None:
     """
     Indicates to the system that a thread has made a request to terminate (quit). It is typically used in response to a
     WM_DESTROY message.
@@ -135,10 +158,10 @@ def PostQuitMessage(nExitCode: int) -> None:
     :param exitCode: The application exit code. This value is used as the wParam parameter of the WM_QUIT message.
     """
 
-    _PostQuitMessage(nExitCode)
+    _PostQuitMessage(exitCode)
 
 
-def PostMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
+def PostMessageA(windowHandle: int, msg: int, wParam: int, lParam: int) -> bool:
     """
     Places (posts) a message in the message queue associated with the thread that created the specified window and
     returns without waiting for the thread to process the message. To post a message in the message queue associated
@@ -154,10 +177,10 @@ def PostMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
               To get extended error information, call GetLastError.
     """
 
-    return _PostMessageA(hWnd, Msg, wParam, lParam)
+    return _PostMessageA(windowHandle, msg, wParam, lParam)
 
 
-def SendMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
+def SendMessageA(windowHandle: int, msg: int, wParam: int, lParam: int) -> bool:
     """
     Sends the specified message to a window or windows. The SendMessage function calls the window procedure for the
     specified window and does not return until the window procedure has processed the message.
@@ -171,10 +194,10 @@ def SendMessageA(hWnd: int, Msg: int, wParam: int, lParam: int) -> bool:
     :returns: The return value specifies the result of the message processing; it depends on the message sent.
     """
 
-    return _SendMessageA(hWnd, Msg, wParam, lParam)
+    return _SendMessageA(windowHandle, msg, wParam, lParam)
 
 
-def DefWindowProcA(hWnd: int, Msg: int, wParam: int, lParam: int) -> int:
+def DefWindowProcA(windowHandle: int, msg: int, wParam: int, lParam: int) -> int:
     """
     Calls the default window procedure to provide default processing for any window messages that an application does
     not process. This function ensures that every message is processed. DefWindowProc is called with the same parameters
@@ -192,11 +215,11 @@ def DefWindowProcA(hWnd: int, Msg: int, wParam: int, lParam: int) -> int:
     :return: The return value is the result of the message processing and depends on the message.
     """
 
-    return _DefWindowProcA(hWnd, Msg, wParam, lParam)
+    return _DefWindowProcA(windowHandle, msg, wParam, lParam)
 
 
 
-def MessageBoxW(hWnd: int, text: str, caption: str, uType: int) -> int:
+def MessageBoxW(hwindowHandlend: int, text: str, caption: str, typeFlags: int) -> int:
     """
     Displays a modal dialog box that contains a system icon, a set of buttons, and a brief application-specific message,
     such as status or error information. The message box returns an integer value that indicates which button the user
@@ -220,7 +243,7 @@ def MessageBoxW(hWnd: int, text: str, caption: str, uType: int) -> int:
               <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw#return-value>`_
     """
 
-    return _MessageBoxW(hWnd, text, caption, uType)
+    return _MessageBoxW(hwindowHandlend, text, caption, typeFlags)
 
 
 # region Function bindings

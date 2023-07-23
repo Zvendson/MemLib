@@ -7,9 +7,11 @@ from ctypes.wintypes import (
     BOOL, DWORD, HANDLE, HMODULE, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
     PLARGE_INTEGER, PULONG, UINT, ULONG,
 )
-from typing import Type, Union
+from typing import Type
 
-from memlib.structs import PROCESSENTRY32, MODULEENTRY32
+from memlib.constants import STATUS_SUCCESS
+from memlib.structs import MODULEENTRY32, PROCESSENTRY32
+
 
 
 def GetLastError() -> int:
@@ -22,7 +24,14 @@ def GetLastError() -> int:
     return _GetLastError()
 
 
-def FormatMessageW(flags: int, src: object, msgId: int, langId: int, buffer: Array, size: int, args: object) -> int:
+def FormatMessageW(
+        flags: int,
+        source: object,
+        messageId: int,
+        languageId: int,
+        buffer: Array,
+        size: int,
+        arguments: object) -> int:
     """
     Formats a message string. The function requires a message definition as input. The message definition can come from
     a buffer passed into the function. It can come from a message table resource in an already-loaded module. Or the
@@ -44,12 +53,21 @@ def FormatMessageW(flags: int, src: object, msgId: int, langId: int, buffer: Arr
               the terminating null character. If the function fails, the return value is zero. To get extended error
               information, call GetLastError.
     """
-    return _FormatMessageW(flags, src, msgId, langId, buffer, size, args)
+
+    return _FormatMessageW(flags, source, messageId, languageId, buffer, size, arguments)
 
 
-
-def CreateProcessW(name: Union[str, None], cmdl: str, pAttr: int, tAttr: int, inherit: bool, flags: int,
-                   env: int, currDir: Union[str, None], startupInfo: object, procInfo: object) -> bool:
+def CreateProcessW(
+        applicationName: str | None,
+        commandLine: str,
+        processAttributes: int,
+        threadAttributes: int,
+        inheritHandles: bool,
+        creationFlags: int,
+        environment: int,
+        currentDirectory: str | None,
+        startupInfo: object,
+        processInformation: object) -> bool:
     """
     Creates a new process and its primary thread. The new process runs in the security context of the calling process.
 
@@ -72,10 +90,21 @@ def CreateProcessW(name: Union[str, None], cmdl: str, pAttr: int, tAttr: int, in
               value is zero. To get extended error information, call GetLastError.
     """
 
-    return _CreateProcessW(name, cmdl, pAttr, tAttr, BOOL(inherit), flags, env, currDir, startupInfo, procInfo)
+    return _CreateProcessW(
+        applicationName,
+        commandLine,
+        processAttributes,
+        threadAttributes,
+        BOOL(inheritHandles),
+        creationFlags,
+        environment,
+        currentDirectory,
+        startupInfo,
+        processInformation
+    )
 
 
-def GetExitCodeProcess(hProc: int) -> int:
+def GetExitCodeProcess(processHandle: int) -> int:
     """
     Retrieves the termination status of the specified process.
 
@@ -84,14 +113,14 @@ def GetExitCodeProcess(hProc: int) -> int:
               function fails, the return value is 0. To get extended error information, call GetLastError.
     """
     
-    exitCode = DWORD()
-    if _GetExitCodeProcess(hProc, byref(exitCode)):
+    exitCode: DWORD = DWORD()
+    if _GetExitCodeProcess(processHandle, byref(exitCode)):
         return exitCode.value
 
     return 0
 
 
-def ResumeThread(hThread: int) -> int:
+def ResumeThread(threadHandle: int) -> int:
     """
     Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is
     resumed.
@@ -100,10 +129,11 @@ def ResumeThread(hThread: int) -> int:
     :returns: If the function succeeds, the return value is the thread's previous suspend count. If the function fails,
               the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
     """
-    return _ResumeThread(hThread)
+
+    return _ResumeThread(threadHandle)
 
 
-def OpenProcess(processId: int, inherit: bool, access: int) -> int:
+def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
     """
     Opens an existing local process object.
 
@@ -115,7 +145,11 @@ def OpenProcess(processId: int, inherit: bool, access: int) -> int:
               fails, the return value is NULL. To get extended error information, call GetLastError.
     """
 
-    return _OpenProcess(access, inherit, processId)
+    handle: int | None = _OpenProcess(desiredAccess, inheritHandle, processId)
+    if handle is None:
+        handle = 0
+
+    return handle
 
 
 def CloseHandle(handle: int) -> bool:
@@ -130,7 +164,14 @@ def CloseHandle(handle: int) -> bool:
     return _CloseHandle(handle)
 
 
-def DuplicateHandle(hProc: int, hSrc: int, hProc2: int, hTar: Type[POINTER], acc: int, inherit: bool, opt: int) -> bool:
+def DuplicateHandle(
+        sourceProcessHandle: int,
+        sourceHandle: int,
+        targetProcessHandle: int,
+        targetHandle: Type[POINTER],
+        desiredAccess: int,
+        inheritHandle: bool,
+        options: int) -> bool:
     """
     Duplicates an object handle.
 
@@ -145,10 +186,18 @@ def DuplicateHandle(hProc: int, hSrc: int, hProc2: int, hTar: Type[POINTER], acc
               get extended error information, call GetLastError.
     """
 
-    return _DuplicateHandle(hProc, hSrc, hProc2, hTar, acc, BOOL(inherit), opt)
+    return _DuplicateHandle(
+        sourceProcessHandle,
+        sourceHandle,
+        targetProcessHandle,
+        targetHandle,
+        desiredAccess,
+        BOOL(inheritHandle),
+        options
+    )
 
 
-def TerminateProcess(hProc: int, uExitCode: int) -> bool:
+def TerminateProcess(processHandle: int, exitCode: int) -> bool:
     """
     Terminates the specified process and all of its threads.
 
@@ -158,7 +207,7 @@ def TerminateProcess(hProc: int, uExitCode: int) -> bool:
               get extended error information, call GetLastError.
     """
 
-    return _TerminateProcess(hProc, uExitCode)
+    return _TerminateProcess(processHandle, exitCode)
 
 
 def GetModuleHandleA(moduleName: str) -> int:
@@ -185,7 +234,7 @@ def GetModuleHandleW(moduleName: str) -> int:
     return _GetModuleHandleW(moduleName)
 
 
-def GetProcAddress(hModule: int, procName: str) -> int:
+def GetProcAddress(moduleHandle: int, processName: str) -> int:
     """
     Retrieves the address of an exported function or variable from the specified dynamic-link library (DLL).
 
@@ -195,10 +244,15 @@ def GetProcAddress(hModule: int, procName: str) -> int:
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
 
-    return _GetProcAddress(hModule, procName.encode('ascii'))
+    return _GetProcAddress(moduleHandle, processName.encode('ascii'))
 
 
-def ReadProcessMemory(hProc: int, address: int, buffer: object, size: int, bytesRead: object) -> bool:
+def ReadProcessMemory(
+        processHandle: int,
+        baseAddress: int,
+        buffer: object,
+        size: int,
+        numberOfBytesRead: object) -> bool:
     """
     Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the
     operation fails.
@@ -213,11 +267,16 @@ def ReadProcessMemory(hProc: int, address: int, buffer: object, size: int, bytes
               (zero). To get extended error information, call GetLastError. The function fails if the requested read
               operation crosses into an area of the process that is inaccessible.
     """
-    return _ReadProcessMemory(hProc, address, buffer, size, bytesRead)
+
+    return _ReadProcessMemory(processHandle, baseAddress, buffer, size, numberOfBytesRead)
 
 
-
-def WriteProcessMemory(hProc: int, address: int, buffer: object, size: int, bytesWritten: object) -> bool:
+def WriteProcessMemory(
+        processHandle: int,
+        baseAddress: int,
+        buffer: object,
+        size: int,
+        numberOfBytesWritten: object) -> bool:
     """
     Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the
     operation fails.
@@ -233,11 +292,11 @@ def WriteProcessMemory(hProc: int, address: int, buffer: object, size: int, byte
               The function fails if the requested read operation crosses into an area of the process that is
               inaccessible.
     """
-    return _WriteProcessMemory(hProc, address, buffer, size, bytesWritten)
+
+    return _WriteProcessMemory(processHandle, baseAddress, buffer, size, numberOfBytesWritten)
 
 
-def VirtualAlloc(address: int, size: int, alloc: int, prot: int) -> int:
-
+def VirtualAlloc(address: int, size: int, allocationType: int, protect: int) -> int:
     """
     Reserves, commits, or changes the state of a region of pages in the virtual address space of the calling process.
     Memory allocated by this function is automatically initialized to zero. To allocate memory in the address space of
@@ -251,11 +310,11 @@ def VirtualAlloc(address: int, size: int, alloc: int, prot: int) -> int:
     :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
-    return _VirtualAlloc(address, size, alloc, prot)
+
+    return _VirtualAlloc(address, size, allocationType, protect)
 
 
-
-def VirtualAllocEx(hProc: int, address: int, size: int, alloc: int, prot: int) -> int:
+def VirtualAllocEx(processHandle: int, address: int, size: int, allocationType: int, protect: int) -> int:
     """
     Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
     process. The function initializes the memory it allocates to zero.
@@ -269,8 +328,8 @@ def VirtualAllocEx(hProc: int, address: int, size: int, alloc: int, prot: int) -
     :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
-    return _VirtualAllocEx(hProc, address, size, alloc, prot)
 
+    return _VirtualAllocEx(processHandle, address, size, allocationType, protect)
 
 
 def VirtualFree(address: int, size: int, freeType: int) -> bool:
@@ -288,7 +347,7 @@ def VirtualFree(address: int, size: int, freeType: int) -> bool:
     return _VirtualFree(address, size, freeType)
 
 
-def VirtualFreeEx(hProc: int, address: int, size: int, freeType: int) -> bool:
+def VirtualFreeEx(processHandle: int, address: int, size: int, freeType: int) -> bool:
     """
     Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
     process. The function initializes the memory it allocates to zero.
@@ -302,10 +361,10 @@ def VirtualFreeEx(hProc: int, address: int, size: int, freeType: int) -> bool:
               function fails, the return value is NULL. To get extended error information, call GetLastError.
     """
 
-    return _VirtualFreeEx(hProc, address, size, freeType)
+    return _VirtualFreeEx(processHandle, address, size, freeType)
 
 
-def VirtualProtectEx(hProc: int, address: int, size: int, newProt: int, oldProt: object) -> bool:
+def VirtualProtectEx(processHandle: int, address: int, size: int, newProtect: int, oldProtect: object) -> bool:
     """
     Changes the protection on a region of committed pages in the virtual address space of a specified process.
     
@@ -320,10 +379,16 @@ def VirtualProtectEx(hProc: int, address: int, size: int, newProt: int, oldProt:
               To get extended error information, call GetLastError.
     """
 
-    return _VirtualProtectEx(hProc, address, size, newProt, oldProt)
+    return _VirtualProtectEx(processHandle, address, size, newProtect, oldProtect)
 
 
-def CreateFileMappingW(hFile: int, attributes: int, prot: int, sizeHi: int, sizeLo: int, name: Union[str, None]) -> int:
+def CreateFileMappingW(
+        fileHandle: int,
+        fileMappingAttributes: int,
+        protect: int,
+        maximumSizeHigh: int,
+        maximumSizeLow: int,
+        name: str | None) -> int:
     """
     Creates or opens a named or unnamed file mapping object for a specified file.
 
@@ -342,14 +407,19 @@ def CreateFileMappingW(hFile: int, attributes: int, prot: int, sizeHi: int, size
 
     if name is None:
         _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPVOID]
-        name = 0
+        name: int = 0
     else:
         _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPWSTR]
 
-    return _CreateFileMappingW(hFile, attributes, prot, sizeHi, sizeLo, name)
+    return _CreateFileMappingW(fileHandle, fileMappingAttributes, protect, maximumSizeHigh, maximumSizeLow, name)
 
 
-def MapViewOfFile(hFile: int, access: int, offsetHi: int, offsetLo: int, length: int) -> int:
+def MapViewOfFile(
+        fileMappingObject: int,
+        desiredAccess: int,
+        fileOffsetHigh: int,
+        fileOffsetLow: int,
+        numberOfBytesToMap: int) -> int:
     """
     Maps a view of a file mapping into the address space of a calling process.
 
@@ -362,10 +432,10 @@ def MapViewOfFile(hFile: int, access: int, offsetHi: int, offsetLo: int, length:
               fails, the return value is NULL. To get extended error information, call GetLastError.
     """
 
-    return _MapViewOfFile(hFile, access, offsetHi, offsetLo, length)
+    return _MapViewOfFile(fileMappingObject, desiredAccess, fileOffsetHigh, fileOffsetLow, numberOfBytesToMap)
 
 
-def UnmapViewOfFile(address: int) -> bool:
+def UnmapViewOfFile(baseAddress: int) -> bool:
     """
     Unmaps a mapped view of a file from the calling process's address space.
 
@@ -374,11 +444,20 @@ def UnmapViewOfFile(address: int) -> bool:
               To get extended error information, call GetLastError.
     """
 
-    return _UnmapViewOfFile(address)
+    return _UnmapViewOfFile(baseAddress)
 
 
-def NtMapViewOfSection(hSec: int, hProc: int, base: object, zeroBits: int, size: int,
-                       offset: object, viewSize: object, inherit: int, alloc: int, prot: int) -> int:
+def NtMapViewOfSection(
+        sectionHandle: int,
+        processHandle: int,
+        baseAddress: object,
+        zeroBits: int,
+        commitSize: int,
+        sectionOffset: object,
+        viewSize: object,
+        inheritDisposition: int,
+        allocationType: int,
+        win32Protect: int) -> int:
     """
     Maps a view of a section into the virtual address space of a subject process.
 
@@ -398,12 +477,23 @@ def NtMapViewOfSection(hSec: int, hProc: int, base: object, zeroBits: int, size:
     :returns: True if the function succeeds, False otherwise.
     """
 
-    NtStatus = _NtMapViewOfSection(hSec, hProc, base, zeroBits, size, offset, viewSize, inherit, alloc, prot)
-    return NtStatus == 0  # 0 is STATUS_SUCCESS
+    ntStatus: int = _NtMapViewOfSection(
+        sectionHandle,
+        processHandle,
+        baseAddress,
+        zeroBits,
+        commitSize,
+        sectionOffset,
+        viewSize,
+        inheritDisposition,
+        allocationType,
+        win32Protect
+    )
+
+    return ntStatus == STATUS_SUCCESS
 
 
-def NtUnmapViewOfSection(hSec: int, address: int) -> bool:
-
+def NtUnmapViewOfSection(processHandle: int, baseAddress: int) -> bool:
     """
     Unmaps a view of a section from the virtual address space of a subject process.
 
@@ -412,11 +502,16 @@ def NtUnmapViewOfSection(hSec: int, address: int) -> bool:
     :returns: True if the function succeeds, False otherwise.
     """
 
-    NtStatus = _NtUnmapViewOfSection(hSec, address)
-    return NtStatus == 0  # 0 is STATUS_SUCCESS
+    ntStatus: int = _NtUnmapViewOfSection(processHandle, baseAddress)
+    return ntStatus == STATUS_SUCCESS
 
 
-def NtQueryInformationProcess(hProc: int, procInfoClass: object, procInfo: object, infoLen: int, outLen: int) -> bool:
+def NtQueryInformationProcess(
+        processHandle: int,
+        processInformationClass: object,
+        processInformation: object,
+        processInformationLength: int,
+        returnLength: int) -> bool:
     """
     Retrieves information about the specified process.
 
@@ -429,11 +524,18 @@ def NtQueryInformationProcess(hProc: int, procInfoClass: object, procInfo: objec
     :returns: True if the function succeeds, False otherwise.
     """
 
-    NtStatus = _NtQueryInformationProcess(hProc, procInfoClass, procInfo, infoLen, outLen)
-    return NtStatus == 0
+    ntStatus: int = _NtQueryInformationProcess(
+        processHandle,
+        processInformationClass,
+        processInformation,
+        processInformationLength,
+        returnLength
+    )
+
+    return ntStatus == STATUS_SUCCESS
 
 
-def NtSuspendProcess(hProc: int) -> bool:
+def NtSuspendProcess(processHandle: int) -> bool:
     """
     Suspend the target process.
 
@@ -441,11 +543,11 @@ def NtSuspendProcess(hProc: int) -> bool:
     :returns: True if the function succeeds, False otherwise.
     """
 
-    NtStatus = _NtSuspendProcess(hProc)
-    return NtStatus == 0
+    ntStatus: int = _NtSuspendProcess(processHandle)
+    return ntStatus == STATUS_SUCCESS
 
 
-def NtResumeProcess(hProc: int) -> bool:
+def NtResumeProcess(processHandle: int) -> bool:
     """
     Resume the target process.
 
@@ -453,11 +555,11 @@ def NtResumeProcess(hProc: int) -> bool:
     :returns: True if the function succeeds, False otherwise.
     """
 
-    NtStatus = _NtResumeProcess(hProc)
-    return NtStatus == 0
+    ntStatus: int = _NtResumeProcess(processHandle)
+    return ntStatus == STATUS_SUCCESS
 
 
-def CreateToolhelp32Snapshot(flags: int, processId: int) -> int:
+def CreateToolhelp32Snapshot(flags: int, th32ProcessId: int) -> int:
     """
     Takes a snapshot of the specified processes, as well as the heaps, modules, and threads used by these processes.
 
@@ -467,10 +569,10 @@ def CreateToolhelp32Snapshot(flags: int, processId: int) -> int:
     :returns: If the function succeeds, it returns an open handle to the specified snapshot.
     """
 
-    return _CreateToolhelp32Snapshot(flags, processId)
+    return _CreateToolhelp32Snapshot(flags, th32ProcessId)
 
 
-def Process32Next(hSnapshot: int, lppe: object) -> bool:
+def Process32Next(snapshotHandle: int, lppe: object) -> bool:
     """
     Retrieves information about the next process recorded in a system snapshot.
 
@@ -480,10 +582,10 @@ def Process32Next(hSnapshot: int, lppe: object) -> bool:
     :returns: Returns TRUE if the next entry of the process list has been copied to the buffer or FALSE otherwise.
     """
 
-    return _Process32Next(hSnapshot, lppe)
+    return _Process32Next(snapshotHandle, lppe)
 
 
-def Process32First(hSnapshot: int, lppe: object) -> bool:
+def Process32First(snapshotHandle: int, lppe: object) -> bool:
     """
     Retrieves information about the first process encountered in a system snapshot.
 
@@ -493,10 +595,10 @@ def Process32First(hSnapshot: int, lppe: object) -> bool:
     :returns: Returns TRUE if the first entry of the process list has been copied to the buffer or FALSE otherwise.
     """
 
-    return _Process32First(hSnapshot, lppe)
+    return _Process32First(snapshotHandle, lppe)
 
 
-def Module32Next(hSnapshot: int, lpme: object) -> bool:
+def Module32Next(snapshotHandle: int, lpme: object) -> bool:
     """
     Retrieves information about the next module associated with a process or thread.
 
@@ -506,10 +608,10 @@ def Module32Next(hSnapshot: int, lpme: object) -> bool:
     :returns: Returns TRUE if the next entry of the module list has been copied to the buffer or FALSE otherwise.
     """
 
-    return _Module32Next(hSnapshot, lpme)
+    return _Module32Next(snapshotHandle, lpme)
 
 
-def Module32First(hSnapshot: int, lpme: object) -> bool:
+def Module32First(snapshotHandle: int, lpme: object) -> bool:
     """
     Retrieves information about the first module associated with a process.
 
@@ -519,20 +621,20 @@ def Module32First(hSnapshot: int, lpme: object) -> bool:
     :returns: Returns TRUE if the first entry of the module list has been copied to the buffer or FALSE otherwise.
     """
 
-    return _Module32First(hSnapshot, lpme)
+    return _Module32First(snapshotHandle, lpme)
 
 
-def GetStdHandle(stdIdentifier: int) -> int:
+def GetStdHandle(stdHandle: int) -> int:
     """
     Retrieves a handle to the specified standard device (standard input, standard output, or standard error).
 
     :param stdHandle: The standard device identifier. Can be STD_INPUT_HANDLE, STD_OUTPUT_HANDLE or STD_ERROR_HANDLE.
     """
 
-    return _GetStdHandle(stdIdentifier)
+    return _GetStdHandle(stdHandle)
 
 
-def QueryFullProcessImageNameW(hProc: int, dwFlags: int, lpExeName: object, lpdwSize: object) -> bool:
+def QueryFullProcessImageNameW(processHandle: int, flags: int, exeName: object, ptrSize: object) -> bool:
     """
     Retrieves the full name of the executable image for the specified process.
 
@@ -546,7 +648,7 @@ def QueryFullProcessImageNameW(hProc: int, dwFlags: int, lpExeName: object, lpdw
     :returns: True if the function succeeds, False otherwise.
     """
 
-    return _QueryFullProcessImageNameW(hProc, dwFlags, lpExeName, lpdwSize)
+    return _QueryFullProcessImageNameW(processHandle, flags, exeName, ptrSize)
 
 
 # region Function bindings

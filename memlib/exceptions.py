@@ -4,7 +4,8 @@
 
 from ctypes.wintypes import WCHAR
 
-import memlib.kernel32
+from memlib.kernel32 import FormatMessageW, GetLastError
+
 
 
 class Win32Exception(RuntimeError):
@@ -21,8 +22,8 @@ class Win32Exception(RuntimeError):
     """
 
     def __init__(self, errorCode: int = None, customMessage: str = None):
-        self._error: int = memlib.kernel32.GetLastError() if (errorCode is None) else errorCode
-        self._msg: str = customMessage
+        self._errorCode: int = GetLastError() if (errorCode is None) else errorCode
+        self._message: str = customMessage
 
         if customMessage is None:
             self.__FormatMessage()
@@ -32,17 +33,17 @@ class Win32Exception(RuntimeError):
         :returns: The error code.
         """
 
-        return self._error
+        return self._errorCode
 
     def GetErrorMessage(self) -> str:
         """
         :returns: The error message of the error code.
         """
 
-        return self._msg
+        return self._message
 
     def __str__(self) -> str:
-        return '%s (0x%08x)' % (self._msg, self._error)
+        return '%s (0x%08x)' % (self._message, self._errorCode)
 
     def __repr__(self) -> str:
         return 'Win32Exception(%s)' % str(self)
@@ -53,13 +54,13 @@ class Win32Exception(RuntimeError):
         while size < 0x10000:  # Found 0x10000 in C# std lib
             msgBuffer = (WCHAR * size)()
 
-            result = memlib.kernel32.FormatMessageW(0x200 | 0x1000 | 0x2000, None, self._error, 0, msgBuffer, size, None)
+            result = FormatMessageW(0x200 | 0x1000 | 0x2000, None, self._errorCode, 0, msgBuffer, size, None)
 
             if result > 0:
-                self._msg = msgBuffer[:result - 2]
+                self._message = msgBuffer[:result - 2]
                 return
 
-            if memlib.kernel32.GetLastError() != 0x7A:  # ERROR_INSUFFICIENT_BUFFER
+            if GetLastError() != 0x7A:  # ERROR_INSUFFICIENT_BUFFER
                 break
 
-        self._msg = 'Unknown Error'
+        self._message = 'Unknown Error'
