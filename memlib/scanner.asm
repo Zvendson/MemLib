@@ -3,10 +3,10 @@ use32
 
 
 ScanProc: ; (Pattern, Buffer)
-    push        ebp
-    mov         ebp, esp
-    sub         esp, 0x0008
-    push        ebx ecx edx esi edi
+    push        ebp                             ; start of building a stack fram
+    mov         ebp, esp                        ; storing the stack fram in ebp
+    sub         esp, 0x0008                     ; Adding space for local variables (8 bytes)
+    push        ebx ecx edx esi edi             ; store the registers on the stack
 
     mov         edx, DWORD [ebp + 0x0008]       ; edx    = Pattern (Struct Pointer)
     mov         eax, DWORD [edx]                ; offset = Pattern.Length
@@ -71,12 +71,13 @@ ScanProc: ; (Pattern, Buffer)
     xor         eax, eax                        ; return 0
 
 .exit:
-    test        eax, eax
-    jz          .skipOffset
-    add         eax, DWORD [ebp - 0x0004]
+    test        eax, eax                        ; checks if returnValue == 0
+    jz          .skipOffset                     ; if it is zero, goto .skipOffset
+    add         eax, DWORD [ebp - 0x0004]       ; if it is not zero add or subtract the offset of the pattern
 
 .skipOffset:
-    pop         edi esi edx ecx ebx             ; Cleanup
-    add         esp, 0x0008
-    leave
-    ret         0x8
+    pop         edi esi edx ecx ebx             ; restore the registers to the values before the function got called
+    add         esp, 0x0008                     ; Remove local variables
+    leave                                       ; leaves the stack frame
+    ret         0x8                             ; returns to the calling address. 0x8 cleans up 8 bytes on the stack
+                                                ; because we passed 2 parameters which are 2 pushes == 0x8 Bytes
