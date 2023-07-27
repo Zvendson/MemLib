@@ -1,0 +1,2 @@
+include MemLib/FASM.dll
+include MemLib/Scanner.asm
