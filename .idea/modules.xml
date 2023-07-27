@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/PyMemLib.iml" filepath="$PROJECT_DIR$/.idea/PyMemLib.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/MemLib.iml" filepath="$PROJECT_DIR$/.idea/MemLib.iml" />
     </modules>
   </component>
 </project>
