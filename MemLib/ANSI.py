@@ -14,6 +14,10 @@ def ForeRGB(red: int, green: int, blue: int) -> str:
     return f"\033[38;2;{red};{green};{blue}m"
 
 
+def BackRGB(red: int, green: int, blue: int) -> str:
+    return f"\033[48;2;{red};{green};{blue}m"
+
+
 def CursorPos(line: int, column: int) -> str:
     if not line and not column:
         return f"{ESC}[H"
