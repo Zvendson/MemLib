@@ -6,9 +6,8 @@ from ctypes import CFUNCTYPE, POINTER, addressof
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
 
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
-from MemLib.Exceptions import Win32Exception
 from MemLib.FlatAssembler import Compile
-from MemLib.Kernel32 import VirtualAlloc, VirtualFree
+from MemLib.Kernel32 import VirtualAlloc, VirtualFree, Win32Exception
 from MemLib.Structs import Struct
 
 

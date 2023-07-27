@@ -13,10 +13,9 @@ from MemLib.Constants import (
     DUPLICATE_CLOSE_SOURCE, DUPLICATE_SAME_ACCESS, FILE_MAP_EXECUTE, FILE_MAP_WRITE, PAGE_EXECUTE_READWRITE,
     SECTION_INHERIT_VIEW_UNMAP,
 )
-from MemLib.Exceptions import Win32Exception
 from MemLib.Kernel32 import (
     CloseHandle, CreateFileMappingW, DuplicateHandle, MapViewOfFile, NtMapViewOfSection,
-    NtUnmapViewOfSection, UnmapViewOfFile,
+    NtUnmapViewOfSection, UnmapViewOfFile, Win32Exception,
 )
 from MemLib.Process import Process
 from MemLib.Structs import Struct

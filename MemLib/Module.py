@@ -15,8 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from MemLib.Exceptions import Win32Exception
-from MemLib.Kernel32 import GetProcAddress
+from MemLib.Kernel32 import GetProcAddress, Win32Exception
 from MemLib.Structs import MODULEENTRY32
 
 

@@ -11,11 +11,12 @@ from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, STILL_ACTIVE, \
     TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS
 from MemLib.Decorators import RequireAdmin
-from MemLib.Exceptions import Win32Exception
-from MemLib.Kernel32 import CloseHandle, CreateToolhelp32Snapshot, GetExitCodeProcess, Module32First, Module32Next, \
-    NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next, \
-    QueryFullProcessImageNameW, ReadProcessMemory, TerminateProcess, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, \
-    WriteProcessMemory
+from MemLib.Kernel32 import (
+    CloseHandle, CreateToolhelp32Snapshot, GetExitCodeProcess, Module32First, Module32Next,
+    NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next,
+    QueryFullProcessImageNameW, ReadProcessMemory, TerminateProcess, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx,
+    Win32Exception, WriteProcessMemory,
+)
 from MemLib.Module import Module
 from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct
 

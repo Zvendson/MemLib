@@ -4,15 +4,12 @@
 
 from __future__ import annotations
 
-from ctypes import (
-    Structure, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long,
-    c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, memmove, wintypes,
+# noinspection PyProtectedMember
+from ctypes import (Array, Structure, _Pointer, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long,
+    c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, memmove, sizeof, wintypes
 )
 from ctypes.wintypes import CHAR
 from typing import Any
-
-# noinspection PyProtectedMember
-from _ctypes import Array, _Pointer, sizeof
 
 from MemLib.ANSI import (
     BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO, GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE, STRAW,
