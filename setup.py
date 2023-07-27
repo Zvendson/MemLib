@@ -1,13 +1,12 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 
 setup(
     name='MemLib',
     version='1.0.0',
-    packages=find_packages(where="MemLib"),
+    packages=['MemLib'],
     include_package_data=True,
-    package_dir={"": "MemLib"},
     url='https://github.com/Zvendson/PyMemLib',
     license='',
     author='Zvendson',
