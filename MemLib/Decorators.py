@@ -2,17 +2,37 @@
 :platform: Windows
 """
 
-import functools
 import inspect
 import warnings
 from ctypes import windll
+from functools import wraps
 from struct import calcsize
-from typing import Callable
+from time import time
+from typing import Any, Callable
 
 from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitException
 
 
 _STRING_TYPES = (type(b''), type(u''))
+
+
+def FuncTimer(function: Callable[[str], Any]) -> Callable:
+    @wraps(function)
+    def wrap(*args, **kwargs):
+        argstr = ", ".join(["%r" % a for a in args]) if args else ""
+        kwargstr = ", ".join(["%s=%r" % (k, v) for k, v in kwargs.items()]) \
+            if kwargs else ""
+        comma = ", " if (argstr and kwargstr) else ""
+        fargs = "%s(%s%s%s)" % (function.__name__, argstr, comma, kwargstr)
+
+        ts = time()
+        result = function(*args, **kwargs)
+        te = time()
+        print('%s took: %2.4f sec' % (fargs, te-ts))
+
+        return result
+
+    return wrap
 
 
 def Require32Bit(f: Callable) -> Callable:
@@ -68,7 +88,7 @@ def Deprecated(reason: Callable | str) -> Callable:
             else:
                 fmt1 = "Call to deprecated function {name} ({reason})."
 
-            @functools.wraps(func1)
+            @wraps(func1)
             def new_func1(*args, **kwargs):
                 warnings.simplefilter('always', DeprecationWarning)
                 warnings.warn(
@@ -100,7 +120,7 @@ def Deprecated(reason: Callable | str) -> Callable:
         else:
             fmt2 = "Call to deprecated function {name}."
 
-        @functools.wraps(func2)
+        @wraps(func2)
         def new_func2(*args, **kwargs):
             warnings.simplefilter('always', DeprecationWarning)
             warnings.warn(
