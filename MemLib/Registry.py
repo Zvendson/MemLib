@@ -6,15 +6,11 @@ from typing import Any, TYPE_CHECKING, Tuple
 # noinspection PyCompatibility
 from winreg import CloseKey, OpenKeyEx, QueryValueEx, SetValueEx
 
-from MemLib import Export
-
-
 
 if TYPE_CHECKING:
     # noinspection PyCompatibility
     from winreg import HKEYType
 
-@Export
 def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
     """
     Get a value from the registry.
@@ -40,7 +36,6 @@ def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
     return value[0]
 
 
-@Export
 def SetRegistryValue(key: int, key_path: str, key_name: str, key_type: int, value: str) -> None:
     """
     Set a value in the registry.
