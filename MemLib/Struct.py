@@ -180,13 +180,19 @@ class Struct(Structure):
 
                 if isFirst and Indention:
                     isFirst = False
-                    out = out.rstrip('\n') + f" {GREY}// Start: {self.ToString()}{END}\n"
+                    if colorized:
+                        out = out.rstrip('\n') + f" {GREY}// Start: {self.ToString()}{END}\n"
+                    else:
+                        out = out.rstrip('\n') + f" // Start: {self.ToString()}\n"
 
                 offset += sizeof(vartype)
                 localoffset += sizeof(vartype)
 
         if Indention:
-            return out.rstrip('\n') + f" {GREY}// End: {self.__class__.__name__ + END}"
+            if colorized:
+                return out.rstrip('\n') + f" {GREY}// End: {self.__class__.__name__ + END}"
+            else:
+                return out.rstrip('\n') + f" // End: {self.__class__.__name__}"
         else:
             return out.rstrip('\n')
 
