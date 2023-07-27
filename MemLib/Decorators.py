@@ -13,6 +13,7 @@ from typing import Any, Callable
 from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitException
 
 
+
 _STRING_TYPES = (type(b''), type(u''))
 
 

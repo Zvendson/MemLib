@@ -9,7 +9,7 @@ from ctypes import (
     c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, memmove, wintypes,
 )
 from ctypes.wintypes import CHAR
-from typing import Any, Type
+from typing import Any
 
 # noinspection PyProtectedMember
 from _ctypes import Array, _Pointer, sizeof
@@ -19,6 +19,7 @@ from MemLib.ANSI import (
     WHITE,
 )
 from MemLib.Decorators import Deprecated
+
 
 
 # redeclaring, because ctypes made BYTE a signed value, which is incorrect.

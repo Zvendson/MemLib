@@ -3,7 +3,9 @@
 """
 
 from ctypes.wintypes import WCHAR
+
 from MemLib.Kernel32 import FormatMessageW, GetLastError
+
 
 
 class Not32BitException(Exception):
