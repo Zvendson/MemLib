@@ -11,5 +11,6 @@ setup(
     author='Zvendson',
     author_email='',
     description='Library to interact with the windows API and ctypes.',
-    data_files=[('', ['MemLib/FASM.dll'])]
+    include_package_data=True,
+    package_data={'': ['MemLib/*.dll']},
 )
