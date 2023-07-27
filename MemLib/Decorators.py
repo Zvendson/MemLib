@@ -4,39 +4,17 @@
 
 import functools
 import inspect
-import sys
 import warnings
 from ctypes import windll
 from struct import calcsize
-from typing import Any, Callable
+from typing import Callable
 
 from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitException
 
 
-__all__ = ["Export"]
-
 _STRING_TYPES = (type(b''), type(u''))
 
 
-def Export(obj: Any) -> Any:
-    """
-    Simple decorator to add a function to the __all__ list.
-
-    :param obj: The object to export
-    :returns: The wrapped object.
-    """
-
-    mod = sys.modules[obj.__module__]
-
-    if hasattr(mod, '__all__'):
-        mod.__all__.append(obj.__name__)
-    else:
-        mod.__all__ = [obj.__name__]
-
-    return obj
-
-
-@Export
 def Require32Bit(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 32:
@@ -46,7 +24,6 @@ def Require32Bit(f: Callable) -> Callable:
     return wrapper
 
 
-@Export
 def Require64Bit(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 64:
@@ -56,7 +33,6 @@ def Require64Bit(f: Callable) -> Callable:
     return wrapper
 
 
-@Export
 def RequireAdmin(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if windll.shell32.IsUserAnAdmin() == 0:
@@ -66,7 +42,6 @@ def RequireAdmin(f: Callable) -> Callable:
     return wrapper
 
 
-@Export
 def Deprecated(reason: Callable | str) -> Callable:
     """
     This is a decorator which can be used to mark functions

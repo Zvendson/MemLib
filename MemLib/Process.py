@@ -8,6 +8,7 @@ from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 
+from MemLib import Export
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, STILL_ACTIVE, \
     TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS
 from MemLib.Decorators import RequireAdmin
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     T = TypeVar('T')
 
 
+@Export
 class Process:
     """
     Represents an interactable process.

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from MemLib import Export
 from MemLib.Kernel32 import GetProcAddress, Win32Exception
 from MemLib.Structs import MODULEENTRY32
 
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from MemLib.Process import Process
 
 
+@Export
 class Module:
     """
     :param module: The module buffer struct
