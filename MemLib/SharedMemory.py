@@ -9,17 +9,17 @@ from ctypes import byref
 from ctypes.wintypes import DWORD, HANDLE, LARGE_INTEGER, LPVOID, ULONG
 from typing import List
 
-from memlib.constants import (
+from MemLib.Constants import (
     DUPLICATE_CLOSE_SOURCE, DUPLICATE_SAME_ACCESS, FILE_MAP_EXECUTE, FILE_MAP_WRITE, PAGE_EXECUTE_READWRITE,
     SECTION_INHERIT_VIEW_UNMAP,
 )
-from memlib.exceptions import Win32Exception
-from memlib.kernel32 import (
+from MemLib.Exceptions import Win32Exception
+from MemLib.Kernel32 import (
     CloseHandle, CreateFileMappingW, DuplicateHandle, MapViewOfFile, NtMapViewOfSection,
     NtUnmapViewOfSection, UnmapViewOfFile,
 )
-from memlib.process import Process
-from memlib.structs import Struct
+from MemLib.Process import Process
+from MemLib.Structs import Struct
 
 
 

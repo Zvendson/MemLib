@@ -2,6 +2,8 @@
 :platform: Windows
 """
 
+from __future__ import annotations
+
 from ctypes import Array, POINTER, byref, windll
 from ctypes.wintypes import (
     BOOL, DWORD, HANDLE, HMODULE, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
@@ -9,8 +11,7 @@ from ctypes.wintypes import (
 )
 from typing import Type
 
-from memlib.constants import STATUS_SUCCESS
-from memlib.structs import MODULEENTRY32, PROCESSENTRY32
+from MemLib.Constants import STATUS_SUCCESS
 
 
 
@@ -765,19 +766,19 @@ _CreateToolhelp32Snapshot.argtypes = [DWORD, DWORD]
 _CreateToolhelp32Snapshot.restype = HANDLE
 
 _Process32Next = windll.kernel32.Process32Next
-_Process32Next.argtypes = [HANDLE, POINTER(PROCESSENTRY32)]
+_Process32Next.argtypes = [HANDLE, LPVOID]
 _Process32Next.restype = BOOL
 
 _Process32First = windll.kernel32.Process32First
-_Process32First.argtypes = [HANDLE, POINTER(PROCESSENTRY32)]
+_Process32First.argtypes = [HANDLE, LPVOID]
 _Process32First.restype = BOOL
 
 _Module32Next = windll.kernel32.Module32Next
-_Module32Next.argtypes = [HANDLE, POINTER(MODULEENTRY32)]
+_Module32Next.argtypes = [HANDLE, LPVOID]
 _Module32Next.restype = BOOL
 
 _Module32First = windll.kernel32.Module32First
-_Module32First.argtypes = [HANDLE, POINTER(MODULEENTRY32)]
+_Module32First.argtypes = [HANDLE, LPVOID]
 _Module32First.restype = BOOL
 
 _GetStdHandle = windll.kernel32.GetStdHandle

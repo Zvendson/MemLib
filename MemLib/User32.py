@@ -8,7 +8,7 @@
 from ctypes import POINTER, byref, windll
 from ctypes.wintypes import ATOM, BOOL, DWORD, HANDLE, HWND, INT, LONG, LPARAM, LPCSTR, LPCWSTR, LPVOID, UINT, WPARAM
 
-from memlib.structs import MSG, WNDCLASS
+from MemLib.Structs import MSG, WNDCLASS
 
 
 

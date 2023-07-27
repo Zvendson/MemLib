@@ -5,24 +5,24 @@ Describes an entry from a list of the modules belonging to the specified process
 
 .. warning::
   Don't instantiate this class.\n
-  Use the methods inside :py:class:`~eve.memlib.process.Process` to retrieve a Module object instead:\n
-  - :py:meth:`~eve.memlib.process.Process.GetModules`
-  - :py:meth:`~eve.memlib.process.Process.GetMainModule`
-  - :py:meth:`~eve.memlib.process.Process.GetModule`
+  Use the methods inside :py:class:`~eve.MemLib.process.Process` to retrieve a Module object instead:\n
+  - :py:meth:`~eve.MemLib.process.Process.GetModules`
+  - :py:meth:`~eve.MemLib.process.Process.GetMainModule`
+  - :py:meth:`~eve.MemLib.process.Process.GetModule`
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from memlib.exceptions import Win32Exception
-from memlib.kernel32 import GetProcAddress
-from memlib.structs import MODULEENTRY32
+from MemLib.Exceptions import Win32Exception
+from MemLib.Kernel32 import GetProcAddress
+from MemLib.Structs import MODULEENTRY32
 
 
 
 if TYPE_CHECKING:
-    from memlib.process import Process
+    from MemLib.Process import Process
 
 
 class Module:
@@ -98,7 +98,7 @@ class Module:
         """
         :returns: the size of Bytes of the module.
 
-        .. note:: :py:meth:`~eve.memlib.module.Module.GetBase` + :py:meth:`~eve.memlib.module.Module.GetSize` = end of
+        .. note:: :py:meth:`~eve.MemLib.module.Module.GetBase` + :py:meth:`~eve.MemLib.module.Module.GetSize` = end of
                   module's memory.
         """
 

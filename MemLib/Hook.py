@@ -7,8 +7,8 @@ from __future__ import annotations
 import struct
 from ctypes.wintypes import BYTE, DWORD
 
-from memlib.process import Process
-from memlib.structs import Struct
+from MemLib.Process import Process
+from MemLib.Structs import Struct
 
 
 

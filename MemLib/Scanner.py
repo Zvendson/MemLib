@@ -5,11 +5,11 @@
 from ctypes import CFUNCTYPE, POINTER, addressof
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
 
-from memlib.constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
-from memlib.exceptions import Win32Exception
-from memlib.fasm import Compile
-from memlib.kernel32 import VirtualAlloc, VirtualFree
-from memlib.structs import Struct
+from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
+from MemLib.Exceptions import Win32Exception
+from MemLib.FlatAssembler import Compile
+from MemLib.Kernel32 import VirtualAlloc, VirtualFree
+from MemLib.Structs import Struct
 
 
 
@@ -174,9 +174,9 @@ class BinaryScanner:
 
 
 if __name__ == '__main__':
-    # assemble scanner.asm
+    # assemble Scanner.asm
 
-    with open("scanner.asm") as asm:
+    with open("Scanner.asm") as asm:
         opcode = Compile(asm.read())
 
         t = opcode.hex().upper()
