@@ -88,11 +88,30 @@ class Struct(Structure):
 
         if self.IDENTIFIER is not None:
             if isinstance(self.IDENTIFIER, list) or isinstance(self.IDENTIFIER, tuple):
-                for key, fmt in self.IDENTIFIER:
+                for key in self.IDENTIFIER:
+                    for varname, vartype in self.GetFields():
+                        if key != varname:
+                            continue
+
+                        value = getattr(self, key, 0)
+                        value = _ctype_format_value(value, vartype, colorized)
+
+                        if colorized:
+                            out += f', {FLAMENCO}{key}{END}={value}'
+                        else:
+                            out += f', {key}={value}'
+
+            elif isinstance(self.IDENTIFIER, str):
+                for varname, vartype in self.GetFields():
+                    if self.IDENTIFIER != varname:
+                        continue
+
+                    value = getattr(self, self.IDENTIFIER, 0)
+                    value = _ctype_format_value(value, vartype, colorized)
                     if colorized:
-                        out += f", {FLAMENCO}{key}{END}={WHITE}{fmt % getattr(self, key)}{END}"
+                        out += f', {FLAMENCO}{self.IDENTIFIER}{END}={value}'
                     else:
-                        out += f', {key}={fmt % getattr(self, key)}'
+                        out += f', {self.IDENTIFIER}={value}'
 
         size = sizeof(self)
         if colorized:
