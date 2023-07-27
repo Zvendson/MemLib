@@ -10,7 +10,7 @@ from typing import Any, List, Tuple
 
 
 _FASM_DIRECTORY: str = path.dirname(__file__)
-_FASM_PATH: str      = path.join(_FASM_DIRECTORY, 'fasm.dll')
+_FASM_PATH: str      = path.join(_FASM_DIRECTORY, 'FASM.dll')
 _FASM: CDLL          = WinDLL(_FASM_PATH)
 
 
@@ -29,8 +29,8 @@ def Compile(sourceCode: str, maxMemorySize: int = 0x5E8000, maxIterations: int =
     Takes a string of assembly code and compiles it during runtime.
 
     :param sourceCode: The assembly code to compile.
-    :param maxMemorySize: The maximum size of the memory buffer that the fasm.dll can use.
-    :param maxIterations: The maximum number of recursions that the fasm.dll can make.
+    :param maxMemorySize: The maximum size of the memory buffer that the FASM.dll can use.
+    :param maxIterations: The maximum number of recursions that the FASM.dll can make.
 
     :return: The machine code as a bytes object.
     """
