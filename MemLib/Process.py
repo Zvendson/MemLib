@@ -79,12 +79,12 @@ class Process:
 
         return GetExitCodeProcess(self._handle) == STILL_ACTIVE
 
-    def Open(self, processId: int, desiredAccess: int = PROCESS_ALL_ACCESS) -> bool:
+    @RequireAdmin
+    def Open(self, processId: int) -> bool:
         """
         Opens the process with the given process id with `PROCESS_ALL_ACCESS`.
 
         :param processId: The process id of the process.
-        :param desiredAccess: The access to the process object.
         :returns: True if the process was opened successfully, False otherwise.
         """
 
@@ -92,7 +92,7 @@ class Process:
             self.Close()
 
         self._processId = processId
-        self._handle = OpenProcess(processId, False, desiredAccess)
+        self._handle = OpenProcess(processId, False, PROCESS_ALL_ACCESS)
 
         return self._handle != 0
 
