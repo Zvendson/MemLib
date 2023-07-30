@@ -33,6 +33,7 @@ class Hook:
     hook was already written. If storeBufferAddress is non zero it will check if its already written and adapt to the
     buffer and will store a struct of 14 Bytes at the address in every case.
 
+    :param name: the name of the Hook.
     :param process: target Process.
     :param sourceAddress: the address in the Process to write the jump at.
     :param destinationAddress: the address in the Process where the jump should target to.
@@ -41,11 +42,13 @@ class Hook:
     """
 
     def __init__(self, *,
+                 name: str,
                  process: Process,
                  sourceAddress: int,
                  destinationAddress: int,
                  enableHook: bool = False,
                  bufferAddress: int = 0):
+        self._name: str                 = name
         self._process: Process          = process
         self._srcAddress: int           = sourceAddress
         self._dstAddress: int           = destinationAddress
@@ -71,10 +74,11 @@ class Hook:
         self.Enable(enableHook)
 
     @classmethod
-    def FromStoredBuffer(cls, process: Process, bufferAddress: int = 0) -> Hook:
+    def FromStoredBuffer(cls, name: str, process: Process, bufferAddress: int = 0) -> Hook:
         """
         Creates a hook instance from target address.
 
+        :param name: the name of the hook.
         :param process: the process.
         :param bufferAddress: the address in the Process to store the original opcodes.
         :returns: the hook instance.
@@ -83,6 +87,7 @@ class Hook:
         buffer: HookBuffer = process.ReadStruct(bufferAddress, HookBuffer)
 
         return cls(
+            name=name,
             process=process,
             sourceAddress=buffer.SourceAddress,
             destinationAddress=buffer.TargetAddress,
@@ -90,12 +95,15 @@ class Hook:
         )
 
     def __str__(self):
-        return f"Jump(Source=0x{self._srcAddress:08X}, Target=0x{self._dstAddress:08X}, Storage=" \
-               f"0x{self._buffer.GetAddress():08X}, Jump='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
+        return f"{self._name}-Hook(Source=0x{self._srcAddress:08X}, Target=0x{self._dstAddress:08X}, Storage=" \
+               f"0x{self._buffer.GetAddress():08X}, Hook='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
                f"='{bytes(self._buffer.OriginalOpcode).hex(' ').upper()}', Process={self._process.GetProcessId()})"
 
     def __repr__(self):
         return str(self)
+
+    def GetName(self) -> str:
+        return self._name
 
     def GetSourceAddress(self) -> int:
         """
