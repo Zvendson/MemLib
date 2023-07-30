@@ -10,6 +10,17 @@ ESC = "\x1B"
 DEL = "\x7F"
 
 
+class ForeColor:
+
+    def __int__(self, red: int, green: int, blue: int):
+        self._red   = red
+        self._green = green
+        self._blue  = blue
+
+    def __get__(self, instance, owner) -> str:
+        return ForeRGB(self._red, self._green, self._blue)
+
+
 def ForeRGB(red: int, green: int, blue: int) -> str:
     return f"\033[38;2;{red};{green};{blue}m"
 
