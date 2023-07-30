@@ -12,7 +12,7 @@ DEL = "\x7F"
 
 class ForeColor:
 
-    def __int__(self, red: int, green: int, blue: int):
+    def __init__(self, red: int, green: int, blue: int):
         self._red   = red
         self._green = green
         self._blue  = blue
