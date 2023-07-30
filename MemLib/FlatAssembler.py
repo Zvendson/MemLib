@@ -78,15 +78,15 @@ class FasmError(Exception):
         :param sourceCode: The source code containing assembly instruction.
         """
 
-        errorCode, = unpack_from('I', fasmBuffer)
+        self._errorCode, = unpack_from('I', fasmBuffer)
 
-        if -9 <= errorCode <= 2:
+        if -9 <= self._errorCode <= 2:
             self._fasmBuffer = fasmBuffer
             self._sourceCode = sourceCode
-            self._errorName = "%s(%d)" % (FasmError.CODE_NAMES[errorCode + 9], errorCode)
-            self._errorMessage = self._format_error(errorCode)
+            self._errorName = "%s(%d)" % (FasmError.CODE_NAMES[self._errorCode + 9], self._errorCode)
+            self._errorMessage = self.GetMessage()
         else:
-            self._errorName = "UNKNOWN ERROR(%d)" % errorCode
+            self._errorName = "UNKNOWN ERROR(%d)" % self._errorCode
             self._errorMessage = ""
             return
 
@@ -96,8 +96,8 @@ class FasmError(Exception):
     def __repr__(self) -> str:
         return "%s -> %s" % (self._errorName, self._errorMessage)
 
-    def _format_error(self, errorCode: int) -> str:
-        if errorCode != 2:
+    def GetMessage(self) -> str:
+        if self._errorCode != 2:
             return ""
 
         bufferInfo: Tuple[Any, ...] = unpack_from('iI', self._fasmBuffer, 4)
