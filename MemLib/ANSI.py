@@ -17,8 +17,11 @@ class ForeColor:
         self._green = green
         self._blue  = blue
 
-    def __get__(self, instance, owner) -> str:
+    def __str__(self) -> str:
         return ForeRGB(self._red, self._green, self._blue)
+
+    def __repr__(self) -> str:
+        return str(self)
 
 
 def ForeRGB(red: int, green: int, blue: int) -> str:
