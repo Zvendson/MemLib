@@ -11,8 +11,6 @@ from ctypes import (Array, Structure, _Pointer, addressof, c_byte, c_char, c_cha
 from ctypes.wintypes import CHAR, DWORD, WCHAR
 from typing import Any
 
-import hexdump
-
 from MemLib.ANSI import (
     BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO, GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE, STRAW,
     WHITE,
