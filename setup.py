@@ -4,7 +4,7 @@ from setuptools import setup
 
 setup(
     name='MemLib',
-    version='1.1.17',
+    version='1.1.18',
     packages=['MemLib'],
     include_package_data=True,
     url='https://github.com/Zvendson/PyMemLib',
