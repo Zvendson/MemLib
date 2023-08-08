@@ -2,7 +2,7 @@
 :platform: Windows
 """
 
-from ctypes import CFUNCTYPE, POINTER, addressof
+from ctypes import CFUNCTYPE, POINTER, byref
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
 
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
@@ -167,7 +167,7 @@ class BinaryScanner:
         if not isinstance(pattern, Pattern) or not pattern.IsValid():
             raise ValueError("Invalid Pattern: " + str(pattern))
 
-        return self._handler(addressof(pattern), addressof(self._buffer))
+        return self._handler(byref(pattern), byref(self._buffer))
 
 
 if __name__ == '__main__':
