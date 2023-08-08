@@ -245,7 +245,8 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
         return ""
 
     extra = ''
-    if _ctype_get_is_array(ctype):
+    isArray = _ctype_get_is_array(ctype)
+    if isArray:
         arr_size = sizeof(ctype)
         ctype = _ctype_get_array_type(ctype)
 
@@ -263,7 +264,6 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
         endcolor = END
 
     isPointer = _ctype_get_is_pointer(ctype)
-
     if isPointer:
         cname = cname[3:]
 
@@ -289,10 +289,8 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
     elif cname in c_ulonglong.__name__:
         name = 'ULONGLONG'
     elif cname in c_char.__name__:
-        isPointer = True
         name = 'CHAR'
     elif cname in c_wchar.__name__:
-        isPointer = True
         name = 'WCHAR'
     elif cname in c_char_p.__name__:
         isPointer = True
