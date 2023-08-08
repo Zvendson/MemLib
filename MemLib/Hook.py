@@ -25,6 +25,20 @@ class HookBuffer(Struct):
         ("TargetAddress", DWORD),
     ]
 
+    def HasContents(self) -> bool:
+        values = list(self.OriginalOpcode)
+        for val in values:
+            if val != 0:
+                break
+        else:
+            return False
+
+        if self.SourceAddress != 0 and self.TargetAddress != 0:
+            return True
+
+        return False
+
+
 
 class Hook:
     """
