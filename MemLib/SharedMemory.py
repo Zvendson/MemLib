@@ -181,7 +181,7 @@ class SharedMemory:
         # Handle
         handle: HANDLE = HANDLE()
         duplicated: bool = DuplicateHandle(self._process.GetHandle(), mapping.HandleEx, -1, handle, 0, False, DUPLICATE_SAME_ACCESS)
-        if not handle or duplicated:
+        if not handle or not duplicated:
             raise Win32Exception()
         mapping.Handle = handle.value
 
