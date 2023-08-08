@@ -109,10 +109,8 @@ class BinaryScanner:
         binary.value = payload
 
         # Transform py written payload to a callable function
-        functype = CFUNCTYPE(POINTER(Pattern), POINTER(BinaryScanner._Buffer))
+        functype = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
         self._handler = functype(self._handlerAddress)
-        self._handler.argtypes = [LPVOID, LPVOID]
-        self._handler.restype = DWORD
 
         # Writing buffer to py memory
         if buffer is not None:
