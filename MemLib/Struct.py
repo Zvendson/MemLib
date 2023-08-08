@@ -8,8 +8,10 @@ from __future__ import annotations
 from ctypes import (Array, Structure, _Pointer, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long,
     c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, memmove, sizeof, wintypes
 )
-from ctypes.wintypes import CHAR
+from ctypes.wintypes import CHAR, DWORD, WCHAR
 from typing import Any
+
+import hexdump
 
 from MemLib.ANSI import (
     BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO, GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE, STRAW,
@@ -388,14 +390,20 @@ def _ctype_format_value(cvalue, ctype, colorized: bool = False) -> str:
         color = ""
 
     if _ctype_get_is_array(ctype):
-        fmt = _ctype_get_array_type(ctype)
-        fmt = _ctype_get_format(fmt, color)
+        _type = _ctype_get_array_type(ctype)
+        fmt = _ctype_get_format(_type, color)
         arr_type = _ctype_get_array_type(ctype)
 
         if issubclass(arr_type, c_char) or issubclass(arr_type, c_wchar):
-            return fmt % cvalue
-
-        values = list(cvalue)
+            try:
+                cvalue.encode("utf-8")
+            except UnicodeEncodeError:
+                values = [ord(char) for char in list(cvalue)]
+                fmt = _ctype_get_format(c_ushort, color)
+            else:
+                return fmt % cvalue
+        else:
+            values = list(cvalue)
 
         for i, value in enumerate(values):
             if _ctype_get_is_pointer(value.__class__):
