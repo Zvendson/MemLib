@@ -95,6 +95,23 @@ def RegisterClassA(wndClass: WNDCLASS) -> int:
     return _RegisterClassA(byref(wndClass))
 
 
+def UnregisterClassA(className: bytes) -> bool:
+    """
+    Unregisters a window class, freeing the memory required for the class.
+
+    **See also:** `UnregisterClassA
+    <https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-unregisterclassa>`_
+
+
+    :param className: Name of the class.
+    :returns: If the function succeeds, the return value is nonzero. If the class could not be found or if a window
+              still exists that was created with the class, the return value is zero. To get extended error
+              information, call GetLastError.
+    """
+
+    return _UnregisterClassA(className, 0)
+
+
 def GetMessageA(msg: POINTER(MSG), windowHandle: int, msgFilterMin: int, msgFilterMax: int) -> bool:
     """
     Retrieves a message from the calling thread's message queue. The function dispatches incoming sent messages until
@@ -258,6 +275,10 @@ _DestroyWindow.restype = BOOL
 _RegisterClassA = windll.user32.RegisterClassA
 _RegisterClassA.argtypes = [HANDLE]
 _RegisterClassA.restype = ATOM
+
+_UnregisterClassA = windll.user32.UnregisterClassA
+_UnregisterClassA.argtypes = [LPCSTR, HANDLE]
+_UnregisterClassA.restype = BOOL
 
 _GetMessageA = windll.user32.GetMessageA
 _GetMessageA.argtypes = [LPVOID, HWND, WPARAM, LPARAM]
