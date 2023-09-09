@@ -11,7 +11,6 @@ from ctypes.wintypes import ATOM, BOOL, DWORD, HANDLE, HWND, INT, LONG, LPARAM, 
 from MemLib.Structs import MSG, WNDCLASS
 
 
-
 def CreateWindowExA(
         exStyle: int,
         className: bytes,
@@ -66,6 +65,7 @@ def CreateWindowExA(
         param
     )
 
+
 def DestroyWindow(windowHandle: int) -> bool:
     """
     Destroys the specified window.
@@ -76,6 +76,7 @@ def DestroyWindow(windowHandle: int) -> bool:
     """
 
     return _DestroyWindow(windowHandle)
+
 
 def RegisterClassA(wndClass: WNDCLASS) -> int:
     """
@@ -216,7 +217,6 @@ def DefWindowProcA(windowHandle: int, msg: int, wParam: int, lParam: int) -> int
     """
 
     return _DefWindowProcA(windowHandle, msg, wParam, lParam)
-
 
 
 def MessageBoxW(hwindowHandlend: int, text: str, caption: str, typeFlags: int) -> int:
