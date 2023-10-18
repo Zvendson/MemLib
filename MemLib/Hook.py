@@ -79,7 +79,7 @@ class Hook:
 
         if self._buffer is None or self._buffer.SourceAddress == 0:
             self._buffer = HookBuffer.from_buffer_copy(buffer)
-            self._buffer.AddressEx = bufferAddress
+            self._buffer.ADRESS_EX = bufferAddress
 
         if originalOpcode == self._opcode:
             self._enabled = True
