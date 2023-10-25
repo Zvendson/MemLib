@@ -121,6 +121,26 @@ def GetExitCodeProcess(processHandle: int) -> int:
     return 0
 
 
+def CreateRemoteThread(
+        processHandle: int,
+        threadAttributes: int,
+        stackSize: int,
+        startAddress: int,
+        parameter: int,
+        creationFlags: int) -> int:
+
+    threadId = DWORD()
+    return _CreateRemoteThread(
+        processHandle,
+        threadAttributes,
+        stackSize,
+        startAddress,
+        parameter,
+        creationFlags,
+        byref(threadId)
+    )
+
+
 def ResumeThread(threadHandle: int) -> int:
     """
     Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is
@@ -726,6 +746,10 @@ _CreateProcessW.restype = BOOL
 _GetExitCodeProcess = windll.kernel32.GetExitCodeProcess
 _GetExitCodeProcess.argtypes = [HANDLE, PDWORD]
 _GetExitCodeProcess.restype = BOOL
+
+_CreateRemoteThread = windll.kernel32.CreateRemoteThread
+_CreateRemoteThread.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD, DWORD, DWORD]
+_CreateRemoteThread.restype = HANDLE
 
 _ResumeThread = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
