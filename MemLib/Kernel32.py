@@ -154,6 +154,10 @@ def ResumeThread(threadHandle: int) -> int:
     return _ResumeThread(threadHandle)
 
 
+def WaitForSingleObject(handle: int, milliseconds: int) -> int:
+    return _WaitForSingleObject(handle, milliseconds)
+
+
 def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
     """
     Opens an existing local process object.
@@ -754,6 +758,10 @@ _CreateRemoteThread.restype = HANDLE
 _ResumeThread = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
 _ResumeThread.restype = DWORD
+
+_WaitForSingleObject = windll.kernel32.WaitForSingleObject
+_WaitForSingleObject.argtypes = [HANDLE, DWORD]
+_WaitForSingleObject.restype = DWORD
 
 _OpenProcess = windll.kernel32.OpenProcess
 _OpenProcess.argtypes = [DWORD, BOOL, DWORD]
