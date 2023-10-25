@@ -752,7 +752,7 @@ _GetExitCodeProcess.argtypes = [HANDLE, PDWORD]
 _GetExitCodeProcess.restype = BOOL
 
 _CreateRemoteThread = windll.kernel32.CreateRemoteThread
-_CreateRemoteThread.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD, DWORD, DWORD]
+_CreateRemoteThread.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD, DWORD, POINTER(DWORD)]
 _CreateRemoteThread.restype = HANDLE
 
 _ResumeThread = windll.kernel32.ResumeThread
