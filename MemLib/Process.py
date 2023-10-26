@@ -14,11 +14,10 @@ from MemLib.Constants import (
 )
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
-    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
+    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetPriorityClass,
     Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
     Process32First, Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess,
-    Thread32First, Thread32Next, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, WaitForSingleObject,
-    Win32Exception, WriteProcessMemory,
+    Thread32First, Thread32Next, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, Win32Exception, WriteProcessMemory,
 )
 from MemLib.Module import Module
 from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
@@ -135,7 +134,7 @@ class Process:
                      parameter: int = 0,
                      creationFlags: int = CREATE_SUSPENDED,
                      threadAttributes: int = 0,
-                     stackSize: int = 0) -> int:
+                     stackSize: int = 0) -> Thread:
         """
         Creates a thread that runs in the virtual address space of this process.
 
@@ -152,16 +151,18 @@ class Process:
                   thread's exit code.
         """
 
+        threadId = DWORD()
         threadHandle = CreateRemoteThread(
             self._handle,
             threadAttributes,
             stackSize,
             startAddress,
             parameter,
-            creationFlags
+            creationFlags,
+            byref(threadId)
         )
 
-        return threadHandle
+        return Thread(threadId.value, self, threadHandle)
 
     def GetProcessId(self):
         """
