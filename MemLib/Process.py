@@ -325,7 +325,7 @@ class Process:
         while Thread32Next(snapshot, byref(threadBuffer)):
             if threadBuffer.th32OwnerProcessID != self._processId:
                 continue
-            thread: Thread = Thread(threadBuffer, self)
+            thread: Thread = Thread(threadBuffer.th32ThreadID, self)
             threadList.append(thread)
 
         CloseHandle(snapshot)
@@ -355,7 +355,7 @@ class Process:
 
         while Thread32Next(snapshot, byref(threadBuffer)):
             if threadBuffer.th32OwnerProcessID == self._processId:
-                thread = Thread(threadBuffer, self)
+                thread = Thread(threadBuffer.th32ThreadID, self)
                 break
 
         CloseHandle(snapshot)

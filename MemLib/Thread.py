@@ -22,7 +22,6 @@ from MemLib.Kernel32 import (
     CloseHandle, GetThreadPriority, OpenThread, ResumeThread, SetThreadPriority, SuspendThread,
     TerminateThread, Win32Exception,
 )
-from MemLib.Structs import THREADENTRY32
 
 
 
@@ -54,16 +53,16 @@ class Priority(IntEnum):
 
 class Thread:
     """
-    :param thread: The thread buffer struct
+    :param threadId: The thread buffer struct
     :param process: The thread's process
 
     .. note:: **See also:**
         `THREADENTRY32 <https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32>`_
     """
 
-    def __init__(self, thread: THREADENTRY32, process: Process, handle: int = 0):
+    def __init__(self, threadId: int, process: Process, handle: int = 0):
         self._process: Process    = process
-        self._threadId: int       = thread.th32ThreadID
+        self._threadId: int       = threadId
         self._handle: int         = handle
 
         if not self._handle:
