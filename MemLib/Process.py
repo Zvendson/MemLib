@@ -8,14 +8,17 @@ from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 
-from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, STILL_ACTIVE, \
-    TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS
+from MemLib.Constants import (
+    INFINITE, MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
+    STILL_ACTIVE,
+    TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS,
+)
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
     CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
     NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next,
     QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess, VirtualAllocEx, VirtualFreeEx,
-    VirtualProtectEx, Win32Exception, WriteProcessMemory,
+    VirtualProtectEx, WaitForSingleObject, Win32Exception, WriteProcessMemory,
 )
 from MemLib.Module import Module
 from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct
@@ -124,6 +127,50 @@ class Process:
         """
 
         return NtResumeProcess(self._handle)
+
+    def CreateThread(self,
+                     startAddress: int,
+                     *,
+                     parameter: int = 0,
+                     waitExecution: bool = False,
+                     timeout: int = INFINITE,
+                     threadAttributes: int = 0,
+                     stackSize: int = 0,
+                     creationFlags: int = 0) -> int:
+        """
+        Creates a thread that runs in the virtual address space of this process.
+
+        :param startAddress: A pointer to the application-defined function of type LPTHREAD_START_ROUTINE to be executed
+                             by the thread and represents the starting address of the thread in the remote process. The
+                             function must exist in the remote process.
+        :param parameter: A pointer to a variable to be passed to the thread function.
+        :param waitExecution: If true, the function will wait until the thread finishes execution.
+        :param timeout: If waitExecution is True, this specifies the max wait time the function waits.
+        :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for
+                                 the new thread and determines whether child processes can inherit the returned handle.
+        :param stackSize: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If
+                          this parameter is 0 (zero), the new thread uses the default size for the executable.
+        :param creationFlags: The flags that control the creation of the thread.
+        :returns: if waitExecution is set to False, it returns the thread handle. If set to True, it returns the
+                  thread's exit code.
+        """
+
+        threadHandle = CreateRemoteThread(
+            self._handle,
+            threadAttributes,
+            stackSize,
+            startAddress,
+            parameter,
+            creationFlags
+        )
+
+        if waitExecution:
+            WaitForSingleObject(threadHandle, timeout)
+            exitCode = GetExitCodeThread(threadHandle)
+            CloseHandle(threadHandle)
+            return exitCode
+
+        return threadHandle
 
     def GetProcessId(self):
         """
