@@ -9,7 +9,7 @@ from ctypes.wintypes import BYTE, DWORD, WCHAR
 from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from MemLib.Constants import (
-    INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
+    CREATE_SUSPENDED, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
     STILL_ACTIVE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
 )
 from MemLib.Decorators import RequireAdmin
@@ -133,11 +133,9 @@ class Process:
                      startAddress: int,
                      *,
                      parameter: int = 0,
-                     waitExecution: bool = False,
-                     timeout: int = INFINITE,
+                     creationFlags: int = CREATE_SUSPENDED,
                      threadAttributes: int = 0,
-                     stackSize: int = 0,
-                     creationFlags: int = 0) -> int:
+                     stackSize: int = 0) -> int:
         """
         Creates a thread that runs in the virtual address space of this process.
 
@@ -145,13 +143,11 @@ class Process:
                              by the thread and represents the starting address of the thread in the remote process. The
                              function must exist in the remote process.
         :param parameter: A pointer to a variable to be passed to the thread function.
-        :param waitExecution: If true, the function will wait until the thread finishes execution.
-        :param timeout: If waitExecution is True, this specifies the max wait time the function waits.
+        :param creationFlags: The flags that control the creation of the thread.
         :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for
                                  the new thread and determines whether child processes can inherit the returned handle.
         :param stackSize: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If
                           this parameter is 0 (zero), the new thread uses the default size for the executable.
-        :param creationFlags: The flags that control the creation of the thread.
         :returns: if waitExecution is set to False, it returns the thread handle. If set to True, it returns the
                   thread's exit code.
         """
@@ -164,12 +160,6 @@ class Process:
             parameter,
             creationFlags
         )
-
-        if waitExecution:
-            WaitForSingleObject(threadHandle, timeout)
-            exitCode = GetExitCodeThread(threadHandle)
-            CloseHandle(threadHandle)
-            return exitCode
 
         return threadHandle
 
