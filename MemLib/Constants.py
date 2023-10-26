@@ -204,49 +204,49 @@ The operation that was requested is pending completion.
 """
 
 
-DEBUG_PROCESS: int = 1
+DEBUG_PROCESS: int = 0x00000001
 """
 The calling thread starts and debugs the new process and all child processes created by the new process. It can receive
 all related debug events using the WaitForDebugEvent function.
 """
 
-DEBUG_ONLY_THIS_PROCESS: int = 2
+DEBUG_ONLY_THIS_PROCESS: int = 0x000000082
 """
 The calling thread starts and debugs the new process. It can receive all related debug events using the 
 WaitForDebugEvent function.
 """
 
-CREATE_SUSPENDED: int = 4
+CREATE_SUSPENDED: int = 0x00000004
 """
 The primary thread of the new process is created in a suspended state, and does not run until the ResumeThread function
 is called.
 """
 
-DETACHED_PROCESS: int = 8
+DETACHED_PROCESS: int = 0x00000008
 """
 For console processes, the new process does not inherit its parent's console (the default). The new process can call 
 the AllocConsole function at a later time to create a console. This value cannot be used with CREATE_NEW_CONSOLE.
 """
 
-CREATE_NEW_CONSOLE: int = 16
+CREATE_NEW_CONSOLE: int = 0x00000010
 """
 The new process has a new console, instead of inheriting its parent's console (the default). For more information, see 
 Creation of a Console. This flag cannot be used with DETACHED_PROCESS.
 """
 
-NORMAL_PRIORITY_CLASS: int = 32
+NORMAL_PRIORITY_CLASS: int = 0x00000020
 """
 Process with no special scheduling needs.
 """
 
-IDLE_PRIORITY_CLASS: int = 64
+IDLE_PRIORITY_CLASS: int = 0x00000040
 """
 Process whose threads run only when the system is idle. The threads of the process are preempted by the threads of any 
 process running in a higher priority class. An example is a screen saver. The idle-priority class is inherited by child
 processes.
 """
 
-HIGH_PRIORITY_CLASS: int = 128
+HIGH_PRIORITY_CLASS: int = 0x00000080
 """
 Process that performs time-critical tasks that must be executed immediately. The threads of the process preempt the 
 threads of normal or idle priority class processes. An example is the Task List, which must respond quickly when called 
@@ -254,14 +254,39 @@ by the user, regardless of the load on the operating system. Use extreme care wh
 because a high-priority class application can use nearly all available CPU time.
 """
 
-REALTIME_PRIORITY_CLASS: int = 256
+REALTIME_PRIORITY_CLASS: int = 0x00000100
 """
 Process that has the highest possible priority. The threads of the process preempt the threads of all other processes, 
 including operating system processes performing important tasks. For example, a real-time process that executes for more
 than a very brief interval can cause disk caches not to flush or cause the mouse to be unresponsive.
 """
 
-CREATE_NEW_PROCESS_GROUP: int = 512
+BELOW_NORMAL_PRIORITY_CLASS: int = 0x00004000
+"""
+Process that has priority above IDLE_PRIORITY_CLASS but below NORMAL_PRIORITY_CLASS.
+"""
+
+ABOVE_NORMAL_PRIORITY_CLASS: int = 0x00008000
+"""
+Process that has priority above NORMAL_PRIORITY_CLASS but below HIGH_PRIORITY_CLASS.
+"""
+
+PROCESS_MODE_BACKGROUND_BEGIN: int = 0x00100000
+"""
+Begin background processing mode. The system lowers the resource scheduling priorities of the process (and its threads) 
+so that it can perform background work without significantly affecting activity in the foreground. This value can be 
+specified only if hProcess is a handle to the current process. The function fails if the process is already in 
+background processing mode.
+"""
+
+PROCESS_MODE_BACKGROUND_END: int = 0x00200000
+"""
+End background processing mode. The system restores the resource scheduling priorities of the process (and its threads) 
+as they were before the process entered background processing mode. This value can be specified only if hProcess is a 
+handle to the current process. The function fails if the process is not in background processing mode.
+"""
+
+CREATE_NEW_PROCESS_GROUP: int = 0x00000200
 """
 The new process is the root process of a new process group. The process group includes all processes that are 
 descendants of this root process. The process identifier of the new process group is the same as the process identifier,
@@ -271,13 +296,13 @@ If this flag is specified, CTRL+C signals will be disabled for all processes wit
 This flag is ignored if specified with CREATE_NEW_CONSOLE.
 """
 
-CREATE_UNICODE_ENVIRONMENT: int = 1024
+CREATE_UNICODE_ENVIRONMENT: int = 0x00000400
 """
 If this flag is set, the environment block pointed to by lpEnvironment uses Unicode characters. Otherwise, the 
 environment block uses ANSI characters.
 """
 
-CREATE_SEPARATE_WOW_VDM: int = 2048
+CREATE_SEPARATE_WOW_VDM: int = 0x00000800
 """
 This flag is valid only when starting a 16-bit Windows-based application. If set, the new process runs in a private 
 Virtual DOS Machine (VDM). By default, all 16-bit Windows-based applications run as threads in a single, shared VDM. 
@@ -288,13 +313,13 @@ continue to receive input. The disadvantage of running separately is that it tak
 You should use this flag only if the user requests that 16-bit applications should run in their own VDM.
 """
 
-CREATE_SHARED_WOW_VDM: int = 4096
+CREATE_SHARED_WOW_VDM: int = 0x00001000
 """
 The flag is valid only when starting a 16-bit Windows-based application. If the DefaultSeparateVDM switch in the Windows
 section of WIN.INI is TRUE, this flag overrides the switch. The new process is run in the shared Virtual DOS Machine.
 """
 
-CREATE_DEFAULT_ERROR_MODE: int = 67108864
+CREATE_DEFAULT_ERROR_MODE: int = 0x04000000
 """
 The new process does not inherit the error mode of the calling process. Instead, the new process gets the default error 
 mode. This feature is particularly useful for multithreaded shell applications that run with hard errors disabled.
@@ -302,7 +327,7 @@ The default behavior is for the new process to inherit the error mode of the cal
 default behavior.
 """
 
-CREATE_NO_WINDOW: int = 134217728
+CREATE_NO_WINDOW: int = 0x08000000
 """
 The process is a console application that is being run without a console window. Therefore, the console handle for the 
 application is not set. This flag is ignored if the application is not a console application, or if it is used with 
