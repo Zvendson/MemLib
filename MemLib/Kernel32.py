@@ -23,6 +23,14 @@ def SUCCEEDED(HRESULT: int) -> bool:
     return value.value >= 0
 
 
+def FAILED(HRESULT: int) -> bool:
+    """
+    Generic test for failure on any status value (non-negative numbers indicate success).
+    """
+
+    value = LONG(HRESULT)
+    return value.value < 0
+
 
 def GetLastError() -> int:
     """
