@@ -232,6 +232,18 @@ def ResumeThread(threadHandle: int) -> int:
     return _ResumeThread(threadHandle)
 
 
+def SuspendThread(threadHandle: int) -> int:
+    """
+    Suspends the specified thread.
+
+    :param threadHandle: A handle to the thread that is to be suspended.
+    :returns: If the function succeeds, the return value is the thread's previous suspend count. If the function fails,
+              the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
+    """
+
+    return _SuspendThread(threadHandle)
+
+
 def TerminateThread(threadHandle: int, exitCode: int) -> bool:
     """
     Retrieves the termination status of the specified thread.
@@ -853,6 +865,10 @@ _OpenThread.restype = HANDLE
 _ResumeThread = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
 _ResumeThread.restype = DWORD
+
+_SuspendThread = windll.kernel32.SuspendThread
+_SuspendThread.argtypes = [HANDLE]
+_SuspendThread.restype = DWORD
 
 _GetPriorityClass = windll.kernel32.GetPriorityClass
 _GetPriorityClass.argtypes = [HANDLE]
