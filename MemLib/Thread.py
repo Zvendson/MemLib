@@ -66,9 +66,6 @@ class Thread:
         self._threadId: int       = threadId
         self._handle: int         = handle
 
-        if not self._handle:
-            self.Open()
-
     def __del__(self):
         self.Close()
 
@@ -88,12 +85,17 @@ class Thread:
 
         return self._threadId
 
+    def GetHandle(self) -> int:
+        if not self._handle:
+            self.Open()
+        return self._handle
+
     def GetPriority(self) -> Priority:
         """
         :returns: The thread's priority level.
         """
 
-        level = GetThreadPriority(self._handle)
+        level = GetThreadPriority(self.GetHandle())
         if level == 0x7FFFFFFF:
             raise Win32Exception()
 
@@ -104,7 +106,7 @@ class Thread:
         :returns: True if priority could be changed. False otherwise.
         """
 
-        return SetThreadPriority(self._handle, priority)
+        return SetThreadPriority(self.GetHandle(), priority)
 
     def GetProcess(self) -> Process:
         """
@@ -149,7 +151,7 @@ class Thread:
         :returns: True if the thread was resumed successfully, False otherwise.
         """
 
-        return SuspendThread(self._handle) != 0
+        return SuspendThread(self.GetHandle()) != 0
 
     def Resume(self, maxDepth = 50) -> bool:
         """
@@ -158,7 +160,7 @@ class Thread:
         """
 
         depth = 0
-        while ResumeThread(self._handle) != 0:
+        while ResumeThread(self.GetHandle()) != 0:
             depth += 1
             if depth >= maxDepth:
                 return False
@@ -176,17 +178,17 @@ class Thread:
 
         self.Resume()
 
-        result = WaitForSingleObject(self._handle, timeout)
+        result = WaitForSingleObject(self.GetHandle(), timeout)
         if result == WAIT_FAILED:
             raise Win32Exception()
 
         if result == WAIT_OBJECT_0:
-            return GetExitCodeThread(self._handle)
+            return GetExitCodeThread(self.GetHandle())
 
         return -1
 
     def Terminate(self, exitCode: int = 0) -> bool:
-        return TerminateThread(self._handle, exitCode)
+        return TerminateThread(self.GetHandle(), exitCode)
 
     def __eq__(self, other: Thread) -> bool:
         sameId: bool        = (self._threadId == other.GetId())
