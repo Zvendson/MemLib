@@ -6,12 +6,21 @@ from __future__ import annotations
 
 from ctypes import Array, POINTER, byref, windll
 from ctypes.wintypes import (
-    BOOL, DWORD, HANDLE, HMODULE, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
+    BOOL, DWORD, HANDLE, HMODULE, LONG, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
     PLARGE_INTEGER, PULONG, UINT, ULONG, WCHAR,
 )
 from typing import Type
 
 from MemLib.Constants import STATUS_SUCCESS
+
+
+def SUCCEEDED(HRESULT: int) -> bool:
+    """
+    Generic test for success on any status value (non-negative numbers indicate success).
+    """
+
+    value = LONG(HRESULT)
+    return value.value >= 0
 
 
 
