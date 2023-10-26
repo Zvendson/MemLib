@@ -362,6 +362,11 @@ The right to use the object for synchronization. This enables a thread to wait u
 state. Some object types do not support this access right.
 """
 
+STANDARD_RIGHTS_REQUIRED: int = 0x000F0000
+"""
+Combines DELETE, READ_CONTROL, WRITE_DAC, and WRITE_OWNER access.
+"""
+
 STANDARD_RIGHTS_ALL: int = 0x001F0000
 """
 Combines DELETE, READ_CONTROL, WRITE_DAC, WRITE_OWNER, and SYNCHRONIZE access.
@@ -783,4 +788,70 @@ The standard output device. Initially, this is the active console screen buffer,
 STD_ERROR_HANDLE: int = -12
 """
 The standard error device. Initially, this is the active console screen buffer, CONOUT$.
+"""
+
+
+
+THREAD_TERMINATE: int = 0x0001
+"""
+Required to terminate a thread using TerminateThread.
+"""
+
+THREAD_SUSPEND_RESUME: int = 0x0002
+"""
+Required to resume a thread
+"""
+
+THREAD_GET_CONTEXT: int = 0x0008
+"""
+Required to read the context of a thread using GetThreadContext.
+"""
+
+THREAD_SET_CONTEXT: int = 0x0010
+"""
+Required to write the context of a thread using SetThreadContext.
+"""
+
+THREAD_SET_INFORMATION: int = 0x0020
+"""
+Required to set certain information in the thread object.
+"""
+
+THREAD_QUERY_INFORMATION: int = 0x0040
+"""
+Required to read certain information from the thread object, such as the exit code (see GetExitCodeThread).
+"""
+
+THREAD_SET_THREAD_TOKEN: int = 0x0080
+"""
+Required to set the impersonation token for a thread using SetThreadToken.
+"""
+
+THREAD_IMPERSONATE: int = 0x0100
+"""
+Required to use a thread's security information directly without calling it by using a communication mechanism that 
+provides impersonation services.
+"""
+
+THREAD_DIRECT_IMPERSONATION: int = 0x0200
+"""
+Required for a server thread that impersonates a client.
+"""
+
+THREAD_SET_LIMITED_INFORMATION: int = 0x0400
+"""
+Required to set certain information in the thread object. A handle that has the THREAD_SET_INFORMATION access right is 
+automatically granted THREAD_SET_LIMITED_INFORMATION.
+"""
+
+THREAD_QUERY_LIMITED_INFORMATION: int = 0x0800
+"""
+Required to read certain information from the thread objects (see GetProcessIdOfThread). A handle that has the
+THREAD_QUERY_INFORMATION access right is automatically granted THREAD_QUERY_LIMITED_INFORMATION.
+"""
+
+
+THREAD_ALL_ACCESS: int = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFFF
+"""
+All possible access rights for a thread object.
 """
