@@ -16,7 +16,9 @@ from MemLib.Constants import (
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
     CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
-    NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next,
+    Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
+    Process32First,
+    Process32Next,
     QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess, VirtualAllocEx, VirtualFreeEx,
     VirtualProtectEx, WaitForSingleObject, Win32Exception, WriteProcessMemory,
 )
@@ -240,6 +242,12 @@ class Process:
             raise Win32Exception()
 
         moduleBuffer: MODULEENTRY32 = MODULEENTRY32()
+        moduleBuffer.dwSize = moduleBuffer.GetSize()
+
+        if not Module32First(snapshot, byref(moduleBuffer)):
+            CloseHandle(snapshot)
+            raise Win32Exception()
+
         moduleList: List[Module] = list()
 
         while Module32Next(snapshot, byref(moduleBuffer)):
