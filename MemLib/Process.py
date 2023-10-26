@@ -332,6 +332,35 @@ class Process:
 
         return threadList
 
+    def GetMainThread(self) -> Thread | None:
+        """
+        :raises Win32Exception: If the process is not opened, if the snapshot could not be created or if the main thread
+                               could not be found.
+        :returns: The main thread of the process. None if the process is not opened.
+        """
+
+        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._processId)
+        if not snapshot:
+            raise Win32Exception()
+
+        threadBuffer: THREADENTRY32 = THREADENTRY32()
+        threadBuffer.dwSize = threadBuffer.GetSize()
+
+        if not Thread32First(snapshot, byref(threadBuffer)):
+            err = Win32Exception()
+            CloseHandle(snapshot)
+            raise err
+
+        thread = None
+
+        while Thread32Next(snapshot, byref(threadBuffer)):
+            if threadBuffer.th32OwnerProcessID == self._processId:
+                thread = Thread(threadBuffer, self)
+                break
+
+        CloseHandle(snapshot)
+        return thread
+
     def GetBase(self) -> int:
         """
         :returns: The base address of the process. 0 if the process is not opened.
