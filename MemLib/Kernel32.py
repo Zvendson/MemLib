@@ -244,6 +244,22 @@ def SuspendThread(threadHandle: int) -> int:
     return _SuspendThread(threadHandle)
 
 
+def GetExitCodeThread(threadHandle: int) -> int:
+    """
+    Retrieves the termination status of the specified thread.
+
+    :param threadHandle: A handle to the thread.
+    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is
+              (DWORD) -1. To get extended error information, call GetLastError.
+    """
+
+    exitCode: DWORD = DWORD()
+    if _GetExitCodeThread(threadHandle, byref(exitCode)):
+        return exitCode.value
+
+    return -1
+
+
 def TerminateThread(threadHandle: int, exitCode: int) -> bool:
     """
     Retrieves the termination status of the specified thread.
@@ -869,6 +885,10 @@ _ResumeThread.restype = DWORD
 _SuspendThread = windll.kernel32.SuspendThread
 _SuspendThread.argtypes = [HANDLE]
 _SuspendThread.restype = DWORD
+
+_GetExitCodeThread = windll.kernel32.GetExitCodeThread
+_GetExitCodeThread.argtypes = [HANDLE, POINTER(DWORD)]
+_GetExitCodeThread.restype = BOOL
 
 _GetPriorityClass = windll.kernel32.GetPriorityClass
 _GetPriorityClass.argtypes = [HANDLE]
