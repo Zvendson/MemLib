@@ -105,6 +105,23 @@ def CreateProcessW(
     )
 
 
+def GetPriorityClass(processHandle: int) -> int:
+    """
+    Retrieves the priority class for the specified process. This value, together with the priority value of each thread
+    of the process, determines each thread's base priority level.
+
+    :param processHandle: A handle to the process.
+    :returns: If the function succeeds, the return value is the priority class of the specified process. If the
+              function fails, the return value is zero. To get extended error information, call GetLastError.
+
+    .. note:: **See also:**
+        `GetPriorityClass <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
+        -getpriorityclass>`_
+    """
+
+    return _GetPriorityClass(processHandle)
+
+
 def GetExitCodeProcess(processHandle: int) -> int:
     """
     Retrieves the termination status of the specified process.
@@ -758,6 +775,10 @@ _CreateRemoteThread.restype = HANDLE
 _ResumeThread = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
 _ResumeThread.restype = DWORD
+
+_GetPriorityClass = windll.kernel32.GetPriorityClass
+_GetPriorityClass.argtypes = [HANDLE]
+_GetPriorityClass.restype = DWORD
 
 _WaitForSingleObject = windll.kernel32.WaitForSingleObject
 _WaitForSingleObject.argtypes = [HANDLE, DWORD]

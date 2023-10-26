@@ -12,7 +12,7 @@ from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PR
     TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
-    CloseHandle, CreateToolhelp32Snapshot, GetExitCodeProcess, Module32First, Module32Next,
+    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
     NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next,
     QueryFullProcessImageNameW, ReadProcessMemory, TerminateProcess, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx,
     Win32Exception, WriteProcessMemory,
@@ -47,7 +47,6 @@ class Process:
 
         if not self.Exists():
             raise ValueError(f"Process {self._processId} does not exist.")
-
 
     def __del__(self):
         if self._handle:
@@ -164,6 +163,13 @@ class Process:
             return nameBuffer.value
 
         return ""
+
+    def GetPriorityClass(self) -> int:
+        """
+        :returns: the priority class.
+        """
+
+        return GetPriorityClass(self._handle)
 
     def GetModules(self) -> List[Module]:
         """
