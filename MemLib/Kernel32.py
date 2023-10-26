@@ -867,6 +867,19 @@ def Thread32Next(snapshotHandle: int, lpte: object) -> bool:
     return _Thread32Next(snapshotHandle, lpte)
 
 
+def Thread32First(snapshotHandle: int, lpte: object) -> bool:
+    """
+    Retrieves information about the first thread of any process encountered in a system snapshot.
+
+    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
+                           function.
+    :param lpte: A pointer to a THREADENTRY32 structure.
+    :returns: Returns TRUE if the first entry of the thread list has been copied to the buffer or FALSE otherwise.
+    """
+
+    return _Thread32First(snapshotHandle, lpte)
+
+
 def GetStdHandle(stdHandle: int) -> int:
     """
     Retrieves a handle to the specified standard device (standard input, standard output, or standard error).
@@ -1132,6 +1145,10 @@ _Module32First.restype = BOOL
 _Thread32Next = windll.kernel32.Thread32Next
 _Thread32Next.argtypes = [HANDLE, LPVOID]
 _Thread32Next.restype = BOOL
+
+_Thread32First = windll.kernel32.Thread32First
+_Thread32First.argtypes = [HANDLE, LPVOID]
+_Thread32First.restype = BOOL
 
 _GetStdHandle = windll.kernel32.GetStdHandle
 _GetStdHandle.argtypes = [DWORD]
