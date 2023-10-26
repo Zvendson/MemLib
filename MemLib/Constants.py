@@ -9,6 +9,34 @@ MAX_PATH: int = 260
 The maximum length for a path string.
 """
 
+INFINITE: int = -1
+"""
+A numeric represantion of infinity.
+"""
+
+WAIT_OBJECT_0: int = 0x00000000
+"""
+The state of the specified object is signaled.
+"""
+
+WAIT_ABANDONED: int = 0x00000080
+"""
+The specified object is a mutex object that was not released by the thread that owned the mutex object before the owning
+thread terminated. Ownership of the mutex object is granted to the calling thread and the mutex state is set to 
+nonsignaled.
+If the mutex was protecting persistent state information, you should check it for consistency.
+"""
+
+WAIT_TIMEOUT: int = 0x00000102
+"""
+The time-out interval elapsed, and the object's state is nonsignaled.
+"""
+
+WAIT_FAILED: int = 0xFFFFFFFF
+"""
+The function has failed. To get extended error information, call GetLastError.
+"""
+
 STATUS_SUCCESS: int = 0
 """
 The operation completed successfully.
