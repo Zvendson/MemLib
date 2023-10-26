@@ -163,14 +163,14 @@ def GetExitCodeProcess(processHandle: int) -> int:
 
     :param processHandle: A handle to the process.
     :returns: If the function succeeds, the return value is the termination status of the specified process. If the
-              function fails, the return value is 0. To get extended error information, call GetLastError.
+              function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
     """
     
     exitCode: DWORD = DWORD()
     if _GetExitCodeProcess(processHandle, byref(exitCode)):
         return exitCode.value
 
-    return 0
+    return -1
 
 
 def CreateRemoteThread(
