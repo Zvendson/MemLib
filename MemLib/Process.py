@@ -10,20 +10,19 @@ from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from MemLib.Constants import (
     INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
-    STILL_ACTIVE,
-    TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS,
+    STILL_ACTIVE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
 )
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
     CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
     Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
-    Process32First,
-    Process32Next,
-    QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess, VirtualAllocEx, VirtualFreeEx,
-    VirtualProtectEx, WaitForSingleObject, Win32Exception, WriteProcessMemory,
+    Process32First, Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess,
+    Thread32First, Thread32Next, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, WaitForSingleObject,
+    Win32Exception, WriteProcessMemory,
 )
 from MemLib.Module import Module
-from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct
+from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
+from MemLib.Thread import Thread
 
 
 
@@ -302,6 +301,36 @@ class Process:
 
         CloseHandle(snapshot)
         return None
+
+    def GetThreads(self) -> List[Thread]:
+        """
+        :raises Win32Exception: If the process is not opened or if the snapshot could not be created.
+        :returns: A list of Threads of the process. Empty list if the process is not opened.
+        """
+
+        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._processId)
+        if not snapshot:
+            raise Win32Exception()
+
+        threadBuffer: THREADENTRY32 = THREADENTRY32()
+        threadBuffer.dwSize = threadBuffer.GetSize()
+
+        if not Thread32First(snapshot, byref(threadBuffer)):
+            err = Win32Exception()
+            CloseHandle(snapshot)
+            raise err
+
+        threadList: List[Thread] = list()
+
+        while Thread32Next(snapshot, byref(threadBuffer)):
+            if threadBuffer.th32OwnerProcessID != self._processId:
+                continue
+            thread: Thread = Thread(threadBuffer, self)
+            threadList.append(thread)
+
+        CloseHandle(snapshot)
+
+        return threadList
 
     def GetBase(self) -> int:
         """
