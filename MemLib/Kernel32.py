@@ -260,6 +260,29 @@ def GetExitCodeThread(threadHandle: int) -> int:
     return -1
 
 
+def GetThreadDescription(threadHandle: int) -> str:
+    """
+    Retrieves the description that was assigned to a thread by calling SetThreadDescription.
+
+    :param threadHandle: A handle to the thread.
+    :returns: If the function succeeds, the return value is the HRESULT that denotes a successful operation. If the
+              function fails, the return value is an HRESULT that denotes the error.
+
+
+    .. note:: **See also:**
+        `HRESULT Values <https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/705fb797-2175-4a90-b5a3
+        -3918024b10b8>`_
+    """
+
+    nameBuffer = (WCHAR * 1024)()
+
+
+    if SUCCEEDED(_GetThreadDescription(threadHandle, nameBuffer)):
+        return nameBuffer.value[:-2]
+
+    return ""
+
+
 def TerminateThread(threadHandle: int, exitCode: int) -> bool:
     """
     Retrieves the termination status of the specified thread.
@@ -889,6 +912,10 @@ _SuspendThread.restype = DWORD
 _GetExitCodeThread = windll.kernel32.GetExitCodeThread
 _GetExitCodeThread.argtypes = [HANDLE, POINTER(DWORD)]
 _GetExitCodeThread.restype = BOOL
+
+_GetThreadDescription = windll.kernel32.GetThreadDescription
+_GetThreadDescription.argtypes = [HANDLE, LPWSTR]
+_GetThreadDescription.restype = DWORD
 
 _GetPriorityClass = windll.kernel32.GetPriorityClass
 _GetPriorityClass.argtypes = [HANDLE]
