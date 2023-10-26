@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from ctypes import Array, POINTER, byref, windll
 from ctypes.wintypes import (
-    BOOL, DWORD, HANDLE, HMODULE, LONG, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
+    BOOL, DWORD, HANDLE, HMODULE, INT, LONG, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
     PLARGE_INTEGER, PULONG, UINT, ULONG, WCHAR,
 )
 from typing import Type
@@ -316,6 +316,24 @@ def GetThreadPriority(threadHandle: int) -> int:
     """
 
     return _GetThreadPriority(threadHandle)
+
+
+def SetThreadPriority(threadHandle: int, priority: int) -> bool:
+    """
+    Retrieves the priority value for the specified thread. This value, together with the priority class of the thread's
+    process, determines the thread's base-priority level.
+
+    :param threadHandle: A handle to the thread.
+    :param priority: The priority value for the thread.
+    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
+              To get extended error information, call GetLastError.
+
+    .. note:: **See also:**
+        `SetThreadPriority <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
+        -setthreadpriority>`_
+    """
+
+    return _SetThreadPriority(threadHandle, priority)
 
 
 def TerminateThread(threadHandle: int, exitCode: int) -> bool:
@@ -967,6 +985,10 @@ _SetPriorityClass.restype = BOOL
 _GetThreadPriority = windll.kernel32.GetThreadPriority
 _GetThreadPriority.argtypes = [HANDLE]
 _GetThreadPriority.restype = DWORD
+
+_SetThreadPriority = windll.kernel32.SetThreadPriority
+_SetThreadPriority.argtypes = [HANDLE, INT]
+_SetThreadPriority.restype = BOOL
 
 _TerminateThread = windll.kernel32.TerminateThread
 _TerminateThread.argtypes = [HANDLE, DWORD]
