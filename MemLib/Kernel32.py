@@ -301,6 +301,23 @@ def SetThreadDescription(threadHandle: int, threadDescription: str) -> bool:
     return _SetThreadDescription(threadHandle, threadDescription)
 
 
+def GetThreadPriority(threadHandle: int) -> int:
+    """
+    Retrieves the priority value for the specified thread. This value, together with the priority class of the thread's
+    process, determines the thread's base-priority level.
+
+    :param threadHandle: A handle to the thread.
+    :returns: If the function succeeds, the return value is the thread's priority level. If the function fails,
+              the return value is THREAD_PRIORITY_ERROR_RETURN. To get extended error information, call GetLastError.
+
+    .. note:: **See also:**
+        `GetThreadPriority <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
+        -getthreadpriority>`_
+    """
+
+    return _GetThreadPriority(threadHandle)
+
+
 def TerminateThread(threadHandle: int, exitCode: int) -> bool:
     """
     Retrieves the termination status of the specified thread.
@@ -946,6 +963,10 @@ _GetPriorityClass.restype = DWORD
 _SetPriorityClass = windll.kernel32.SetPriorityClass
 _SetPriorityClass.argtypes = [HANDLE, DWORD]
 _SetPriorityClass.restype = BOOL
+
+_GetThreadPriority = windll.kernel32.GetThreadPriority
+_GetThreadPriority.argtypes = [HANDLE]
+_GetThreadPriority.restype = DWORD
 
 _TerminateThread = windll.kernel32.TerminateThread
 _TerminateThread.argtypes = [HANDLE, DWORD]
