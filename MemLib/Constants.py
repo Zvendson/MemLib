@@ -4,7 +4,7 @@
 
 # in case you don't want 3rd party dependency
 
-MAX_PATH = 260
+MAX_PATH: int = 260
 """
 The maximum length for a path string.
 """
@@ -451,6 +451,7 @@ application (for example, #define _WIN32_WINNT _WIN32_WINNT_WINXP). For more inf
 """
 
 
+
 PAGE_NOACCESS: int = 0x00000001
 """
 Disables all access to the committed region of pages. An attempt to read from, write to, or execute the committed region
@@ -769,17 +770,17 @@ Ignores the dwDesiredAccess parameter. The duplicate handle has the same access 
 """
 
 
-STD_INPUT_HANDLE = -10
+STD_INPUT_HANDLE: int = -10
 """
 The standard input device. Initially, this is the console input buffer, CONIN$.
 """
 
-STD_OUTPUT_HANDLE = -11
+STD_OUTPUT_HANDLE: int = -11
 """
 The standard output device. Initially, this is the active console screen buffer, CONOUT$.
 """
 
-STD_ERROR_HANDLE = -12
+STD_ERROR_HANDLE: int = -12
 """
 The standard error device. Initially, this is the active console screen buffer, CONOUT$.
 """
