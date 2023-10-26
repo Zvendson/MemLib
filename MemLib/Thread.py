@@ -69,6 +69,9 @@ class Thread:
         if not self._handle:
             self.Open()
 
+    def __del__(self):
+        self.Close()
+
     def __enter__(self):
         if not self._handle:
             self.Open()
