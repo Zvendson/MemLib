@@ -350,6 +350,16 @@ def TerminateThread(threadHandle: int, exitCode: int) -> bool:
 
 
 def WaitForSingleObject(handle: int, milliseconds: int) -> int:
+    """
+    Waits until the specified object is in the signaled state or the time-out interval elapses.
+
+    :param handle: A handle to the object.
+    :param milliseconds: The time-out interval, in milliseconds. If a nonzero value is specified, the function waits
+                         until the object is signaled or the interval elapses. Can use INFINITE to wait forever.
+    :returns: If the function succeeds, the return value indicates the event that caused the function to return.
+              It can be one of the following values: WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT, WAIT_FAILED.
+    """
+
     return _WaitForSingleObject(handle, milliseconds)
 
 
