@@ -213,6 +213,19 @@ def ResumeThread(threadHandle: int) -> int:
     return _ResumeThread(threadHandle)
 
 
+def TerminateThread(threadHandle: int, exitCode: int) -> bool:
+    """
+    Retrieves the termination status of the specified thread.
+
+    :param threadHandle: A handle to the thread.
+    :param exitCode: The exit code for the thread. Use the GetExitCodeThread function to retrieve a thread's exit value.
+    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
+              get extended error information, call GetLastError.
+    """
+
+    return bool(_TerminateThread(threadHandle, exitCode))
+
+
 def WaitForSingleObject(handle: int, milliseconds: int) -> int:
     return _WaitForSingleObject(handle, milliseconds)
 
@@ -825,6 +838,10 @@ _GetPriorityClass.restype = DWORD
 _SetPriorityClass = windll.kernel32.SetPriorityClass
 _SetPriorityClass.argtypes = [HANDLE, DWORD]
 _SetPriorityClass.restype = BOOL
+
+_TerminateThread = windll.kernel32.TerminateThread
+_TerminateThread.argtypes = [HANDLE, DWORD]
+_TerminateThread.restype = BOOL
 
 _WaitForSingleObject = windll.kernel32.WaitForSingleObject
 _WaitForSingleObject.argtypes = [HANDLE, DWORD]
