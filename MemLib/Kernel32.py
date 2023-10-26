@@ -180,17 +180,24 @@ def CreateRemoteThread(
         startAddress: int,
         parameter: int,
         creationFlags: int) -> int:
+    """
+    Creates a thread that runs in the virtual address space of another process.
 
-    threadId = DWORD()
-    return _CreateRemoteThread(
-        processHandle,
-        threadAttributes,
-        stackSize,
-        startAddress,
-        parameter,
-        creationFlags,
-        byref(threadId)
-    )
+    :param processHandle: A handle to the process in which the thread is to be created.
+    :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for the
+                             new thread and determines whether child processes can inherit the returned handle.
+    :param stackSize: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If this
+                      parameter is 0 (zero), the new thread uses the default size for the executable.
+    :param startAddress: A pointer to the application-defined function of type LPTHREAD_START_ROUTINE to be executed by
+                         the thread and represents the starting address of the thread in the remote process. The
+                         function must exist in the remote process.
+    :param parameter: A pointer to a variable to be passed to the thread function.
+    :param creationFlags: The flags that control the creation of the thread.
+    :returns: If the function succeeds, the return value is the termination status of the specified process. If the
+              function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
+    """
+
+    return _CreateRemoteThread(processHandle, threadAttributes, stackSize, startAddress, parameter, creationFlags, 0)
 
 
 def ResumeThread(threadHandle: int) -> int:
