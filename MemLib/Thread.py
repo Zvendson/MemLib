@@ -192,5 +192,4 @@ class Thread:
         return sameId and sameProcessId
 
     def __repr__(self) -> str:
-        return (f"Thread(id={self.GetId()}, priority={self.GetPriority().name}, process='"
-                f"{self._process.GetProcessId()}')")
+        return f"Thread(id={self.GetId()}, process='{self._process.GetProcessId()}')"
