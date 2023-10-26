@@ -17,10 +17,10 @@ from ctypes.wintypes import LONG
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from MemLib.Constants import THREAD_ALL_ACCESS
+from MemLib.Constants import INFINITE, THREAD_ALL_ACCESS, WAIT_FAILED, WAIT_OBJECT_0
 from MemLib.Kernel32 import (
-    CloseHandle, GetThreadPriority, OpenThread, ResumeThread, SetThreadPriority, SuspendThread,
-    TerminateThread, Win32Exception,
+    CloseHandle, GetExitCodeThread, GetThreadPriority, OpenThread, ResumeThread, SetThreadPriority, SuspendThread,
+    TerminateThread, WaitForSingleObject, Win32Exception,
 )
 
 
@@ -49,6 +49,7 @@ class Priority(IntEnum):
     Realtime_AboveNormal = 25
     Realtime_Highest = 26
     Realtime_TimeCritical = 31
+
 
 
 class Thread:
@@ -160,6 +161,26 @@ class Thread:
                 return False
 
         return True
+
+    def Join(self, timeout: int = INFINITE) -> int:
+        """
+        Resumes the thread if suspended and waits until thread exited or the timout ran out.
+
+        :param timeout: If waitExecution is True, this specifies the max wait time the function waits.
+        :raises Win32Exception: If the wait failed.
+        :returns: The exit code if successful waited for the thread, -1 otherwise (timeout as well).
+        """
+
+        self.Resume()
+
+        result = WaitForSingleObject(self._handle, timeout)
+        if result == WAIT_FAILED:
+            raise Win32Exception()
+
+        if result == WAIT_OBJECT_0:
+            return GetExitCodeThread(self._handle)
+
+        return -1
 
     def Terminate(self, exitCode: int = 0) -> bool:
         return TerminateThread(self._handle, exitCode)
