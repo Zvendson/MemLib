@@ -179,7 +179,8 @@ def CreateRemoteThread(
         stackSize: int,
         startAddress: int,
         parameter: int,
-        creationFlags: int) -> int:
+        creationFlags: int,
+        threadId: POINTER) -> int:
     """
     Creates a thread that runs in the virtual address space of another process.
 
@@ -193,11 +194,20 @@ def CreateRemoteThread(
                          function must exist in the remote process.
     :param parameter: A pointer to a variable to be passed to the thread function.
     :param creationFlags: The flags that control the creation of the thread.
+    :param threadId: A pointer to store the threadId at.
     :returns: If the function succeeds, the return value is the termination status of the specified process. If the
               function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
     """
 
-    return _CreateRemoteThread(processHandle, threadAttributes, stackSize, startAddress, parameter, creationFlags, 0)
+    return _CreateRemoteThread(
+        processHandle,
+        threadAttributes,
+        stackSize,
+        startAddress,
+        parameter,
+        creationFlags,
+        threadId
+    )
 
 
 def OpenThread(threadId: int, inheritHandle: bool, desiredAccess: int) -> int:
