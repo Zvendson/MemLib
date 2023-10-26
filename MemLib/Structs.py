@@ -142,6 +142,25 @@ class MODULEENTRY32(Struct):
     ]
 
 
+class THREADENTRY32(Struct):
+    """
+    Describes an entry from a list of the threads executing in the system when a snapshot was taken.
+
+    **See also:** `THREADENTRY32 <https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32
+    -threadentry32>`_
+    """
+
+    _fields_ = [
+        ('dwSize', DWORD),
+        ('cntUsage', DWORD),
+        ('th32ThreadID', DWORD),
+        ('th32OwnerProcessID', DWORD),
+        ('tpBasePri', LONG),
+        ('tpDeltaPri', LONG),
+        ('dwFlags', DWORD),
+    ]
+
+
 WNDPROC = WINFUNCTYPE(LONG, HWND, UINT, LONG, DWORD)
 
 class WNDCLASS(Struct):
