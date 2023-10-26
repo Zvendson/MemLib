@@ -200,6 +200,25 @@ def CreateRemoteThread(
     return _CreateRemoteThread(processHandle, threadAttributes, stackSize, startAddress, parameter, creationFlags, 0)
 
 
+def OpenThread(threadId: int, inheritHandle: bool, desiredAccess: int) -> int:
+    """
+    Opens an existing local process object.
+
+    :param threadId: The identifier of the local process to be opened.
+    :param inheritHandle: If this value is TRUE, processes created by this process will inherit the handle. Otherwise,
+                          the processes do not inherit this handle.
+    :param desiredAccess: The access to the process object.
+    :returns: If the function succeeds, the return value is an open handle to the specified process. If the function
+              fails, the return value is NULL. To get extended error information, call GetLastError.
+    """
+
+    handle: int | None = _OpenThread(desiredAccess, inheritHandle, threadId)
+    if handle is None:
+        handle = 0
+
+    return handle
+
+
 def ResumeThread(threadHandle: int) -> int:
     """
     Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is
@@ -826,6 +845,10 @@ _GetExitCodeProcess.restype = BOOL
 _CreateRemoteThread = windll.kernel32.CreateRemoteThread
 _CreateRemoteThread.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD, DWORD, POINTER(DWORD)]
 _CreateRemoteThread.restype = HANDLE
+
+_OpenThread = windll.kernel32.OpenThread
+_OpenThread.argtypes = [DWORD, BOOL, DWORD]
+_OpenThread.restype = HANDLE
 
 _ResumeThread = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
