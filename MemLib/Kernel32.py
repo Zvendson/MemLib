@@ -122,6 +122,24 @@ def GetPriorityClass(processHandle: int) -> int:
     return _GetPriorityClass(processHandle)
 
 
+def SetPriorityClass(processHandle: int, priorityClass: int) -> bool:
+    """
+    Sets the priority class for the specified process. This value together with the priority value of each thread of the
+    process determines each thread's base priority level.
+
+    :param processHandle: A handle to the process.
+    :param priorityClass: The priority class for the process.
+    :returns: If the function succeeds, the return value is the priority class of the specified process. If the
+              function fails, the return value is zero. To get extended error information, call GetLastError.
+
+    .. note:: **See also:**
+        `GetPriorityClass <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
+        -getpriorityclass>`_
+    """
+
+    return _SetPriorityClass(processHandle, priorityClass)
+
+
 def GetExitCodeProcess(processHandle: int) -> int:
     """
     Retrieves the termination status of the specified process.
@@ -779,6 +797,10 @@ _ResumeThread.restype = DWORD
 _GetPriorityClass = windll.kernel32.GetPriorityClass
 _GetPriorityClass.argtypes = [HANDLE]
 _GetPriorityClass.restype = DWORD
+
+_SetPriorityClass = windll.kernel32.SetPriorityClass
+_SetPriorityClass.argtypes = [HANDLE, DWORD]
+_SetPriorityClass.restype = BOOL
 
 _WaitForSingleObject = windll.kernel32.WaitForSingleObject
 _WaitForSingleObject.argtypes = [HANDLE, DWORD]

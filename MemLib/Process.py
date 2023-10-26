@@ -14,8 +14,8 @@ from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
     CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetExitCodeThread, GetPriorityClass,
     NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First, Process32Next,
-    QueryFullProcessImageNameW, ReadProcessMemory, TerminateProcess, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx,
-    Win32Exception, WriteProcessMemory,
+    QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess, VirtualAllocEx, VirtualFreeEx,
+    VirtualProtectEx, Win32Exception, WriteProcessMemory,
 )
 from MemLib.Module import Module
 from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct
@@ -170,6 +170,16 @@ class Process:
         """
 
         return GetPriorityClass(self._handle)
+
+    def SetPriorityClass(self, priority: int = NORMAL_PRIORITY_CLASS) -> bool:
+        """
+        Sets the priority class
+
+        :param priority: The priority class for the process.
+        :returns: True if the priority class has been set. False otherwise.
+        """
+
+        return SetPriorityClass(self._handle, priority)
 
     def GetModules(self) -> List[Module]:
         """
