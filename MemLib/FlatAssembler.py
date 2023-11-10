@@ -116,7 +116,7 @@ class FasmError(Exception):
                 outString += f"\n    -> Line: {line}"
                 outString += "\n    -> ASM:"
 
-                for i in range(line - 5, line + 6):
+                for i in range(line - 10, line + 11):
                     if i < 0 or i >= len(lines):
                         continue
 
