@@ -282,6 +282,36 @@ class SharedMemory:
         self._memoryBuffer  = mapping
         self._bufferAddress = bufferAddress
 
+    def Disconnect(self) -> None:
+        """
+        Disconnects from the shared memory.
+
+        :raises Exception: If an error occurs while disconnecting from the shared memory. The exception represents the
+                           list of errors that occurred. The list of errors is formatted as follows::
+                               [Error 1] -> <error 1>
+                               [Error 2] -> <error 2>
+                               ...
+                               [Error n] -> <error n>
+        :returns: None
+        """
+
+        errors: List[Win32Exception] = list()
+        handle: int                  = self._memoryBuffer.Handle
+        baseAddr: int                = self._memoryBuffer.BaseAddress
+
+        if baseAddr and not UnmapViewOfFile(self._memoryBuffer.BaseAddress):
+            errors.append(Win32Exception())
+
+        if handle and not CloseHandle(self._memoryBuffer.Handle):
+            errors.append(Win32Exception())
+
+        if len(errors):
+            fmtError = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
+            raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
+
+        self._memoryBuffer.Handle        = 0
+        self._memoryBuffer.BaseAddress   = 0
+
     def Store(self, address: int) -> bool:
         """
         Stores the shared memory at the specified address.
