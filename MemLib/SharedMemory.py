@@ -203,6 +203,50 @@ class SharedMemory:
         self._memoryBuffer.BaseAddress   = 0
         self._memoryBuffer.BaseAddressEx = 0
 
+    def Connect(self, memHandle: int, memAddress: int) -> None:
+        """
+        Connects to an existing shared memory stored at the address. The shared memory must be valid and stored
+        at the specified address. If the shared memory is not valid or it is not stored at the specified address, an
+        exception is raised.
+
+        :param memHandle: The handle of the shared memory.
+        :param memAddress: The address of the shared memory.
+        :raises ValueError: If the shared memory buffer is not valid at the specified address.
+        :raises Win32Exception: If an error occurs while connecting to the shared memory.
+        :returns: None
+        """
+
+        # Create buffer
+        mapping: SharedMemoryBuffer = SharedMemoryBuffer()
+        mapping.HandleEx      = memHandle
+        mapping.BaseAddressEx = memAddress
+
+        # Handle
+        handle: HANDLE = HANDLE()
+        duplicated: bool = DuplicateHandle(
+            self.GetProcess().GetHandle(),
+            memHandle,
+            -1,
+            handle,
+            0,
+            False,
+            DUPLICATE_SAME_ACCESS
+        )
+        if not duplicated or handle.value == 0:
+            raise Win32Exception()
+        mapping.Handle = handle.value
+
+        # BaseAddress
+        base: int = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
+        if not base:
+            error: Win32Exception = Win32Exception()
+            CloseHandle(mapping.Handle)
+            raise error
+        mapping.BaseAddress = base
+
+        self._memoryBuffer  = mapping
+        self._bufferAddress = 0
+
     def ConnectFromBuffer(self, bufferAddress: int) -> None:
         """
         Connects to an existing shared memory stored at the address. The shared memory must be valid and stored
