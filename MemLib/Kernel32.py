@@ -380,6 +380,39 @@ def WaitForSingleObject(handle: int, milliseconds: int) -> int:
 def CreateWaitOrTimerCallback(callback: Callable[[int, int], None]) -> WaitOrTimerCallback:
     return WaitOrTimerCallback(callback)
 
+def RegisterWaitForSingleObject(
+        objHandle: int,
+        callback: WaitOrTimerCallback,
+        context: int,
+        milliseconds: int,
+        flags: int) -> int:
+    """
+    Directs a wait thread in the thread pool to wait on the object. The wait thread queues the specified callback
+    function to the thread pool when one of the following occurs:
+    - The specified object is in the signaled state.
+    - The time-out interval elapses.
+
+    :param objHandle: A handle to the object.
+    :param callback: A function callback with 2 parameter: lpParameter (int) and TimerOrWaitFired (bool), no return.
+    :param context: A single value that is passed to the callback function.
+    :param milliseconds: The time-out interval, in milliseconds.
+    :param flags: Flags to define the behavious.
+    :returns: The wait handle. 0 if failed.
+
+    .. note:: **See also:** `RegisterWaitForSingleObject
+          <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registerwaitforsingleobject>`_
+    """
+
+    outHandle = HANDLE()
+    if not _RegisterWaitForSingleObject(byref(outHandle), objHandle, callback, context, milliseconds, flags):
+        return 0
+
+    if outHandle.value is None:
+        return 0
+
+    return outHandle.value
+
+
 def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
     """
     Opens an existing local process object.
@@ -563,9 +596,9 @@ def VirtualAlloc(address: int, size: int, allocationType: int, protect: int) -> 
 
 def VirtualAllocEx(processHandle: int, address: int, size: int, allocationType: int, protect: int) -> int:
     """
-    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
+    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified
     process. The function initializes the memory it allocates to zero.
-    
+
     :param processHandle: The handle to a process.
     :param address: The pointer that specifies a desired starting address for the region of pages that you want to
                     allocate.
@@ -583,22 +616,22 @@ def VirtualFree(address: int, size: int, freeType: int) -> bool:
     """
     Releases, decommits, or releases and decommits a region of pages within the virtual address space of the calling
     process. To free memory allocated in another process by the VirtualAllocEx function, use the VirtualFreeEx function.
-    
+
     :param address: A pointer to the base address of the region of pages to be freed.
     :param size: The size of the region of memory to be freed, in bytes.
     :param freeType: The type of free operation.
     :returns: If the function succeeds, the return value is nonzero. f the function fails, the return value is 0 (zero).
               To get extended error information, call GetLastError.
     """
-    
+
     return _VirtualFree(address, size, freeType)
 
 
 def VirtualFreeEx(processHandle: int, address: int, size: int, freeType: int) -> bool:
     """
-    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified 
+    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified
     process. The function initializes the memory it allocates to zero.
-    
+
     :param processHandle: The handle to a process.
     :param address: The pointer that specifies a desired starting address for the region of pages that you want to
                     allocate.
@@ -614,7 +647,7 @@ def VirtualFreeEx(processHandle: int, address: int, size: int, freeType: int) ->
 def VirtualProtectEx(processHandle: int, address: int, size: int, newProtect: int, oldProtect: object) -> bool:
     """
     Changes the protection on a region of committed pages in the virtual address space of a specified process.
-    
+
     :param processHandle: A handle to the process whose memory protection is to be changed.
     :param address: A pointer to the base address of the region of pages whose access protection attributes are to be
                     changed.
@@ -1050,6 +1083,10 @@ _TerminateThread.restype = BOOL
 _WaitForSingleObject = windll.kernel32.WaitForSingleObject
 _WaitForSingleObject.argtypes = [HANDLE, DWORD]
 _WaitForSingleObject.restype = DWORD
+
+_RegisterWaitForSingleObject = windll.kernel32.RegisterWaitForSingleObject
+_RegisterWaitForSingleObject.argtypes = [LPHANDLE, HANDLE, WaitOrTimerCallback, LPVOID, ULONG, ULONG]
+_RegisterWaitForSingleObject.restype = BOOL
 
 _OpenProcess = windll.kernel32.OpenProcess
 _OpenProcess.argtypes = [DWORD, BOOL, DWORD]
