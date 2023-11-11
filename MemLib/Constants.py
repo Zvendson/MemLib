@@ -883,3 +883,45 @@ THREAD_ALL_ACCESS: int = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFFF
 """
 All possible access rights for a thread object.
 """
+
+WT_EXECUTEDEFAULT: int = 0x0
+"""
+By default, the callback function is queued to a non-I/O worker thread.
+"""
+
+WT_EXECUTEINWAITTHREAD: int = 0x4
+"""
+The callback function is invoked by the wait thread itself. This flag should be used only for short tasks or it could 
+affect other wait operations.
+
+Deadlocks can occur if some other thread acquires an exclusive lock and calls the UnregisterWait or UnregisterWaitEx 
+function while the callback function is trying to acquire the same lock.
+"""
+
+WT_EXECUTEONLYONCE: int = 0x8
+"""
+The thread will no longer wait on the handle after the callback function has been called once. Otherwise, the timer is 
+reset every time the wait operation completes until the wait operation is canceled.
+"""
+
+WT_EXECUTELONGFUNCTION: int = 0x10
+"""
+The callback function can perform a long wait. This flag helps the system to decide if it should create a new thread.
+"""
+
+WT_EXECUTEINPERSISTENTTHREAD: int = 0x80
+"""
+The callback function is queued to a thread that never terminates. It does not guarantee that the same thread is used 
+each time. This flag should be used only for short tasks or it could affect other wait operations.
+This flag must be set if the thread calls functions that use APCs.
+
+Note that currently no worker thread is truly persistent, although no worker thread will terminate if there are any 
+pending I/O requests.
+"""
+
+WT_TRANSFER_IMPERSONATION: int = 0x100
+"""
+Callback functions will use the current access token, whether it is a process or impersonation token. If this flag is 
+not specified, callback functions execute only with the process token.
+Windows XP:  This flag is not supported until Windows XP with SP2 and Windows Server 2003.
+"""
