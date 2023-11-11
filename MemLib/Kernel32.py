@@ -169,7 +169,7 @@ def GetExitCodeProcess(processHandle: int) -> int:
     :returns: If the function succeeds, the return value is the termination status of the specified process. If the
               function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
     """
-    
+
     exitCode: DWORD = DWORD()
     if _GetExitCodeProcess(processHandle, byref(exitCode)):
         return exitCode.value
@@ -411,6 +411,20 @@ def RegisterWaitForSingleObject(
         return 0
 
     return outHandle.value
+
+
+def UnregisterWait(waitHandle: int) -> bool:
+    """
+    Cancels a registered wait operation issued by the RegisterWaitForSingleObject function.
+
+    :param waitHandle: The wait handle. This handle is returned by the RegisterWaitForSingleObject function.
+    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
+              To get extended error information, call GetLastError.
+
+    .. note:: **See also:** `UnregisterWaitEx <https://learn.microsoft.com/en-us/windows/win32/sync/unregisterwaitex>`_
+    """
+
+    return _UnregisterWait(waitHandle) != 0
 
 
 def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
@@ -1087,6 +1101,10 @@ _WaitForSingleObject.restype = DWORD
 _RegisterWaitForSingleObject = windll.kernel32.RegisterWaitForSingleObject
 _RegisterWaitForSingleObject.argtypes = [LPHANDLE, HANDLE, WaitOrTimerCallback, LPVOID, ULONG, ULONG]
 _RegisterWaitForSingleObject.restype = BOOL
+
+_UnregisterWait = windll.kernel32.UnregisterWait
+_UnregisterWait.argtypes = [HANDLE]
+_UnregisterWait.restype = BOOL
 
 _OpenProcess = windll.kernel32.OpenProcess
 _OpenProcess.argtypes = [DWORD, BOOL, DWORD]
