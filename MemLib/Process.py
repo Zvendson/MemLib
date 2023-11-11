@@ -4,17 +4,19 @@
 
 from __future__ import annotations
 
+import errno
+import os
 from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from MemLib.Constants import (
     CREATE_SUSPENDED, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
-    STILL_ACTIVE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
+    TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
 )
 from MemLib.Decorators import RequireAdmin
 from MemLib.Kernel32 import (
-    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetExitCodeProcess, GetPriorityClass,
+    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, GetPriorityClass,
     Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
     Process32First, Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, SetPriorityClass, TerminateProcess,
     Thread32First, Thread32Next, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, Win32Exception, WriteProcessMemory,
@@ -79,8 +81,21 @@ class Process:
 
         :returns: True if the process exists, False otherwise.
         """
-
-        return GetExitCodeProcess(self._handle) == STILL_ACTIVE
+        try:
+            os.kill(self.GetProcessId(), 0)
+        except OSError as err:
+            if err.errno == errno.ESRCH:
+                # ESRCH == No such process
+                return False
+            elif err.errno == errno.EPERM:
+                # EPERM clearly means there's a process to deny access to
+                return True
+            else:
+                # According to "man 2 kill" possible error values are
+                # (EINVAL, EPERM, ESRCH)
+                raise err
+        else:
+            return True
 
     @RequireAdmin
     def Open(self, processId: int) -> bool:
