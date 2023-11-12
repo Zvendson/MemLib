@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
+from pathlib import Path
 from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from psutil import pid_exists
@@ -209,18 +210,22 @@ class Process:
         else:
             return module.GetName()
 
-    def GetPath(self) -> str:
+    def GetPath(self) -> Path | None:
         """
         :returns: The local path of the process. Empty string if the process is not opened.
         """
 
         nameBuffer: Array = (WCHAR * 4096)()
         sizeBuffer: DWORD = DWORD(4096)
+        path = None
 
         if QueryFullProcessImageNameW(self._handle, 0, nameBuffer, pointer(sizeBuffer)):
-            return nameBuffer.value
+            path = nameBuffer.value
 
-        return ""
+        if isinstance(path, str):
+            return Path(path)
+
+        return None
 
     def GetPriorityClass(self) -> int:
         """
