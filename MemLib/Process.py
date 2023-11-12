@@ -48,7 +48,7 @@ class Process:
         self._processId: int  = processId
         self._handle: int     = processHandle
         self._callbacks: list = list()
-        self._wait: int = 0
+        self._wait: int       = 0
         self._waitCallback: WaitOrTimerCallback = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
 
         if not self._handle:
@@ -58,11 +58,11 @@ class Process:
             raise ValueError(f"Process {self._processId} does not exist.")
 
     def __del__(self):
+        self._callbacks.clear()
+        self._UnregisterWait()
+
         if self._handle:
             self.Close()
-
-        if self._wait:
-            UnregisterWait(self._wait)
 
     def __str__(self) -> str:
         return f"Process(Name={self.GetName()}, PID={self._processId}, Handle={self._handle}, Path={self.GetPath()})"
@@ -111,6 +111,8 @@ class Process:
         :returns: True if the process was closed successfully, False otherwise.
         """
 
+        self._UnregisterWait()
+
         if CloseHandle(self._handle):
             self._processId = 0
             self._handle = 0
@@ -136,15 +138,7 @@ class Process:
 
     def RegisterOnExitCallback(self, callback: Callable[[int, int], None]):
         self._callbacks.append(callback)
-
-        if not self._wait:
-            self._wait = RegisterWaitForSingleObject(
-                self._handle,
-                self._waitCallback,
-                self._processId,
-                INFINITE,
-                WT_EXECUTEONLYONCE
-            )
+        self._RegisterWait()
 
     def UnregisterOnExitCallback(self, callback: Callable[[int, int], None]):
         self._callbacks.remove(callback)
@@ -152,10 +146,6 @@ class Process:
         if self._wait and len(self._callbacks) == 0:
             UnregisterWait(self._wait)
             self._wait = 0
-
-    def __OnProcessTerminate(self, lpParameter: int, timerOrWaitFired: int):
-        for callback in self._callbacks:
-            callback(lpParameter, timerOrWaitFired)
 
     def CreateThread(self,
                      startAddress: int,
@@ -659,3 +649,22 @@ class Process:
 
         CloseHandle(snapshot)
         return None
+
+    def _RegisterWait(self) -> None:
+        if not self._wait:
+            self._wait = RegisterWaitForSingleObject(
+                self._handle,
+                self._waitCallback,
+                self._processId,
+                INFINITE,
+                WT_EXECUTEONLYONCE
+            )
+
+    def _UnregisterWait(self) -> None:
+        if self._wait:
+            UnregisterWait(self._wait)
+            self._wait = 0
+
+    def __OnProcessTerminate(self, processId: int, timerOrWaitFired: int):
+        for callback in self._callbacks:
+            callback(processId, timerOrWaitFired)
