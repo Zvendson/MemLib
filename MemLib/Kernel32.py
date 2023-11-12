@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from ctypes import Array, CFUNCTYPE, POINTER, byref, windll
+from ctypes import Array, POINTER, WINFUNCTYPE, byref, windll
 from ctypes.wintypes import (
     BOOL, DWORD, HANDLE, HMODULE, INT, LONG, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
     PLARGE_INTEGER, PULONG, UINT, ULONG, WCHAR,
@@ -15,7 +15,7 @@ from typing import Callable, Type
 from MemLib.Constants import STATUS_SUCCESS
 
 
-WaitOrTimerCallback = CFUNCTYPE(None, LPVOID, BOOL)
+WaitOrTimerCallback = WINFUNCTYPE(None, LPVOID, BOOL)
 
 
 def SUCCEEDED(HRESULT: int) -> bool:
