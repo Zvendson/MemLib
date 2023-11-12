@@ -12,4 +12,7 @@ setup(
     author='Zvendson',
     author_email='',
     description='Library to interact with the windows API and ctypes.',
+    install_requires=[
+        'psutil~=5.9.6',
+    ]
 )
