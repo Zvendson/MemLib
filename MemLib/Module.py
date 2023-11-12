@@ -13,6 +13,7 @@ Describes an entry from a list of the modules belonging to the specified process
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from MemLib.Kernel32 import GetProcAddress, Win32Exception
@@ -62,12 +63,15 @@ class Module:
 
         return self._name
 
-    def GetPath(self) -> str:
+    def GetPath(self) -> Path | None:
         """
         :returns: The local path of the module.
         """
 
-        return self._path
+        if isinstance(self._path, str):
+            return Path(self._path)
+
+        return None
 
     def GetProcAddress(self, name: str) -> int:
         """
