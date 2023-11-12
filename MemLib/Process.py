@@ -6,26 +6,26 @@ from __future__ import annotations
 
 from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
-from typing import List, Literal, TYPE_CHECKING, Type, TypeVar
+from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from psutil import pid_exists
 
 from MemLib.Constants import (
-    CREATE_SUSPENDED, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS,
-    TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
+    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE,
+    PROCESS_ALL_ACCESS, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
+    WT_EXECUTEONLYONCE,
 )
 from MemLib.Decorators import RequireAdmin
+from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
+from MemLib.Module import Module
+from MemLib.Thread import Thread
 from MemLib.Kernel32 import (
+    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, CreateWaitOrTimerCallback, GetPriorityClass,
     Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
     Process32First, Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, RegisterWaitForSingleObject,
-    SetPriorityClass, TerminateProcess,
-    Thread32First, Thread32Next, UnregisterWait, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx, WaitOrTimerCallback,
-    Win32Exception,
-    WriteProcessMemory,
+    SetPriorityClass, TerminateProcess, Thread32First, Thread32Next, UnregisterWait, VirtualAllocEx, VirtualFreeEx,
+    VirtualProtectEx, WaitOrTimerCallback, Win32Exception, WriteProcessMemory,
 )
-from MemLib.Module import Module
-from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
-from MemLib.Thread import Thread
 
 
 if TYPE_CHECKING:
@@ -45,8 +45,11 @@ class Process:
         if not processId:
             raise ValueError("processId cannot be 0.")
 
-        self._processId: int = processId
-        self._handle: int    = processHandle
+        self._processId: int  = processId
+        self._handle: int     = processHandle
+        self._callbacks: list = list()
+        self._wait: int = 0
+        self._waitCallback: WaitOrTimerCallback = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
 
         if not self._handle:
             self.Open(self._processId)
@@ -58,8 +61,8 @@ class Process:
         if self._handle:
             self.Close()
 
-    def __int__(self):
-        return self._handle
+        if self._wait:
+            UnregisterWait(self._wait)
 
     def __str__(self) -> str:
         return f"Process(Name={self.GetName()}, PID={self._processId}, Handle={self._handle}, Path={self.GetPath()})"
@@ -130,6 +133,29 @@ class Process:
         """
 
         return NtResumeProcess(self._handle)
+
+    def RegisterOnExitCallback(self, callback: Callable[[int, int], None]):
+        self._callbacks.append(callback)
+
+        if not self._wait:
+            self._wait = RegisterWaitForSingleObject(
+                self._handle,
+                self._waitCallback,
+                self._processId,
+                INFINITE,
+                WT_EXECUTEONLYONCE
+            )
+
+    def UnregisterOnExitCallback(self, callback: Callable[[int, int], None]):
+        self._callbacks.remove(callback)
+
+        if self._wait and len(self._callbacks) == 0:
+            UnregisterWait(self._wait)
+            self._wait = 0
+
+    def __OnProcessTerminate(self, lpParameter: int, timerOrWaitFired: int):
+        for callback in self._callbacks:
+            callback(lpParameter, timerOrWaitFired)
 
     def CreateThread(self,
                      startAddress: int,
