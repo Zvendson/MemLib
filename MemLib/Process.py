@@ -410,6 +410,9 @@ class Process:
         :returns: Data on success or an empty byte string on failure
         """
 
+        if not self.Exists():
+            return b''
+
         buffer: Array = (BYTE * length)()
 
         if ReadProcessMemory(self._handle, address, byref(buffer), length, None):
@@ -425,6 +428,9 @@ class Process:
         :param structClass: Your struct class
         :returns: Your struct filled with data on success or None on failure
         """
+
+        if not self.Exists():
+            return None
 
         buffer: T = structClass()
 
@@ -443,6 +449,9 @@ class Process:
         :returns: The DWORD as int
         """
 
+        if not self.Exists():
+            return 0
+
         result: bytes = self.Read(address, 4)
         return int.from_bytes(result, endianess)
 
@@ -454,6 +463,9 @@ class Process:
         :param endianess: The endianess of the WORD ("little" or "big")
         :returns: The WORD as int
         """
+
+        if not self.Exists():
+            return 0
 
         result: bytes = self.Read(address, 2)
         return int.from_bytes(result, endianess)
@@ -467,6 +479,9 @@ class Process:
         :returns: The BYTE as int
         """
 
+        if not self.Exists():
+            return 0
+
         result: bytes = self.Read(address, 1)
         return int.from_bytes(result, endianess)
 
@@ -479,6 +494,9 @@ class Process:
         :param strip: If True, the string will be stripped of null-bytes
         :returns: The string in UTF-8.
         """
+
+        if not self.Exists():
+            return b''
 
         result: bytes = self.Read(address, length)
         if strip:
@@ -496,6 +514,9 @@ class Process:
         :returns: the wide string in UTF-16.
         """
 
+        if not self.Exists():
+            return ""
+
         result: bytes = self.Read(address, length * 2)
         if strip:
             result = result.rstrip(b'\x00') + b'\x00'
@@ -510,6 +531,9 @@ class Process:
         :param data: The data you want to write
         :returns: True on success and False on failure
         """
+
+        if not self.Exists():
+            return False
 
         binary_data: bytes = b''.join(data)
         size: int          = len(binary_data)
@@ -529,6 +553,9 @@ class Process:
         :returns: True on success and False on failure
         """
 
+        if not self.Exists():
+            return False
+
         size: int = data.GetSize()
 
         oldProtection: int = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
@@ -545,6 +572,9 @@ class Process:
         :param size: the size of the memory you want to zero
         :returns: True on success and False on failure
         """
+
+        if not self.Exists():
+            return False
 
         oldProtection: int = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
         success: bool      = self.Write(address, b'\x00' * size)
@@ -566,6 +596,9 @@ class Process:
         :param protect: the protection type
         :returns: the address of the allocated memory on success and 0 on failure
         """
+
+        if not self.Exists():
+            return 0
 
         return VirtualAllocEx(self._handle, address, size, allocationType, protect)
 
