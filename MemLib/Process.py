@@ -4,28 +4,31 @@
 
 from __future__ import annotations
 
-from ctypes import Array, byref, pointer
-from ctypes.wintypes import BYTE, DWORD, WCHAR
-from pathlib import Path
 from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
+from ctypes          import Array, byref, pointer
+from ctypes.wintypes import BYTE, DWORD, WCHAR
+
+from pathlib import Path
 from psutil import pid_exists
 
+
 from MemLib.Constants import (
-    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE,
-    PROCESS_ALL_ACCESS, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD,
-    WT_EXECUTEONLYONCE,
+    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE,
+    NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, TH32CS_SNAPMODULE,
+    TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
-from MemLib.Decorators import RequireAdmin
 from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
 from MemLib.Module import Module
 from MemLib.Thread import Thread
 from MemLib.Kernel32 import (
-    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, CreateWaitOrTimerCallback, GetPriorityClass,
-    Module32First, Module32Next, NtQueryInformationProcess, NtResumeProcess, NtSuspendProcess, OpenProcess,
-    Process32First, Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, RegisterWaitForSingleObject,
-    SetPriorityClass, TerminateProcess, Thread32First, Thread32Next, UnregisterWait, VirtualAllocEx, VirtualFreeEx,
-    VirtualProtectEx, WaitOrTimerCallback, Win32Exception, WriteProcessMemory,
+    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, CreateWaitOrTimerCallback,
+    GetPriorityClass, Module32First, Module32Next, NtQueryInformationProcess,
+    NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First,
+    Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, RegisterWaitForSingleObject,
+    SetPriorityClass, TerminateProcess, Thread32First, Thread32Next,
+    UnregisterWait, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx,
+    WaitOrTimerCallback, Win32Exception, WriteProcessMemory,
 )
 
 
@@ -46,10 +49,10 @@ class Process:
         if not processId:
             raise ValueError("processId cannot be 0.")
 
-        self._processId: int  = processId
-        self._handle: int     = processHandle
-        self._callbacks: list = list()
-        self._wait: int       = 0
+        self._processId:    int                 = processId
+        self._handle:       int                 = processHandle
+        self._callbacks:    list                = list()
+        self._wait:         int                 = 0
         self._waitCallback: WaitOrTimerCallback = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
 
         if not self._handle:
@@ -89,12 +92,14 @@ class Process:
 
         return pid_exists(self._processId)
 
-    @RequireAdmin
-    def Open(self, processId: int) -> bool:
+    def Open(self, processId: int, access: int = PROCESS_ALL_ACCESS, inherit: bool = False) -> bool:
         """
         Opens the process with the given process id with `PROCESS_ALL_ACCESS`.
 
         :param processId: The process id of the process.
+        :param access: The access rights to open the process.
+        :param inherit: Determines processes created by this process will inherit the handle or not.
+
         :returns: True if the process was opened successfully, False otherwise.
         """
 
@@ -102,13 +107,14 @@ class Process:
             self.Close()
 
         self._processId = processId
-        self._handle = OpenProcess(processId, False, PROCESS_ALL_ACCESS)
+        self._handle    = OpenProcess(processId, inherit, access)
 
         return self._handle != 0
 
     def Close(self) -> bool:
         """
         Closes the process handle.
+
         :returns: True if the process was closed successfully, False otherwise.
         """
 
@@ -116,7 +122,7 @@ class Process:
 
         if CloseHandle(self._handle):
             self._processId = 0
-            self._handle = 0
+            self._handle    = 0
             return True
 
         raise False
@@ -149,12 +155,11 @@ class Process:
             self._wait = 0
 
     def CreateThread(self,
-                     startAddress: int,
-                     *,
-                     parameter: int = 0,
-                     creationFlags: int = CREATE_SUSPENDED,
+                     startAddress:     int,
+                     parameter:        int = 0,
+                     creationFlags:    int = CREATE_SUSPENDED,
                      threadAttributes: int = 0,
-                     stackSize: int = 0) -> Thread:
+                     stackSize:        int = 0) -> Thread:
         """
         Creates a thread that runs in the virtual address space of this process.
 
@@ -171,8 +176,8 @@ class Process:
                   thread's exit code.
         """
 
-        threadId = DWORD()
-        threadHandle = CreateRemoteThread(
+        threadId: DWORD = DWORD()
+        threadHandle: int = CreateRemoteThread(
             self._handle,
             threadAttributes,
             stackSize,
@@ -184,16 +189,16 @@ class Process:
 
         return Thread(threadId.value, self, threadHandle)
 
-    def GetProcessId(self):
+    def GetProcessId(self) -> int:
         """
-        :returns: The process id of the process. 0 if the process is not opened.
+        :returns: The process id of the targeted process.
         """
 
         return self._processId
 
-    def GetHandle(self):
+    def GetHandle(self) -> int:
         """
-        :returns: The process handle of the process. 0 if the process is not opened.
+        :returns: The process handle of the opened process. 0 if not opened.
         """
 
         return self._handle
@@ -215,9 +220,9 @@ class Process:
         :returns: The local path of the process. Empty string if the process is not opened.
         """
 
-        nameBuffer: Array = (WCHAR * 4096)()
-        sizeBuffer: DWORD = DWORD(4096)
-        path = None
+        nameBuffer: Array      = (WCHAR * 4096)()
+        sizeBuffer: DWORD      = DWORD(4096)
+        path:       str | None = None
 
         if QueryFullProcessImageNameW(self._handle, 0, nameBuffer, pointer(sizeBuffer)):
             path = nameBuffer.value
@@ -256,7 +261,7 @@ class Process:
             raise Win32Exception()
 
         moduleBuffer: MODULEENTRY32 = MODULEENTRY32()
-        moduleBuffer.dwSize = moduleBuffer.GetSize()
+        moduleBuffer.dwSize         = moduleBuffer.GetSize()
 
         if not Module32First(snapshot, byref(moduleBuffer)):
             CloseHandle(snapshot)
@@ -266,10 +271,10 @@ class Process:
 
         while Module32Next(snapshot, byref(moduleBuffer)):
             module: Module = Module(moduleBuffer, self)
+
             moduleList.append(module)
 
         CloseHandle(snapshot)
-
         return moduleList
 
     def GetMainModule(self) -> Module:
@@ -291,8 +296,8 @@ class Process:
 
         moduleBuffer: MODULEENTRY32 = MODULEENTRY32()
         moduleBuffer.dwSize         = moduleBuffer.GetSize()
+        snapshot:     int           = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._processId)
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._processId)
         if not snapshot:
             raise Win32Exception()
 
@@ -301,17 +306,17 @@ class Process:
                 raise Win32Exception()
 
             module: Module = Module(moduleBuffer, self)
-            CloseHandle(snapshot)
 
+            CloseHandle(snapshot)
             return module
 
-        name = name.encode('ascii')
+        name: bytes = name.encode('ascii')
 
         while Module32Next(snapshot, byref(moduleBuffer)):
             if moduleBuffer.szModule.lower() == name.lower():
                 module: Module = Module(moduleBuffer, self)
-                CloseHandle(snapshot)
 
+                CloseHandle(snapshot)
                 return module
 
         CloseHandle(snapshot)
@@ -328,7 +333,7 @@ class Process:
             raise Win32Exception()
 
         threadBuffer: THREADENTRY32 = THREADENTRY32()
-        threadBuffer.dwSize = threadBuffer.GetSize()
+        threadBuffer.dwSize         = threadBuffer.GetSize()
 
         if not Thread32First(snapshot, byref(threadBuffer)):
             err = Win32Exception()
@@ -340,11 +345,11 @@ class Process:
         while Thread32Next(snapshot, byref(threadBuffer)):
             if threadBuffer.th32OwnerProcessID != self._processId:
                 continue
+
             thread: Thread = Thread(threadBuffer.th32ThreadID, self)
             threadList.append(thread)
 
         CloseHandle(snapshot)
-
         return threadList
 
     def GetMainThread(self) -> Thread | None:
@@ -359,14 +364,14 @@ class Process:
             raise Win32Exception()
 
         threadBuffer: THREADENTRY32 = THREADENTRY32()
-        threadBuffer.dwSize = threadBuffer.GetSize()
+        threadBuffer.dwSize         = threadBuffer.GetSize()
 
         if not Thread32First(snapshot, byref(threadBuffer)):
             err = Win32Exception()
             CloseHandle(snapshot)
             raise err
 
-        thread = None
+        thread: Thread | None = None
 
         while Thread32Next(snapshot, byref(threadBuffer)):
             if threadBuffer.th32OwnerProcessID == self._processId:
@@ -535,11 +540,11 @@ class Process:
         if not self.Exists():
             return False
 
-        binary_data: bytes = b''.join(data)
-        size: int          = len(binary_data)
+        binary_data:   bytes = b''.join(data)
+        size:          int   = len(binary_data)
+        oldProtection: int   = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
+        success:       bool  = WriteProcessMemory(self._handle, address, binary_data, size, None)
 
-        oldProtection: int = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool      = WriteProcessMemory(self._handle, address, binary_data, size, None)
         self.Protect(address, size, oldProtection)
 
         return success
@@ -556,10 +561,10 @@ class Process:
         if not self.Exists():
             return False
 
-        size: int = data.GetSize()
+        size:          int  = data.GetSize()
+        oldProtection: int  = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
+        success:       bool = WriteProcessMemory(self._handle, address, byref(data), size, None)
 
-        oldProtection: int = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool      = WriteProcessMemory(self._handle, address, byref(data), size, None)
         self.Protect(address, size, oldProtection)
 
         return success
@@ -576,17 +581,18 @@ class Process:
         if not self.Exists():
             return False
 
-        oldProtection: int = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool      = self.Write(address, b'\x00' * size)
+        oldProtection: int  = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
+        success:       bool = self.Write(address, b'\x00' * size)
+
         self.Protect(address, size, oldProtection)
 
         return success
 
     def Allocate(self,
-                 size: int,
-                 address: int = 0,
+                 size:           int,
+                 address:        int = 0,
                  allocationType: int = MEM_COMMIT,
-                 protect: int = PAGE_EXECUTE_READWRITE) -> int:
+                 protect:        int = PAGE_EXECUTE_READWRITE) -> int:
         """
         Allocates memory in the process.
 
@@ -639,8 +645,8 @@ class Process:
 
         processName: bytes         = processName.encode('ascii')
         processList: List[Process] = list()
+        snapshot:    int           = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
             return processList
 
@@ -703,6 +709,9 @@ class Process:
             UnregisterWait(self._wait)
             self._wait = 0
 
-    def __OnProcessTerminate(self, processId: int, timerOrWaitFired: int):
+    def __OnProcessTerminate(self, processId: int, timerOrWaitFired: int) -> None:
         for callback in self._callbacks:
             callback(processId, timerOrWaitFired)
+
+
+

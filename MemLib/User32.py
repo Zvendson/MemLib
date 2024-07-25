@@ -12,18 +12,18 @@ from MemLib.Structs import MSG, WNDCLASS
 
 
 def CreateWindowExA(
-        exStyle: int,
-        className: bytes,
-        windowName: bytes,
-        style: int,
-        x: int,
-        y: int,
-        width: int,
-        height: int,
-        wndParent: int,
-        menuHandle: int,
+        exStyle:        int,
+        className:      bytes,
+        windowName:     bytes,
+        style:          int,
+        x:              int,
+        y:              int,
+        width:          int,
+        height:         int,
+        wndParent:      int,
+        menuHandle:     int,
         instanceHandle: int,
-        param: int) -> int:
+        param:          int) -> int:
     """
     Creates an overlapped, pop-up, or child window with an extended window style; otherwise, this function is identical
     to the CreateWindow function. For more information about creating a window and for full descriptions of the other
@@ -264,51 +264,54 @@ def MessageBoxW(hwindowHandlend: int, text: str, caption: str, typeFlags: int) -
 
 
 # region Function bindings
-_CreateWindowExA = windll.user32.CreateWindowExA
+_CreateWindowExA          = windll.user32.CreateWindowExA
 _CreateWindowExA.argtypes = [DWORD, LPCSTR, LPCSTR, DWORD, INT, INT, INT, INT, HWND, INT, INT, INT]
-_CreateWindowExA.restype = HWND
+_CreateWindowExA.restype  = HWND
 
-_DestroyWindow = windll.user32.DestroyWindow
+_DestroyWindow          = windll.user32.DestroyWindow
 _DestroyWindow.argtypes = [HWND]
-_DestroyWindow.restype = BOOL
+_DestroyWindow.restype  = BOOL
 
-_RegisterClassA = windll.user32.RegisterClassA
+_RegisterClassA          = windll.user32.RegisterClassA
 _RegisterClassA.argtypes = [HANDLE]
-_RegisterClassA.restype = ATOM
+_RegisterClassA.restype  = ATOM
 
-_UnregisterClassA = windll.user32.UnregisterClassA
+_UnregisterClassA          = windll.user32.UnregisterClassA
 _UnregisterClassA.argtypes = [LPCSTR, HANDLE]
-_UnregisterClassA.restype = BOOL
+_UnregisterClassA.restype  = BOOL
 
-_GetMessageA = windll.user32.GetMessageA
+_GetMessageA          = windll.user32.GetMessageA
 _GetMessageA.argtypes = [LPVOID, HWND, WPARAM, LPARAM]
-_GetMessageA.restype = BOOL
+_GetMessageA.restype  = BOOL
 
-_TranslateMessage = windll.user32.TranslateMessage
+_TranslateMessage          = windll.user32.TranslateMessage
 _TranslateMessage.argtypes = [LPVOID]
-_TranslateMessage.restype = BOOL
+_TranslateMessage.restype  = BOOL
 
-_DispatchMessageA = windll.user32.DispatchMessageA
+_DispatchMessageA          = windll.user32.DispatchMessageA
 _DispatchMessageA.argtypes = [LPVOID]
-_DispatchMessageA.restype = LONG
+_DispatchMessageA.restype  = LONG
 
-_PostQuitMessage = windll.user32.PostQuitMessage
+_PostQuitMessage          = windll.user32.PostQuitMessage
 _PostQuitMessage.argtypes = [INT]
-_PostQuitMessage.restype = None
+_PostQuitMessage.restype  = None
 
-_PostMessageA = windll.user32.PostMessageA
+_PostMessageA          = windll.user32.PostMessageA
 _PostMessageA.argtypes = [HWND, UINT, WPARAM, LPARAM]
-_PostMessageA.restype = LONG
+_PostMessageA.restype  = LONG
 
-_SendMessageA = windll.user32.SendMessageA
+_SendMessageA          = windll.user32.SendMessageA
 _SendMessageA.argtypes = [HWND, UINT, WPARAM, LPARAM]
-_SendMessageA.restype = LONG
+_SendMessageA.restype  = LONG
 
-_DefWindowProcA = windll.user32.DefWindowProcA
+_DefWindowProcA          = windll.user32.DefWindowProcA
 _DefWindowProcA.argtypes = [HWND, UINT, WPARAM, LPARAM]
-_DefWindowProcA.restype = LONG
+_DefWindowProcA.restype  = LONG
 
-_MessageBoxW = windll.user32.MessageBoxW
+_MessageBoxW          = windll.user32.MessageBoxW
 _MessageBoxW.argtypes = [HWND, LPCWSTR, LPCWSTR, UINT]
-_MessageBoxW.restype = INT
+_MessageBoxW.restype  = INT
 # endregion
+
+
+

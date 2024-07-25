@@ -1,21 +1,16 @@
+"""
+:platform: Windows
 
-BEL = "\x07"
-BS  = "\x08"
-HT  = "\x09"
-LF  = "\x0A"
-VT  = "\x0B"
-FF  = "\x0C"
-CR  = "\x0D"
-ESC = "\x1B"
-DEL = "\x7F"
+Simple RGB to ANSI converter.
+"""
 
 
 class ForeColor:
 
     def __init__(self, red: int, green: int, blue: int):
-        self._red   = red
-        self._green = green
-        self._blue  = blue
+        self._red:   int = red
+        self._green: int = green
+        self._blue:  int = blue
 
     def __str__(self) -> str:
         return ForeRGB(self._red, self._green, self._blue)
@@ -103,40 +98,54 @@ def CursorRestoreSEC() -> str:
     return f"{ESC}[u"
 
 
-BLACK        = f"{ESC}[0;30m"
-RED          = f"{ESC}[0;31m"
-GREEN        = f"{ESC}[0;32m"
-BROWN        = f"{ESC}[0;33m"
-BLUE         = f"{ESC}[0;34m"
-PURPLE       = f"{ESC}[0;35m"
-CYAN         = f"{ESC}[0;36m"
-LIGHT_GRAY   = f"{ESC}[0;37m"
-DARK_GRAY    = f"{ESC}[1;30m"
-LIGHT_RED    = f"{ESC}[1;31m"
-LIGHT_GREEN  = f"{ESC}[1;32m"
-YELLOW       = f"{ESC}[1;33m"
-LIGHT_BLUE   = f"{ESC}[1;34m"
-LIGHT_PURPLE = f"{ESC}[1;35m"
-LIGHT_CYAN   = f"{ESC}[1;36m"
-LIGHT_WHITE  = f"{ESC}[1;37m"
-BOLD         = f"{ESC}[1m"
-FAINT        = f"{ESC}[2m"
-ITALIC       = f"{ESC}[3m"
-UNDERLINE    = f"{ESC}[4m"
-BLINK        = f"{ESC}[5m"
-NEGATIVE     = f"{ESC}[7m"
-CROSSED      = f"{ESC}[9m"
-END          = f"{ESC}[0m"
+BEL: str = "\x07"
+BS:  str = "\x08"
+HT:  str = "\x09"
+LF:  str = "\x0A"
+VT:  str = "\x0B"
+FF:  str = "\x0C"
+CR:  str = "\x0D"
+ESC: str = "\x1B"
+DEL: str = "\x7F"
+
+
+BLACK:        str = f"{ESC}[0;30m"
+RED:          str = f"{ESC}[0;31m"
+GREEN:        str = f"{ESC}[0;32m"
+BROWN:        str = f"{ESC}[0;33m"
+BLUE:         str = f"{ESC}[0;34m"
+PURPLE:       str = f"{ESC}[0;35m"
+CYAN:         str = f"{ESC}[0;36m"
+LIGHT_GRAY:   str = f"{ESC}[0;37m"
+DARK_GRAY:    str = f"{ESC}[1;30m"
+LIGHT_RED:    str = f"{ESC}[1;31m"
+LIGHT_GREEN:  str = f"{ESC}[1;32m"
+YELLOW:       str = f"{ESC}[1;33m"
+LIGHT_BLUE:   str = f"{ESC}[1;34m"
+LIGHT_PURPLE: str = f"{ESC}[1;35m"
+LIGHT_CYAN:   str = f"{ESC}[1;36m"
+LIGHT_WHITE:  str = f"{ESC}[1;37m"
+BOLD:         str = f"{ESC}[1m"
+FAINT:        str = f"{ESC}[2m"
+ITALIC:       str = f"{ESC}[3m"
+UNDERLINE:    str = f"{ESC}[4m"
+BLINK:        str = f"{ESC}[5m"
+NEGATIVE:     str = f"{ESC}[7m"
+CROSSED:      str = f"{ESC}[9m"
+END:          str = f"{ESC}[0m"
 
 
 # Identifying the color name: https://www.color-blindness.com/color-name-hue/
-SAFETY_ORANGE      = ForeRGB(255, 111, 0)
-ELECTRIC_BLUE      = ForeRGB(135, 239, 255)
-HELIOTROPE         = ForeRGB(230, 130, 255)
-GRANNY_SMITH_APPLE = ForeRGB(155, 230, 142)
-FLAMENCO           = ForeRGB(232, 152, 77)
-BRINK_PINK         = ForeRGB(250, 102, 129)
-GREY               = ForeRGB(120, 120, 120)
-STRAW              = ForeRGB(217, 187, 134)
-WHITE              = ForeRGB(255, 255, 255)
-JADE               = ForeRGB(0, 199, 103)
+SAFETY_ORANGE:      str = ForeRGB(255, 111, 0)
+ELECTRIC_BLUE:      str = ForeRGB(135, 239, 255)
+HELIOTROPE:         str = ForeRGB(230, 130, 255)
+GRANNY_SMITH_APPLE: str = ForeRGB(155, 230, 142)
+FLAMENCO:           str = ForeRGB(232, 152, 77)
+BRINK_PINK:         str = ForeRGB(250, 102, 129)
+GREY:               str = ForeRGB(120, 120, 120)
+STRAW:              str = ForeRGB(217, 187, 134)
+WHITE:              str = ForeRGB(255, 255, 255)
+JADE:               str = ForeRGB(0, 199, 103)
+
+
+

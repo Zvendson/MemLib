@@ -4,35 +4,46 @@
 
 import inspect
 import warnings
+
 from ctypes import windll
-from functools import wraps
 from struct import calcsize
-from time import time
-from typing import Any, Callable
+from functools import wraps
+from time import sleep, time
+from typing import Any, Callable, Type
 
 from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitException
 
 
-_STRING_TYPES = (type(b''), type(u''))
+_STRING_TYPES: tuple[Type[bytes], Type[str]] = (type(b''), type(u''))
 
 
-def FuncTimer(function: Callable[[str], Any]) -> Callable:
-    @wraps(function)
-    def wrap(*args, **kwargs):
-        argstr = ", ".join(["%r" % a for a in args]) if args else ""
-        kwargstr = ", ".join(["%s=%r" % (k, v) for k, v in kwargs.items()]) \
-            if kwargs else ""
-        comma = ", " if (argstr and kwargstr) else ""
-        fargs = "%s(%s%s%s)" % (function.__name__, argstr, comma, kwargstr)
+def FuncTimer(out: Callable[[str], Any]) -> Callable:
+    """
+    Decorator to meassure the time of execution for the tagged function when called.
 
-        ts = time()
-        result = function(*args, **kwargs)
-        te = time()
-        print('%s took: %2.4f sec' % (fargs, te-ts))
+    :param function: The function to wrap.
+    :param out: The function to call with the text output.
+    :returns: The callable wrapped function object.
+    """
 
-        return result
+    def decorator(function: Callable[[str], Any]) -> Callable:
+        def wrap(*args, **kwargs):
+            argstr = ", ".join(["%r" % a for a in args]) if args else ""
+            kwargstr = ", ".join(["%s=%r" % (k, v) for k, v in kwargs.items()]) \
+                if kwargs else ""
+            comma = ", " if (argstr and kwargstr) else ""
+            fargs = "%s(%s%s%s)" % (function.__name__, argstr, comma, kwargstr)
 
-    return wrap
+            ts = time()
+            result = function(*args, **kwargs)
+            te = time()
+            out('%s took: %2.4f sec' % (fargs, te - ts))
+
+            return result
+
+        return wrap
+
+    return decorator
 
 
 def Require32Bit(f: Callable) -> Callable:
@@ -135,3 +146,11 @@ def Deprecated(reason: Callable | str) -> Callable:
 
     else:
         raise TypeError(repr(type(reason)))
+
+
+def HellWOrld():
+    sleep(1.0)
+    return "Hello World"
+
+
+

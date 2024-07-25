@@ -6,12 +6,14 @@ from __future__ import annotations
 
 from ctypes import WINFUNCTYPE
 from ctypes.wintypes import (
-    BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, MAX_PATH, PBYTE, UINT, ULONG,
+    BYTE, CHAR, DWORD, HANDLE,
+    HMODULE, HWND, INT, LONG,
+    LPARAM, LPCSTR, LPSTR, LPVOID,
+    MAX_PATH, PBYTE, UINT, ULONG,
     WORD, WPARAM,
 )
 
 from MemLib.Struct import Struct
-
 
 
 class StartupInfoW(Struct):
@@ -163,6 +165,7 @@ class THREADENTRY32(Struct):
 
 WNDPROC = WINFUNCTYPE(LONG, HWND, UINT, LONG, DWORD)
 
+
 class WNDCLASS(Struct):
     """
     Contains the window class attributes that are registered by the RegisterClass function.
@@ -203,3 +206,6 @@ class MSG(Struct):
         ('pt', HANDLE),
         ('lprivate', DWORD),
     ]
+
+
+

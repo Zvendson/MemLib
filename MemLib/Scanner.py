@@ -2,8 +2,12 @@
 :platform: Windows
 """
 
-from ctypes import CFUNCTYPE, POINTER, byref
+from ctypes import CFUNCTYPE, POINTER, _FuncPointer, byref
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
+from os import PathLike
+from typing import Type
+
+from _ctypes import Array
 
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
 from MemLib.FlatAssembler import Compile
@@ -11,14 +15,36 @@ from MemLib.Kernel32 import VirtualAlloc, VirtualFree, Win32Exception
 from MemLib.Structs import Struct
 
 
+def generateAssemblyPayload(file: int | str | bytes | PathLike[str] | PathLike[bytes]) -> str:
+    """
+    Generates a prettified string of opcode from a file using FASM. String is optimized to fit into 120 char line
+    length including indentations for "readability".
+
+    :param file: The path to the file including the name of the file.
+    :returns: The pretiffied opcode in python like bytes assignments.
+    """
+
+    with open(file) as asm:
+        opcode: bytes = Compile(asm.read())
+        opcode: str = opcode.hex().upper()
+        out:    str = ""
+
+        while len(opcode):
+            temp: str = opcode[:74]
+            temp = ' '.join(a + b for a, b in zip(temp[::2], temp[1::2]))
+            out += f"'{temp}'\n"
+            opcode = opcode[74::]
+
+        return out
+
 
 class Pattern(Struct):
 
     _fields_ = [
-        ('Length',    DWORD),
-        ('Binary',    BYTE * 256),
-        ('Mask',      BYTE * 256),
-        ("Offset",    DWORD),
+        ('Length', DWORD),
+        ('Binary', BYTE * 256),
+        ('Mask', BYTE * 256),
+        ("Offset", DWORD),
     ]
 
     def __init__(self, comboPattern: str, offset: int = 0):
@@ -38,16 +64,16 @@ class Pattern(Struct):
         :param offset: The offset.
         """
 
-        combo = comboPattern.replace(' ', '')
-        combo = combo.replace('*', '?')
-        combo = combo.replace('.', '?')
-        combo = combo.replace('_', '?')
+        combo: str = comboPattern.replace(' ', '')
+        combo      = combo.replace('*', '?')
+        combo      = combo.replace('.', '?')
+        combo      = combo.replace('_', '?')
 
         if len(combo) % 2 != 0:
             raise ValueError("Pattern has an invalid length!")
 
-        binary = ''
-        mask = ''
+        binary: str = ''
+        mask:   str = ''
 
         for a, b in zip(combo[::2], combo[1::2]):
             if '?' in (a + b):
@@ -96,21 +122,21 @@ class BinaryScanner:
         :param buffer: The bytes where the scanner will run the pattern on.
         """
 
-        self._buffer = BinaryScanner._Buffer(0, 0)
+        self._buffer: BinaryScanner._Buffer = BinaryScanner._Buffer(0, 0)
 
         # Writing payload to py memory
-        payload = BinaryScanner.__PAYLOAD
+        payload: bytes = BinaryScanner.__PAYLOAD
 
-        self._handlerAddress = VirtualAlloc(0, len(payload), MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+        self._handlerAddress: int = VirtualAlloc(0, len(payload), MEM_COMMIT, PAGE_EXECUTE_READWRITE)
         if not self._handlerAddress:
             raise Win32Exception()
 
-        binary = (CHAR * len(payload)).from_address(self._handlerAddress)
-        binary.value = payload
+        binary: Array = (CHAR * len(payload)).from_address(self._handlerAddress)
+        binary.value  = payload
 
         # Transform py written payload to a callable function
-        functype = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
-        self._handler = functype(self._handlerAddress)
+        functype:      CFUNCTYPE          = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
+        self._handler: Type[_FuncPointer] = functype(self._handlerAddress)
 
         # Writing buffer to py memory
         if buffer is not None:
@@ -120,6 +146,7 @@ class BinaryScanner:
         """
         Closes the BinaryScanner and frees the allocated memory.
         """
+
         if not VirtualFree(self._handlerAddress, 0, MEM_RELEASE):
             raise Win32Exception()
 
@@ -133,7 +160,7 @@ class BinaryScanner:
         :param newBuffer: The new buffer.
         """
 
-        size = len(newBuffer)
+        size: int = len(newBuffer)
 
         if self._buffer.Base:
             print("freed old buffer")
@@ -143,8 +170,8 @@ class BinaryScanner:
         if not self._buffer.Base:
             raise Win32Exception()
 
-        buffer = (CHAR * size).from_address(self._buffer.Base)
-        buffer.value = newBuffer
+        buffer: Array = (CHAR * size).from_address(self._buffer.Base)
+        buffer.value  = newBuffer
 
         self._buffer.End = self._buffer.Base + size
 
@@ -171,13 +198,8 @@ class BinaryScanner:
 
 
 if __name__ == '__main__':
-    # assemble Scanner.asm
+    scanner: str = generateAssemblyPayload("Scanner.asm")
+    print(scanner)
 
-    with open("Scanner.asm") as asm:
-        opcode = Compile(asm.read())
 
-        t = opcode.hex().upper()
-        t = ' '.join(a + b for a, b in zip(t[::2], t[1::2]))
 
-        print(t)
-        print(f"Size = {len(opcode)}")

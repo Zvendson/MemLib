@@ -24,7 +24,6 @@ from MemLib.Kernel32 import (
 )
 
 
-
 if TYPE_CHECKING:
     from MemLib.Process import Process
 
@@ -51,7 +50,6 @@ class Priority(IntEnum):
     Realtime_TimeCritical = 31
 
 
-
 class Thread:
     """
     :param threadId: The thread buffer struct
@@ -62,9 +60,9 @@ class Thread:
     """
 
     def __init__(self, threadId: int, process: Process, handle: int = 0):
-        self._process: Process    = process
-        self._threadId: int       = threadId
-        self._handle: int         = handle
+        self._process:  Process = process
+        self._threadId: int     = threadId
+        self._handle:   int     = handle
 
     def __del__(self):
         self.Close()
@@ -115,18 +113,19 @@ class Thread:
 
         return self._process
 
-    def Open(self, access: int = THREAD_ALL_ACCESS) -> int:
+    def Open(self, access: int = THREAD_ALL_ACCESS, inherit: bool = False) -> int:
         """
         Opens the thread with the specified access rights.
 
         :param access: The access rights.
+        :param inherit: Determines if processes created by this process will inherit the handle or not.
         :returns: True if the thread was opened successfully, False otherwise.
         """
 
         if self._handle != 0:
             self.Close()
 
-        self._handle = OpenThread(self._threadId, False, access)
+        self._handle = OpenThread(self._threadId, inherit, access)
 
         return self._handle != 0
 
@@ -159,7 +158,7 @@ class Thread:
         :returns: True if the thread was resumed successfully, False otherwise.
         """
 
-        depth = 0
+        depth: int = 0
         while ResumeThread(self.GetHandle()) != 0:
             depth += 1
             if depth >= maxDepth:
@@ -178,7 +177,7 @@ class Thread:
 
         self.Resume()
 
-        result = WaitForSingleObject(self.GetHandle(), timeout)
+        result: int = WaitForSingleObject(self.GetHandle(), timeout)
         if result == WAIT_FAILED:
             raise Win32Exception()
 
@@ -191,10 +190,13 @@ class Thread:
         return TerminateThread(self.GetHandle(), exitCode)
 
     def __eq__(self, other: Thread) -> bool:
-        sameId: bool        = (self._threadId == other.GetId())
+        sameId:        bool = (self._threadId == other.GetId())
         sameProcessId: bool = (self._process.GetProcessId() == other._process.GetProcessId())
 
         return sameId and sameProcessId
 
     def __repr__(self) -> str:
         return f"Thread(id={self.GetId()}, process='{self._process.GetProcessId()}')"
+
+
+

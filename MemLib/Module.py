@@ -20,7 +20,6 @@ from MemLib.Kernel32 import GetProcAddress, Win32Exception
 from MemLib.Structs import MODULEENTRY32
 
 
-
 if TYPE_CHECKING:
     from MemLib.Process import Process
 
@@ -35,12 +34,12 @@ class Module:
     """
 
     def __init__(self, module: MODULEENTRY32, process: Process):
-        self._handle: int      = module.hModule
+        self._handle:  int     = module.hModule
         self._process: Process = process
-        self._name: str        = module.szModule.decode('ascii')
-        self._path: str        = module.szExePath.decode('ascii')
-        self._base: int        = module.modBaseAddr
-        self._size: int        = module.modBaseSize
+        self._name:    str     = module.szModule.decode('ascii')
+        self._path:    str     = module.szExePath.decode('ascii')
+        self._base:    int     = module.modBaseAddr
+        self._size:    int     = module.modBaseSize
 
     def GetBase(self) -> int:
         """
@@ -88,6 +87,7 @@ class Module:
         handle: int = GetProcAddress(self._handle, name)
         if not handle:
             raise Win32Exception()
+
         return handle
 
     def GetProcess(self) -> Process:
@@ -108,10 +108,13 @@ class Module:
         return self._size
 
     def __eq__(self, other: Module) -> bool:
-        sameHandle: bool    = (self._handle == other.GetHandle())
+        sameHandle:    bool = (self._handle == other.GetHandle())
         sameProcessId: bool = (self._process.GetProcessId() == other._process.GetProcessId())
 
         return sameHandle and sameProcessId
 
     def __repr__(self) -> str:
         return f"Module('{self.GetName()}' in Process '{self._process.GetProcessId()}')"
+
+
+

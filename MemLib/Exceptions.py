@@ -17,3 +17,5 @@ class NoAdminPrivileges(Exception):
     def __init__(self):
         Exception.__init__(self, "Python has no admin privileges!")
 
+
+

@@ -6,12 +6,12 @@ from ctypes import Array, CDLL, WinDLL, addressof
 from ctypes.wintypes import CHAR, INT, LPSTR
 from os import path
 from struct import unpack_from
-from typing import Any, List, Tuple
+from typing import Any
 
 
-_FASM_DIRECTORY: str = path.dirname(__file__)
-_FASM_PATH: str      = path.join(_FASM_DIRECTORY, 'FASM.dll')
-_FASM: CDLL          = WinDLL(_FASM_PATH)
+_FASM_DIRECTORY: str  = path.dirname(__file__)
+_FASM_PATH:      str  = path.join(_FASM_DIRECTORY, 'FASM.dll')
+_FASM:           CDLL = WinDLL(_FASM_PATH)
 
 
 def GetVersion() -> str:
@@ -19,9 +19,11 @@ def GetVersion() -> str:
     Returns the version of FASM.
     """
 
-    fasmVersion = _FASM.fasm_GetVersion()
-    fasmVersion = str(fasmVersion & 0xFFFF), str(fasmVersion >> 16)
-    return 'FASM v' + '.'.join(fasmVersion)
+    fasmVersion: int = _FASM.fasm_GetVersion()
+    major:       str = str(fasmVersion & 0xFFFF)
+    minor:       str = str(fasmVersion >> 16)
+
+    return f'FASM v{major}.{minor}'
 
 
 def Compile(sourceCode: str, maxMemorySize: int = 0x5E8000, maxIterations: int = 100) -> bytes:
@@ -35,16 +37,17 @@ def Compile(sourceCode: str, maxMemorySize: int = 0x5E8000, maxIterations: int =
     :return: The machine code as a bytes object.
     """
 
-    assemblySource = LPSTR(sourceCode.encode('ascii'))
-    outputBuffer = (CHAR * maxMemorySize)()
-
-    errorCode = _FASM.fasm_Assemble(assemblySource, outputBuffer, maxMemorySize, maxIterations, 0)
+    assemblySource: LPSTR = LPSTR(sourceCode.encode('ascii'))
+    outputBuffer:   Array = (CHAR * maxMemorySize)()
+    errorCode:      int   = _FASM.fasm_Assemble(assemblySource, outputBuffer, maxMemorySize, maxIterations, 0)
 
     if errorCode:
         raise FasmError(outputBuffer, sourceCode)
 
-    size, address = unpack_from('II', outputBuffer, 4)
-    offset = address - addressof(outputBuffer)
+    unpack:  tuple[Any, ...] = unpack_from('II', outputBuffer, 4)
+    size:    int             = unpack[0]
+    address: int             = unpack[1]
+    offset:  int             = address - addressof(outputBuffer)
 
     return bytes(outputBuffer)[offset:offset + size]
 
@@ -54,23 +57,30 @@ class FasmError(Exception):
     Exception raised when FASM returns an error code.
     """
 
-    CODE_NAMES = ["FASM_INVALID_DEFINITION", "FASM_WRITE_FAILED", "FASM_FORMAT_LIMITATIONS_EXCEDDED",
-                  "FASM_CANNOT_GENERATE_CODE", "FASM_UNEXPECTED_END_OF_SOURCE", "FASM_SOURCE_NOT_FOUND",
-                  "FASM_STACK_OVERFLOW", "FASM_OUT_OF_MEMORY", "FASM_INVALID_PARAMETER", "FASM_OK", "FASM_WORKING",
-                  "FASM_ERROR"]
-    ERROR_NAMES = ["ASSERTION_FAILED", "USER_ERROR", None, None, None, "SYMBOL_OUT_OF_SCOPE",
-                   "TOO_MANY_REPEATS", "DATA_ALREADY_DEFINED", "SETTING_ALREADY_SPECIFIED",
-                   "SECTION_NOT_ALIGNED_ENOUGH", "EXTRA_CHARACTERS_ON_LINE", "UNEXPECTED_INSTRUCTION",
-                   "MISSING_END_DIRECTIVE", "MISSING_END_QUOTE", "SYMBOL_ALREADY_DEFINED",
-                   "RESERVED_WORD_USED_AS_SYMBOL", "INVALID_NAME", "NAME_TOO_LONG", "INVALID_USE_OF_SYMBOL",
-                   "UNDEFINED_SYMBOL", "VALUE_OUT_OF_RANGE", "INVALID_VALUE", "INVALID_ADDRESS", "INVALID_EXPRESSION",
-                   "RELATIVE_JUMP_OUT_OF_RANGE", "LONG_IMMEDIATE_NOT_ENCODABLE", "DISALLOWED_COMBINATION_OF_REGISTERS",
-                   "ADDRESS_SIZES_DO_NOT_AGREE", "INVALID_ADDRESS_SIZE", "OPERAND_SIZES_DO_NOT_MATCH",
-                   "OPERAND_SIZE_NOT_SPECIFIED", "INVALID_OPERAND_SIZE", "INVALID_OPERAND", "ILLEGAL_INSTRUCTION",
-                   "INVALID_ARGUMENT", "UNEXPECTED_CHARACTERS", "INCOMPLETE_MACRO", "INVALID_MACRO_ARGUMENTS",
-                   "INVALID_FILE_FORMAT", "ERROR_READING_FILE", "FILE_NOT_FOUND"]
+    CODE_NAMES: tuple[str] = (
+        "FASM_INVALID_DEFINITION", "FASM_WRITE_FAILED", "FASM_FORMAT_LIMITATIONS_EXCEDDED",
+        "FASM_CANNOT_GENERATE_CODE", "FASM_UNEXPECTED_END_OF_SOURCE", "FASM_SOURCE_NOT_FOUND",
+        "FASM_STACK_OVERFLOW", "FASM_OUT_OF_MEMORY", "FASM_INVALID_PARAMETER",
+        "FASM_OK", "FASM_WORKING", "FASM_ERROR"
+    )
 
-    def __init__(self, fasmBuffer: object = None, sourceCode: str = None):
+    ERROR_NAMES: tuple[str] = (
+        "ASSERTION_FAILED", "USER_ERROR", None, None, None, "SYMBOL_OUT_OF_SCOPE",
+        "TOO_MANY_REPEATS", "DATA_ALREADY_DEFINED", "SETTING_ALREADY_SPECIFIED",
+        "SECTION_NOT_ALIGNED_ENOUGH", "EXTRA_CHARACTERS_ON_LINE", "UNEXPECTED_INSTRUCTION",
+        "MISSING_END_DIRECTIVE", "MISSING_END_QUOTE", "SYMBOL_ALREADY_DEFINED",
+        "RESERVED_WORD_USED_AS_SYMBOL", "INVALID_NAME", "NAME_TOO_LONG",
+        "INVALID_USE_OF_SYMBOL", "UNDEFINED_SYMBOL", "VALUE_OUT_OF_RANGE",
+        "INVALID_VALUE", "INVALID_ADDRESS", "INVALID_EXPRESSION",
+        "RELATIVE_JUMP_OUT_OF_RANGE", "LONG_IMMEDIATE_NOT_ENCODABLE", "DISALLOWED_COMBINATION_OF_REGISTERS",
+        "ADDRESS_SIZES_DO_NOT_AGREE", "INVALID_ADDRESS_SIZE", "OPERAND_SIZES_DO_NOT_MATCH",
+        "OPERAND_SIZE_NOT_SPECIFIED", "INVALID_OPERAND_SIZE", "INVALID_OPERAND",
+        "ILLEGAL_INSTRUCTION", "INVALID_ARGUMENT", "UNEXPECTED_CHARACTERS",
+        "INCOMPLETE_MACRO",  "INVALID_MACRO_ARGUMENTS", "INVALID_FILE_FORMAT",
+        "ERROR_READING_FILE", "FILE_NOT_FOUND"
+    )
+
+    def __init__(self, fasmBuffer: Array = None, sourceCode: str = None):
         """
         An exception with detailed info about the FASM error.
 
@@ -78,17 +88,16 @@ class FasmError(Exception):
         :param sourceCode: The source code containing assembly instruction.
         """
 
-        self._errorCode, = unpack_from('I', fasmBuffer)
+        self._fasmBuffer: Array = fasmBuffer
+        self._sourceCode: str   = sourceCode
+        self._errorCode:  int   = unpack_from('I', fasmBuffer)[0]
 
         if -9 <= self._errorCode <= 2:
-            self._fasmBuffer = fasmBuffer
-            self._sourceCode = sourceCode
-            self._errorName = "%s(%d)" % (FasmError.CODE_NAMES[self._errorCode + 9], self._errorCode)
-            self._errorMessage = self.GetMessage()
+            self._errorName:    str = "%s(%d)" % (FasmError.CODE_NAMES[self._errorCode + 9], self._errorCode)
+            self._errorMessage: str = self.GetMessage()
         else:
-            self._errorName = "UNKNOWN ERROR(%d)" % self._errorCode
-            self._errorMessage = ""
-            return
+            self._errorName:    str = "UNKNOWN ERROR(%d)" % self._errorCode
+            self._errorMessage: str = ""
 
     def __str__(self):
         return repr(self)
@@ -100,21 +109,20 @@ class FasmError(Exception):
         if self._errorCode != 2:
             return ""
 
-        bufferInfo: Tuple[Any, ...] = unpack_from('iI', self._fasmBuffer, 4)
-        error: int         = bufferInfo[0]
-        infoPtr: int       = bufferInfo[1]
-        errorBuffer: Array = (INT * 4).from_address(infoPtr)
+        bufferInfo:  tuple[Any, ...] = unpack_from('iI', self._fasmBuffer, 4)
+        error:       int             = bufferInfo[0]
+        infoPtr:     int             = bufferInfo[1]
+        errorBuffer: Array           = (INT * 4).from_address(infoPtr)
 
         if -141 <= error <= -101:
-            errorInfo: Tuple[Any, ...] = unpack_from('iiii', errorBuffer)
+            errorInfo: tuple[Any, ...] = unpack_from('iiii', errorBuffer)
             outString: str             = FasmError.ERROR_NAMES[error + 141]
-
-            line: int        = errorInfo[1] - 1
-            lines: List[str] = self._sourceCode.splitlines()
+            line:      int             = errorInfo[1] - 1
+            lines:     list[str]       = self._sourceCode.splitlines()
 
             if 0 < line <= len(lines):
                 outString += f"\n    -> Line: {line}"
-                outString += "\n    -> ASM:"
+                outString +=  "\n    -> ASM:"
 
                 for i in range(line - 10, line + 11):
                     if i < 0 or i >= len(lines):
@@ -128,3 +136,6 @@ class FasmError(Exception):
             return outString
 
         return ""
+
+
+

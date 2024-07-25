@@ -3,13 +3,13 @@
 """
 
 from typing import Any, TYPE_CHECKING, Tuple
-# noinspection PyCompatibility
 from winreg import CloseKey, OpenKeyEx, QueryValueEx, SetValueEx
 
 
 if TYPE_CHECKING:
     # noinspection PyCompatibility
     from winreg import HKEYType
+
 
 def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
     """
@@ -55,7 +55,8 @@ def SetRegistryValue(key: int, key_path: str, key_name: str, key_type: int, valu
     if keyHandle:
         CloseKey(keyHandle)
 
-# copied the constants from winreg, cause importing winreg causes a compatibility error but its a bug.
+
+# copied the constants from winreg, cause importing winreg causes a compatibility error.
 HKEY_CLASSES_ROOT = 2147483648
 
 HKEY_CURRENT_CONFIG = 2147483653
@@ -150,4 +151,6 @@ REG_RESOURCE_REQUIREMENTS_LIST = 10
 REG_SZ = 1
 
 REG_WHOLE_HIVE_VOLATILE = 1
+
+
 

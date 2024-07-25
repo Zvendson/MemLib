@@ -21,7 +21,6 @@ from MemLib.Process import Process
 from MemLib.Structs import Struct
 
 
-
 class SharedMemoryBuffer(Struct):
     """
     SharedMemoryBuffer is a structure that contains the information about the shared memory.
@@ -88,7 +87,7 @@ def CloseSharedMemoryConnection(handle: int, baseAddr: int) -> None:
             errors.append(Win32Exception())
 
         if len(errors):
-            fmtError = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
+            fmtError: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
             raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
 
 
@@ -107,9 +106,9 @@ class SharedMemory:
         if process is None:
             raise ValueError("'process' cannot be None.")
 
-        self._process: Process                        = process
-        self._memoryBuffer: SharedMemoryBuffer | None = None
-        self._bufferAddress: int                      = 0
+        self._process:       Process                   = process
+        self._memoryBuffer:  SharedMemoryBuffer | None = None
+        self._bufferAddress: int                       = 0
 
     def CanReconnect(self, address: int) -> bool:
         """
@@ -142,24 +141,39 @@ class SharedMemory:
         mapping.SizeHigh            = size >> 32 & 0xFFFFFFFF
         mapping.SizeLow             = size & 0xFFFFFFFF
 
-        mapping.Handle = CreateFileMappingW(-1, 0, PAGE_EXECUTE_READWRITE, mapping.SizeHigh, mapping.SizeLow, None)
+        mapping.Handle = CreateFileMappingW(
+            -1,
+            0,
+            PAGE_EXECUTE_READWRITE,
+            mapping.SizeHigh,
+            mapping.SizeLow,
+            None
+        )
+
         if not mapping.Handle:
             raise Win32Exception()
 
-        mapping.BaseAddress = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
+        mapping.BaseAddress = MapViewOfFile(
+            mapping.Handle,
+            FILE_MAP_EXECUTE | FILE_MAP_WRITE,
+            0,
+            0,
+            0
+        )
+
         if not mapping.BaseAddress:
             error: Win32Exception = Win32Exception()
             CloseHandle(mapping.Handle)
             raise error
 
         # BaseAddressEx
-        procHandle: int = self._process.GetHandle()
-        void: LPVOID    = LPVOID(0)
+        procHandle:    int    = self._process.GetHandle()
+        addressBuffer: LPVOID = LPVOID(0)
 
         NtMapViewOfSection(
             mapping.Handle,
             procHandle,
-            byref(void),
+            byref(addressBuffer),
             0,
             0,
             byref(LARGE_INTEGER()),
@@ -168,24 +182,38 @@ class SharedMemory:
             0,
             PAGE_EXECUTE_READWRITE
         )
-        if not void.value:
+
+        if not addressBuffer.value:
             error: Win32Exception = Win32Exception()
+
             UnmapViewOfFile(mapping.BaseAddress)
             CloseHandle(mapping.Handle)
-            raise error
-        mapping.BaseAddressEx = void.value
 
-        handleEx: HANDLE = HANDLE()
-        duplicated: bool = DuplicateHandle(-1, mapping.Handle, procHandle, handleEx, 0, False, DUPLICATE_SAME_ACCESS)
+            raise error
+
+        mapping.BaseAddressEx = addressBuffer.value
+
+        handleEx:   HANDLE = HANDLE()
+        duplicated: bool   = DuplicateHandle(
+            -1,
+            mapping.Handle,
+            procHandle,
+            handleEx,
+            0,
+            False,
+            DUPLICATE_SAME_ACCESS
+        )
+
         if not handleEx or not duplicated:
             error: Win32Exception = Win32Exception()
+
             NtUnmapViewOfSection(procHandle, mapping.BaseAddressEx)
             UnmapViewOfFile(mapping.BaseAddress)
             CloseHandle(mapping.Handle)
+
             raise error
 
-        mapping.HandleEx = handleEx
-
+        mapping.HandleEx   = handleEx
         self._memoryBuffer = mapping
 
     def Destroy(self) -> None:
@@ -201,12 +229,12 @@ class SharedMemory:
         :returns: None
         """
 
-        errors: List[Win32Exception] = list()
-        procHandle: int              = self._process.GetHandle()
-        handle: int                  = self._memoryBuffer.Handle
-        handleEx: int                = self._memoryBuffer.HandleEx
-        baseAddr: int                = self._memoryBuffer.BaseAddress
-        baseAddrEx: int              = self._memoryBuffer.BaseAddressEx
+        errors:     List[Win32Exception] = list()
+        procHandle: int                  = self._process.GetHandle()
+        handle:     int                  = self._memoryBuffer.Handle
+        handleEx:   int                  = self._memoryBuffer.HandleEx
+        baseAddr:   int                  = self._memoryBuffer.BaseAddress
+        baseAddrEx: int                  = self._memoryBuffer.BaseAddressEx
 
         if baseAddr and not UnmapViewOfFile(self._memoryBuffer.BaseAddress):
             errors.append(Win32Exception())
@@ -222,7 +250,7 @@ class SharedMemory:
             errors.append(Win32Exception())
 
         if len(errors):
-            fmtError = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
+            fmtError: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
             raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
 
         self._memoryBuffer.Handle        = 0
@@ -245,12 +273,12 @@ class SharedMemory:
 
         # Create buffer
         mapping: SharedMemoryBuffer = SharedMemoryBuffer()
-        mapping.HandleEx      = memHandle
-        mapping.BaseAddressEx = memAddress
+        mapping.HandleEx            = memHandle
+        mapping.BaseAddressEx       = memAddress
 
         # Handle
-        handle: HANDLE = HANDLE()
-        duplicated: bool = DuplicateHandle(
+        handle:     HANDLE = HANDLE()
+        duplicated: bool   = DuplicateHandle(
             self.GetProcess().GetHandle(),
             memHandle,
             -1,
@@ -259,18 +287,29 @@ class SharedMemory:
             False,
             DUPLICATE_SAME_ACCESS
         )
+
         if not duplicated or handle.value == 0:
             raise Win32Exception()
+
         mapping.Handle = handle.value
 
         # BaseAddress
-        base: int = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
+        base: int = MapViewOfFile(
+            mapping.Handle,
+            FILE_MAP_EXECUTE | FILE_MAP_WRITE,
+            0,
+            0,
+            0
+        )
+
         if not base:
             error: Win32Exception = Win32Exception()
-            CloseHandle(mapping.Handle)
-            raise error
-        mapping.BaseAddress = base
 
+            CloseHandle(mapping.Handle)
+
+            raise error
+
+        mapping.BaseAddress = base
         self._memoryBuffer  = mapping
         self._bufferAddress = 0
 
@@ -292,20 +331,39 @@ class SharedMemory:
             raise ValueError(f"Invalid SharedMemory stored at address 0x{bufferAddress:X}.")
 
         # Handle
-        handle: HANDLE = HANDLE()
-        duplicated: bool = DuplicateHandle(self._process.GetHandle(), mapping.HandleEx, -1, handle, 0, False, DUPLICATE_SAME_ACCESS)
+        handle:    HANDLE = HANDLE()
+        duplicated: bool  = DuplicateHandle(
+            self._process.GetHandle(),
+            mapping.HandleEx,
+            -1,
+            handle,
+            0,
+            False,
+            DUPLICATE_SAME_ACCESS
+        )
+
         if not handle or not duplicated:
             raise Win32Exception()
+
         mapping.Handle = handle.value
 
         # BaseAddress
-        base: int = MapViewOfFile(mapping.Handle, FILE_MAP_EXECUTE | FILE_MAP_WRITE, 0, 0, 0)
+        base: int = MapViewOfFile(
+            mapping.Handle,
+            FILE_MAP_EXECUTE | FILE_MAP_WRITE,
+            0,
+            0,
+            0
+        )
+
         if not base:
             error: Win32Exception = Win32Exception()
-            CloseHandle(mapping.Handle)
-            raise error
-        mapping.BaseAddress = base
 
+            CloseHandle(mapping.Handle)
+
+            raise error
+
+        mapping.BaseAddress = base
         self._memoryBuffer  = mapping
         self._bufferAddress = bufferAddress
 
@@ -324,8 +382,8 @@ class SharedMemory:
 
         CloseSharedMemoryConnection(self._memoryBuffer.Handle, self._memoryBuffer.BaseAddress)
 
-        self._memoryBuffer.Handle        = 0
-        self._memoryBuffer.BaseAddress   = 0
+        self._memoryBuffer.Handle      = 0
+        self._memoryBuffer.BaseAddress = 0
 
     def Store(self, address: int) -> bool:
         """
@@ -413,3 +471,6 @@ class SharedMemory:
 
     def __repr__(self) -> str:
         return str(self)
+
+
+

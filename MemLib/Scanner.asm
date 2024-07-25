@@ -81,3 +81,5 @@ ScanProc: ; (Pattern, Buffer)
     leave                                       ; leaves the stack frame
     ret         0x8                             ; returns to the calling address. 0x8 cleans up 8 bytes on the stack
                                                 ; because we passed 2 parameters which are 2 pushes == 0x8 Bytes
+
+

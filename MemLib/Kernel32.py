@@ -6,11 +6,13 @@ from __future__ import annotations
 
 from ctypes import Array, POINTER, WINFUNCTYPE, byref, windll
 from ctypes.wintypes import (
-    BOOL, DWORD, HANDLE, HMODULE, INT, LONG, LPCSTR, LPCWSTR, LPHANDLE, LPVOID, LPWSTR, PDWORD,
-    PLARGE_INTEGER, PULONG, UINT, ULONG, WCHAR,
+    BOOL, INT, LONG, DWORD,
+    UINT, ULONG, PDWORD, PULONG,
+    PLARGE_INTEGER,
+    HANDLE, HMODULE, LPHANDLE, LPVOID,
+    LPCSTR, LPCWSTR, LPWSTR, WCHAR,
 )
 from typing import Callable, Type
-
 
 from MemLib.Constants import STATUS_SUCCESS
 
@@ -23,7 +25,7 @@ def SUCCEEDED(HRESULT: int) -> bool:
     Generic test for success on any status value (non-negative numbers indicate success).
     """
 
-    value = LONG(HRESULT)
+    value: LONG = LONG(HRESULT)
     return value.value >= 0
 
 
@@ -32,7 +34,7 @@ def FAILED(HRESULT: int) -> bool:
     Generic test for failure on any status value (non-negative numbers indicate success).
     """
 
-    value = LONG(HRESULT)
+    value: LONG = LONG(HRESULT)
     return value.value < 0
 
 
@@ -47,13 +49,13 @@ def GetLastError() -> int:
 
 
 def FormatMessageW(
-        flags: int,
-        source: object,
-        messageId: int,
+        flags:      int,
+        source:     object,
+        messageId:  int,
         languageId: int,
-        buffer: Array,
-        size: int,
-        arguments: object) -> int:
+        buffer:     Array,
+        size:       int,
+        arguments:  object) -> int:
     """
     Formats a message string. The function requires a message definition as input. The message definition can come from
     a buffer passed into the function. It can come from a message table resource in an already-loaded module. Or the
@@ -80,15 +82,15 @@ def FormatMessageW(
 
 
 def CreateProcessW(
-        applicationName: str | None,
-        commandLine: str,
-        processAttributes: int,
-        threadAttributes: int,
-        inheritHandles: bool,
-        creationFlags: int,
-        environment: int,
-        currentDirectory: str | None,
-        startupInfo: object,
+        applicationName:    str | None,
+        commandLine:        str,
+        processAttributes:  int,
+        threadAttributes:   int,
+        inheritHandles:     bool,
+        creationFlags:      int,
+        environment:        int,
+        currentDirectory:   str | None,
+        startupInfo:        object,
         processInformation: object) -> bool:
     """
     Creates a new process and its primary thread. The new process runs in the security context of the calling process.
@@ -178,13 +180,13 @@ def GetExitCodeProcess(processHandle: int) -> int:
 
 
 def CreateRemoteThread(
-        processHandle: int,
+        processHandle:    int,
         threadAttributes: int,
-        stackSize: int,
-        startAddress: int,
-        parameter: int,
-        creationFlags: int,
-        threadId: POINTER) -> int:
+        stackSize:        int,
+        startAddress:     int,
+        parameter:        int,
+        creationFlags:    int,
+        threadId:         POINTER) -> int:
     """
     Creates a thread that runs in the virtual address space of another process.
 
@@ -228,7 +230,7 @@ def OpenThread(threadId: int, inheritHandle: bool, desiredAccess: int) -> int:
 
     handle: int | None = _OpenThread(desiredAccess, inheritHandle, threadId)
     if handle is None:
-        handle = 0
+        return 0
 
     return handle
 
@@ -288,8 +290,7 @@ def GetThreadDescription(threadHandle: int) -> str:
         -3918024b10b8>`_
     """
 
-    nameBuffer = (WCHAR * 1024)()
-
+    nameBuffer: Array = (WCHAR * 1024)()
 
     if SUCCEEDED(_GetThreadDescription(threadHandle, nameBuffer)):
         return nameBuffer.value[:-2]
@@ -380,12 +381,13 @@ def WaitForSingleObject(handle: int, milliseconds: int) -> int:
 def CreateWaitOrTimerCallback(callback: Callable[[int, int], None]) -> WaitOrTimerCallback:
     return WaitOrTimerCallback(callback)
 
+
 def RegisterWaitForSingleObject(
-        objHandle: int,
-        callback: WaitOrTimerCallback,
-        context: int,
+        objHandle:    int,
+        callback:     WaitOrTimerCallback,
+        context:      int,
         milliseconds: int,
-        flags: int) -> int:
+        flags:        int) -> int:
     """
     Directs a wait thread in the thread pool to wait on the object. The wait thread queues the specified callback
     function to the thread pool when one of the following occurs:
@@ -403,7 +405,7 @@ def RegisterWaitForSingleObject(
           <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registerwaitforsingleobject>`_
     """
 
-    outHandle = HANDLE()
+    outHandle: HANDLE = HANDLE()
     if not _RegisterWaitForSingleObject(byref(outHandle), objHandle, callback, context, milliseconds, flags):
         return 0
 
@@ -457,7 +459,7 @@ def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
 
     handle: int | None = _OpenProcess(desiredAccess, inheritHandle, processId)
     if handle is None:
-        handle = 0
+        return 0
 
     return handle
 
@@ -476,12 +478,12 @@ def CloseHandle(handle: int) -> bool:
 
 def DuplicateHandle(
         sourceProcessHandle: int,
-        sourceHandle: int,
+        sourceHandle:        int,
         targetProcessHandle: int,
-        targetHandle: Type[POINTER],
-        desiredAccess: int,
-        inheritHandle: bool,
-        options: int) -> bool:
+        targetHandle:        Type[POINTER],
+        desiredAccess:       int,
+        inheritHandle:       bool,
+        options:             int) -> bool:
     """
     Duplicates an object handle.
 
@@ -558,10 +560,10 @@ def GetProcAddress(moduleHandle: int, processName: str) -> int:
 
 
 def ReadProcessMemory(
-        processHandle: int,
-        baseAddress: int,
-        buffer: object,
-        size: int,
+        processHandle:     int,
+        baseAddress:       int,
+        buffer:            object,
+        size:              int,
         numberOfBytesRead: object) -> bool:
     """
     Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the
@@ -582,10 +584,10 @@ def ReadProcessMemory(
 
 
 def WriteProcessMemory(
-        processHandle: int,
-        baseAddress: int,
-        buffer: object,
-        size: int,
+        processHandle:        int,
+        baseAddress:          int,
+        buffer:               object,
+        size:                 int,
         numberOfBytesWritten: object) -> bool:
     """
     Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the
@@ -693,12 +695,12 @@ def VirtualProtectEx(processHandle: int, address: int, size: int, newProtect: in
 
 
 def CreateFileMappingW(
-        fileHandle: int,
+        fileHandle:            int,
         fileMappingAttributes: int,
-        protect: int,
-        maximumSizeHigh: int,
-        maximumSizeLow: int,
-        name: str | None) -> int:
+        protect:               int,
+        maximumSizeHigh:       int,
+        maximumSizeLow:        int,
+        name:                  str | None) -> int:
     """
     Creates or opens a named or unnamed file mapping object for a specified file.
 
@@ -725,10 +727,10 @@ def CreateFileMappingW(
 
 
 def MapViewOfFile(
-        fileMappingObject: int,
-        desiredAccess: int,
-        fileOffsetHigh: int,
-        fileOffsetLow: int,
+        fileMappingObject:  int,
+        desiredAccess:      int,
+        fileOffsetHigh:     int,
+        fileOffsetLow:      int,
         numberOfBytesToMap: int) -> int:
     """
     Maps a view of a file mapping into the address space of a calling process.
@@ -758,16 +760,16 @@ def UnmapViewOfFile(baseAddress: int) -> bool:
 
 
 def NtMapViewOfSection(
-        sectionHandle: int,
-        processHandle: int,
-        baseAddress: object,
-        zeroBits: int,
-        commitSize: int,
-        sectionOffset: object,
-        viewSize: object,
+        sectionHandle:      int,
+        processHandle:      int,
+        baseAddress:        object,
+        zeroBits:           int,
+        commitSize:         int,
+        sectionOffset:      object,
+        viewSize:           object,
         inheritDisposition: int,
-        allocationType: int,
-        win32Protect: int) -> int:
+        allocationType:     int,
+        win32Protect:       int) -> int:
     """
     Maps a view of a section into the virtual address space of a subject process.
 
@@ -817,11 +819,11 @@ def NtUnmapViewOfSection(processHandle: int, baseAddress: int) -> bool:
 
 
 def NtQueryInformationProcess(
-        processHandle: int,
-        processInformationClass: object,
-        processInformation: object,
+        processHandle:            int,
+        processInformationClass:  object,
+        processInformation:       object,
         processInformationLength: int,
-        returnLength: int) -> bool:
+        returnLength:             int) -> bool:
     """
     Retrieves information about the specified process.
 
@@ -991,7 +993,7 @@ class Win32Exception(RuntimeError):
     """
     Simple Exception-class to represent Windows Errors in python.
 
-    :param errorCode:     Windows error code. if not provided, the windows last error will be used.
+    :param errorCode: Windows error code. if not provided, the windows last error will be used.
     :param customMessage: A customized message to show when raised. if not provided, the windows message
                           will be used.
 
@@ -1002,7 +1004,7 @@ class Win32Exception(RuntimeError):
 
     def __init__(self, errorCode: int = None, customMessage: str = None):
         self._errorCode: int = GetLastError() if (errorCode is None) else errorCode
-        self._message: str = customMessage
+        self._message:   str = customMessage
 
         if customMessage is None:
             self.__FormatMessage()
@@ -1031,7 +1033,7 @@ class Win32Exception(RuntimeError):
         size = 256
 
         while size < 0x10000:  # Found 0x10000 in C# std lib
-            msgBuffer = (WCHAR * size)()
+            msgBuffer: Array = (WCHAR * size)()
 
             result = FormatMessageW(0x200 | 0x1000 | 0x2000, None, self._errorCode, 0, msgBuffer, size, None)
 
@@ -1046,207 +1048,210 @@ class Win32Exception(RuntimeError):
 
 
 # region Function bindings
-_GetLastError = windll.kernel32.GetLastError
+_GetLastError          = windll.kernel32.GetLastError
 _GetLastError.argtypes = []
-_GetLastError.restype = DWORD
+_GetLastError.restype  = DWORD
 
-_FormatMessageW = windll.kernel32.FormatMessageW
+_FormatMessageW          = windll.kernel32.FormatMessageW
 _FormatMessageW.argtypes = [DWORD, LPVOID, DWORD, DWORD, LPWSTR, DWORD, LPVOID]
-_FormatMessageW.restype = DWORD
+_FormatMessageW.restype  = DWORD
 
-_CreateProcessW = windll.kernel32.CreateProcessW
+_CreateProcessW          = windll.kernel32.CreateProcessW
 _CreateProcessW.argtypes = [LPCWSTR, LPWSTR, LPVOID, LPVOID, BOOL, DWORD, LPVOID, LPCWSTR, LPVOID, LPVOID]
-_CreateProcessW.restype = BOOL
+_CreateProcessW.restype  = BOOL
 
-_GetExitCodeProcess = windll.kernel32.GetExitCodeProcess
+_GetExitCodeProcess          = windll.kernel32.GetExitCodeProcess
 _GetExitCodeProcess.argtypes = [HANDLE, PDWORD]
-_GetExitCodeProcess.restype = BOOL
+_GetExitCodeProcess.restype  = BOOL
 
-_CreateRemoteThread = windll.kernel32.CreateRemoteThread
+_CreateRemoteThread          = windll.kernel32.CreateRemoteThread
 _CreateRemoteThread.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD, DWORD, POINTER(DWORD)]
-_CreateRemoteThread.restype = HANDLE
+_CreateRemoteThread.restype  = HANDLE
 
-_OpenThread = windll.kernel32.OpenThread
+_OpenThread          = windll.kernel32.OpenThread
 _OpenThread.argtypes = [DWORD, BOOL, DWORD]
-_OpenThread.restype = HANDLE
+_OpenThread.restype  = HANDLE
 
-_ResumeThread = windll.kernel32.ResumeThread
+_ResumeThread          = windll.kernel32.ResumeThread
 _ResumeThread.argtypes = [HANDLE]
-_ResumeThread.restype = DWORD
+_ResumeThread.restype  = DWORD
 
-_SuspendThread = windll.kernel32.SuspendThread
+_SuspendThread          = windll.kernel32.SuspendThread
 _SuspendThread.argtypes = [HANDLE]
-_SuspendThread.restype = DWORD
+_SuspendThread.restype  = DWORD
 
-_GetExitCodeThread = windll.kernel32.GetExitCodeThread
+_GetExitCodeThread          = windll.kernel32.GetExitCodeThread
 _GetExitCodeThread.argtypes = [HANDLE, POINTER(DWORD)]
-_GetExitCodeThread.restype = BOOL
+_GetExitCodeThread.restype  = BOOL
 
-_GetThreadDescription = windll.kernel32.GetThreadDescription
+_GetThreadDescription          = windll.kernel32.GetThreadDescription
 _GetThreadDescription.argtypes = [HANDLE, LPWSTR]
-_GetThreadDescription.restype = DWORD
+_GetThreadDescription.restype  = DWORD
 
-_SetThreadDescription = windll.kernel32.SetThreadDescription
+_SetThreadDescription          = windll.kernel32.SetThreadDescription
 _SetThreadDescription.argtypes = [HANDLE, LPCWSTR]
-_SetThreadDescription.restype = DWORD
+_SetThreadDescription.restype  = DWORD
 
-_GetPriorityClass = windll.kernel32.GetPriorityClass
+_GetPriorityClass          = windll.kernel32.GetPriorityClass
 _GetPriorityClass.argtypes = [HANDLE]
-_GetPriorityClass.restype = DWORD
+_GetPriorityClass.restype  = DWORD
 
-_SetPriorityClass = windll.kernel32.SetPriorityClass
+_SetPriorityClass          = windll.kernel32.SetPriorityClass
 _SetPriorityClass.argtypes = [HANDLE, DWORD]
-_SetPriorityClass.restype = BOOL
+_SetPriorityClass.restype  = BOOL
 
-_GetThreadPriority = windll.kernel32.GetThreadPriority
+_GetThreadPriority          = windll.kernel32.GetThreadPriority
 _GetThreadPriority.argtypes = [HANDLE]
-_GetThreadPriority.restype = DWORD
+_GetThreadPriority.restype  = DWORD
 
-_SetThreadPriority = windll.kernel32.SetThreadPriority
+_SetThreadPriority          = windll.kernel32.SetThreadPriority
 _SetThreadPriority.argtypes = [HANDLE, INT]
-_SetThreadPriority.restype = BOOL
+_SetThreadPriority.restype  = BOOL
 
-_TerminateThread = windll.kernel32.TerminateThread
+_TerminateThread          = windll.kernel32.TerminateThread
 _TerminateThread.argtypes = [HANDLE, DWORD]
-_TerminateThread.restype = BOOL
+_TerminateThread.restype  = BOOL
 
-_WaitForSingleObject = windll.kernel32.WaitForSingleObject
+_WaitForSingleObject          = windll.kernel32.WaitForSingleObject
 _WaitForSingleObject.argtypes = [HANDLE, DWORD]
-_WaitForSingleObject.restype = DWORD
+_WaitForSingleObject.restype  = DWORD
 
-_RegisterWaitForSingleObject = windll.kernel32.RegisterWaitForSingleObject
+_RegisterWaitForSingleObject          = windll.kernel32.RegisterWaitForSingleObject
 _RegisterWaitForSingleObject.argtypes = [LPHANDLE, HANDLE, WaitOrTimerCallback, LPVOID, ULONG, ULONG]
-_RegisterWaitForSingleObject.restype = BOOL
+_RegisterWaitForSingleObject.restype  = BOOL
 
-_UnregisterWait = windll.kernel32.UnregisterWait
+_UnregisterWait          = windll.kernel32.UnregisterWait
 _UnregisterWait.argtypes = [HANDLE]
-_UnregisterWait.restype = BOOL
+_UnregisterWait.restype  = BOOL
 
-_UnregisterWaitEx = windll.kernel32.UnregisterWaitEx
+_UnregisterWaitEx          = windll.kernel32.UnregisterWaitEx
 _UnregisterWaitEx.argtypes = [HANDLE, HANDLE]
-_UnregisterWaitEx.restype = BOOL
+_UnregisterWaitEx.restype  = BOOL
 
-_OpenProcess = windll.kernel32.OpenProcess
+_OpenProcess          = windll.kernel32.OpenProcess
 _OpenProcess.argtypes = [DWORD, BOOL, DWORD]
-_OpenProcess.restype = HANDLE
+_OpenProcess.restype  = HANDLE
 
-_CloseHandle = windll.kernel32.CloseHandle
+_CloseHandle          = windll.kernel32.CloseHandle
 _CloseHandle.argtypes = [HANDLE]
-_CloseHandle.restype = BOOL
+_CloseHandle.restype  = BOOL
 
-_DuplicateHandle = windll.kernel32.DuplicateHandle
+_DuplicateHandle          = windll.kernel32.DuplicateHandle
 _DuplicateHandle.argtypes = [HANDLE, HANDLE, HANDLE, LPHANDLE, DWORD, BOOL, DWORD]
-_DuplicateHandle.restype = BOOL
+_DuplicateHandle.restype  = BOOL
 
-_TerminateProcess = windll.kernel32.TerminateProcess
+_TerminateProcess          = windll.kernel32.TerminateProcess
 _TerminateProcess.argtypes = [HANDLE, UINT]
-_TerminateProcess.restype = BOOL
+_TerminateProcess.restype  = BOOL
 
-_GetModuleHandleA = windll.kernel32.GetModuleHandleA
+_GetModuleHandleA          = windll.kernel32.GetModuleHandleA
 _GetModuleHandleA.argtypes = [LPCSTR]
-_GetModuleHandleA.restype = HMODULE
+_GetModuleHandleA.restype  = HMODULE
 
-_GetModuleHandleW = windll.kernel32.GetModuleHandleW
+_GetModuleHandleW          = windll.kernel32.GetModuleHandleW
 _GetModuleHandleW.argtypes = [LPCWSTR]
-_GetModuleHandleW.restype = HMODULE
+_GetModuleHandleW.restype  = HMODULE
 
-_GetProcAddress = windll.kernel32.GetProcAddress
+_GetProcAddress          = windll.kernel32.GetProcAddress
 _GetProcAddress.argtypes = [HMODULE, LPCSTR]
-_GetProcAddress.restype = LPVOID
+_GetProcAddress.restype  = LPVOID
 
-_ReadProcessMemory = windll.kernel32.ReadProcessMemory
+_ReadProcessMemory          = windll.kernel32.ReadProcessMemory
 _ReadProcessMemory.argtypes = [HANDLE, LPVOID, LPVOID, DWORD, POINTER(DWORD)]
-_ReadProcessMemory.restype = BOOL
+_ReadProcessMemory.restype  = BOOL
 
-_WriteProcessMemory = windll.kernel32.WriteProcessMemory
+_WriteProcessMemory          = windll.kernel32.WriteProcessMemory
 _WriteProcessMemory.argtypes = [HANDLE, LPVOID, LPVOID, DWORD, POINTER(DWORD)]
-_WriteProcessMemory.restype = BOOL
+_WriteProcessMemory.restype  = BOOL
 
-_VirtualAlloc = windll.kernel32.VirtualAlloc
+_VirtualAlloc          = windll.kernel32.VirtualAlloc
 _VirtualAlloc.argtypes = [LPVOID, DWORD, DWORD, DWORD]
-_VirtualAlloc.restype = LPVOID
+_VirtualAlloc.restype  = LPVOID
 
-_VirtualAllocEx = windll.kernel32.VirtualAllocEx
+_VirtualAllocEx          = windll.kernel32.VirtualAllocEx
 _VirtualAllocEx.argtypes = [HANDLE, LPVOID, DWORD, DWORD, DWORD]
-_VirtualAllocEx.restype = LPVOID
+_VirtualAllocEx.restype  = LPVOID
 
-_VirtualFree = windll.kernel32.VirtualFree
+_VirtualFree          = windll.kernel32.VirtualFree
 _VirtualFree.argtypes = [LPVOID, DWORD, DWORD]
-_VirtualFree.restype = BOOL
+_VirtualFree.restype  = BOOL
 
-_VirtualFreeEx = windll.kernel32.VirtualFreeEx
+_VirtualFreeEx          = windll.kernel32.VirtualFreeEx
 _VirtualFreeEx.argtypes = [HANDLE, LPVOID, DWORD, DWORD]
-_VirtualFreeEx.restype = BOOL
+_VirtualFreeEx.restype  = BOOL
 
-_VirtualProtectEx = windll.kernel32.VirtualProtectEx
+_VirtualProtectEx          = windll.kernel32.VirtualProtectEx
 _VirtualProtectEx.argtypes = [HANDLE, LPVOID, DWORD, DWORD, PDWORD]
-_VirtualProtectEx.restype = BOOL
+_VirtualProtectEx.restype  = BOOL
 
-_CreateFileMappingW = windll.kernel32.CreateFileMappingW
+_CreateFileMappingW          = windll.kernel32.CreateFileMappingW
 _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPVOID]
-_CreateFileMappingW.restype = HANDLE
+_CreateFileMappingW.restype  = HANDLE
 
-_MapViewOfFile = windll.kernel32.MapViewOfFile
+_MapViewOfFile          = windll.kernel32.MapViewOfFile
 _MapViewOfFile.argtypes = [HANDLE, DWORD, DWORD, DWORD, DWORD]
-_MapViewOfFile.restype = LPVOID
+_MapViewOfFile.restype  = LPVOID
 
-_UnmapViewOfFile = windll.kernel32.UnmapViewOfFile
+_UnmapViewOfFile          = windll.kernel32.UnmapViewOfFile
 _UnmapViewOfFile.argtypes = [LPVOID]
-_UnmapViewOfFile.restype = BOOL
+_UnmapViewOfFile.restype  = BOOL
 
-_NtQueryInformationProcess = windll.ntdll.NtQueryInformationProcess
+_NtQueryInformationProcess          = windll.ntdll.NtQueryInformationProcess
 _NtQueryInformationProcess.argtypes = [HANDLE, DWORD, LPVOID, DWORD, DWORD]
-_NtQueryInformationProcess.restype = DWORD
+_NtQueryInformationProcess.restype  = DWORD
 
-_NtMapViewOfSection = windll.ntdll.NtMapViewOfSection
+_NtMapViewOfSection          = windll.ntdll.NtMapViewOfSection
 _NtMapViewOfSection.argtypes = [HANDLE, HANDLE, LPVOID, ULONG, ULONG, PLARGE_INTEGER, PULONG, ULONG, ULONG, ULONG]
-_NtMapViewOfSection.restype = DWORD
+_NtMapViewOfSection.restype  = DWORD
 
-_NtUnmapViewOfSection = windll.ntdll.NtUnmapViewOfSection
+_NtUnmapViewOfSection          = windll.ntdll.NtUnmapViewOfSection
 _NtUnmapViewOfSection.argtypes = [HANDLE, LPVOID]
-_NtUnmapViewOfSection.restype = DWORD
+_NtUnmapViewOfSection.restype  = DWORD
 
-_NtSuspendProcess = windll.ntdll.NtSuspendProcess
+_NtSuspendProcess          = windll.ntdll.NtSuspendProcess
 _NtSuspendProcess.argtypes = [HANDLE]
-_NtSuspendProcess.restype = DWORD
+_NtSuspendProcess.restype  = DWORD
 
-_NtResumeProcess = windll.ntdll.NtResumeProcess
+_NtResumeProcess          = windll.ntdll.NtResumeProcess
 _NtResumeProcess.argtypes = [HANDLE]
-_NtResumeProcess.restype = DWORD
+_NtResumeProcess.restype  = DWORD
 
-_CreateToolhelp32Snapshot = windll.kernel32.CreateToolhelp32Snapshot
+_CreateToolhelp32Snapshot          = windll.kernel32.CreateToolhelp32Snapshot
 _CreateToolhelp32Snapshot.argtypes = [DWORD, DWORD]
-_CreateToolhelp32Snapshot.restype = HANDLE
+_CreateToolhelp32Snapshot.restype  = HANDLE
 
-_Process32Next = windll.kernel32.Process32Next
+_Process32Next          = windll.kernel32.Process32Next
 _Process32Next.argtypes = [HANDLE, LPVOID]
-_Process32Next.restype = BOOL
+_Process32Next.restype  = BOOL
 
-_Process32First = windll.kernel32.Process32First
+_Process32First          = windll.kernel32.Process32First
 _Process32First.argtypes = [HANDLE, LPVOID]
-_Process32First.restype = BOOL
+_Process32First.restype  = BOOL
 
-_Module32Next = windll.kernel32.Module32Next
+_Module32Next          = windll.kernel32.Module32Next
 _Module32Next.argtypes = [HANDLE, LPVOID]
-_Module32Next.restype = BOOL
+_Module32Next.restype  = BOOL
 
-_Module32First = windll.kernel32.Module32First
+_Module32First          = windll.kernel32.Module32First
 _Module32First.argtypes = [HANDLE, LPVOID]
-_Module32First.restype = BOOL
+_Module32First.restype  = BOOL
 
-_Thread32Next = windll.kernel32.Thread32Next
+_Thread32Next          = windll.kernel32.Thread32Next
 _Thread32Next.argtypes = [HANDLE, LPVOID]
-_Thread32Next.restype = BOOL
+_Thread32Next.restype  = BOOL
 
-_Thread32First = windll.kernel32.Thread32First
+_Thread32First          = windll.kernel32.Thread32First
 _Thread32First.argtypes = [HANDLE, LPVOID]
-_Thread32First.restype = BOOL
+_Thread32First.restype  = BOOL
 
-_GetStdHandle = windll.kernel32.GetStdHandle
+_GetStdHandle          = windll.kernel32.GetStdHandle
 _GetStdHandle.argtypes = [DWORD]
-_GetStdHandle.restype = HANDLE
+_GetStdHandle.restype  = HANDLE
 
-_QueryFullProcessImageNameW = windll.kernel32.QueryFullProcessImageNameW
+_QueryFullProcessImageNameW          = windll.kernel32.QueryFullProcessImageNameW
 _QueryFullProcessImageNameW.argtypes = [HANDLE, DWORD, LPWSTR, PDWORD]
-_QueryFullProcessImageNameW.restype = BOOL
+_QueryFullProcessImageNameW.restype  = BOOL
 # endregion
+
+
+
