@@ -5,6 +5,9 @@
 from typing import Any, TYPE_CHECKING, Tuple
 from winreg import CloseKey, OpenKeyEx, QueryValueEx, SetValueEx
 
+from MemLib.Decorators import RequireAdmin
+
+
 
 if TYPE_CHECKING:
     # noinspection PyCompatibility
@@ -36,6 +39,7 @@ def GetRegistryValue(key: int, key_path: str, key_name: str) -> Any:
     return value[0]
 
 
+@RequireAdmin
 def SetRegistryValue(key: int, key_path: str, key_name: str, key_type: int, value: str) -> None:
     """
     Set a value in the registry.
