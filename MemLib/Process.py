@@ -505,7 +505,9 @@ class Process:
 
         result: bytes = self.Read(address, length)
         if strip:
-            result = result.rstrip(b'\x00') + b'\x00'
+            termination = result.find(b'\x00')
+            if termination != -1:
+                result = result[:termination + 1]
 
         return result
 
@@ -524,7 +526,9 @@ class Process:
 
         result: bytes = self.Read(address, length * 2)
         if strip:
-            result = result.rstrip(b'\x00') + b'\x00'
+            termination = result.find(b'\x00\x00')
+            if termination != -1:
+                result = result[:termination + 1]
 
         return result.decode(encoding="utf-16")
 
