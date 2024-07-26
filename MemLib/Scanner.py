@@ -2,10 +2,10 @@
 :platform: Windows
 """
 
-from ctypes import CFUNCTYPE, POINTER, _FuncPointer, byref
+from ctypes import CFUNCTYPE, POINTER, byref
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
 from os import PathLike
-from typing import Type
+from typing import Callable, Type
 
 from _ctypes import Array
 
@@ -136,7 +136,8 @@ class BinaryScanner:
 
         # Transform py written payload to a callable function
         functype:      CFUNCTYPE          = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
-        self._handler: Type[_FuncPointer] = functype(self._handlerAddress)
+
+        self._handler: Callable[[str, str], int] = functype(self._handlerAddress)
 
         # Writing buffer to py memory
         if buffer is not None:
