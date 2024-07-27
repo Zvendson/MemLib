@@ -112,7 +112,7 @@ class BinaryScanner:
             ('End', LPVOID),
         ]
 
-    def __init__(self, buffer: bytes | None = None):
+    def __init__(self, buffer: bytes | None = None, base: int = 0):
         """
         A 32 bit scanner written in assembly that works with a mask. It utilizes a Pattern object to make it more
         user friendly. You can create multiple Binary Scanner for different byte buffers.
@@ -123,6 +123,7 @@ class BinaryScanner:
         """
 
         self._buffer: BinaryScanner._Buffer = BinaryScanner._Buffer(0, 0)
+        self._base:   int                   = base
 
         # Writing payload to py memory
         payload: bytes = BinaryScanner.__PAYLOAD
@@ -135,13 +136,16 @@ class BinaryScanner:
         binary.value  = payload
 
         # Transform py written payload to a callable function
-        functype:      CFUNCTYPE          = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
+        functype: CFUNCTYPE = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
 
         self._handler: Callable[[str, str], int] = functype(self._handlerAddress)
 
         # Writing buffer to py memory
         if buffer is not None:
-            self.SetBuffer(buffer)
+            self.SetBuffer(buffer, base)
+
+    def GetBase(self) -> int:
+        return self._base
 
     def Close(self) -> None:
         """
@@ -153,7 +157,7 @@ class BinaryScanner:
 
         self._handlerAddress = 0
 
-    def SetBuffer(self, newBuffer: bytes) -> None:
+    def SetBuffer(self, newBuffer: bytes, base: int = 0) -> None:
         """
         Change the buffer where the BinaryScanner will run the pattern on.
 
@@ -167,6 +171,7 @@ class BinaryScanner:
             print("freed old buffer")
             VirtualFree(self._buffer.Base, 0, MEM_RELEASE)
 
+        self._base        = base
         self._buffer.Base = VirtualAlloc(0, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
         if not self._buffer.Base:
             raise Win32Exception()
@@ -176,7 +181,7 @@ class BinaryScanner:
 
         self._buffer.End = self._buffer.Base + size
 
-    def Find(self, pattern: str | Pattern) -> int:
+    def FindRVA(self, pattern: str | Pattern) -> int:
         """
         Finds the pattern in the buffer and returns the RVA (Relative Virtual Address).
         A RVA is the offset to the base address of a module.
@@ -196,6 +201,17 @@ class BinaryScanner:
             raise ValueError("Invalid Pattern: " + str(pattern))
 
         return self._handler(byref(pattern), byref(self._buffer))
+
+    def Find(self, pattern: str | Pattern) -> int:
+        """
+        Finds the pattern in the buffer and returns the virtual Address.
+
+        :param pattern: A string of a ComboPattern or the Pattern object itself.
+        :returns: The virtual Address where the pattern was found. If not found it returns 0.
+        """
+
+        rva = self.FindRVA(pattern)
+        return self._base + rva
 
 
 if __name__ == '__main__':
