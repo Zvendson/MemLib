@@ -7,10 +7,10 @@ from __future__ import annotations
 from ctypes import (
     Array, Structure, addressof, c_byte,
     c_char, c_char_p, c_double, c_float,
-    c_int, c_long, c_size_t, c_ubyte,
+    c_int, c_long, c_longlong, c_size_t, c_ubyte,
     c_uint, c_ulong, c_ulonglong, c_ushort,
     c_void_p, c_wchar, c_wchar_p, memmove,
-    sizeof, wintypes
+    sizeof, wintypes,
 )
 from ctypes.wintypes import CHAR
 from typing import Any
@@ -19,8 +19,9 @@ from typing import Any
 from _ctypes import _Pointer
 
 from MemLib.ANSI import (
-    BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO, GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE, STRAW,
-    WHITE,
+    BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO,
+    GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE,
+    LIGHT_GREEN, STRAW, WHITE,
 )
 from MemLib.Decorators import Deprecated
 
@@ -171,7 +172,20 @@ class Struct(Structure):
             value: Any = getattr(self, varname, 0)
 
             if issubclass(vartype, Struct):
-                value.ADRESS_EX  = self.ADRESS_EX
+                value.ADRESS_EX  = self.ADRESS_EX + offset
+                vartype_name: str = _ctype_get_name(vartype, colorized)
+
+                if colorized:
+                    spaces: int = vartype_len - len(_ctype_get_name(vartype)) + 2
+
+                    out += f"{address + localoffset:X}:{' ' * Indention}    {GREY}|{offset:04X}|{END}  " \
+                           f"{vartype_name} " + " " * spaces + f"{WHITE}" \
+                           f"{varname}{END}\n"
+
+                else:
+                    out += f"{address + localoffset:X}:{' ' * Indention}    |{offset:04X}|  " \
+                           f"{vartype_name:{vartype_len}s}   {varname}\n"
+
                 out             += value.Prettify(colorized, Indention + 5, offset) + "\n"
                 offset          += sizeof(vartype)
                 localoffset     += sizeof(vartype)
@@ -254,7 +268,10 @@ def _ctype_get_is_pointer(ctype) -> bool:
 
 def _ctype_get_name(ctype, colorized: bool = False) -> str:
     if issubclass(ctype, Struct):
-        return ""
+        if colorized:
+            return LIGHT_GREEN + ctype.__name__ + END
+        else:
+            return ctype.__name__
 
     extra:   str  = ''
     isArray: bool = _ctype_get_is_array(ctype)
@@ -300,6 +317,8 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
         name: str = 'SIZE_T'
     elif cname in c_uint.__name__:
         name: str = 'UINT'
+    elif cname in c_longlong.__name__:
+        name: str = 'LONGLONG'
     elif cname in c_ulonglong.__name__:
         name: str = 'ULONGLONG'
     elif cname in c_char.__name__:
@@ -349,6 +368,8 @@ def _ctype_get_format(ctype, color: str = "") -> str:
         return color + '0x%X' + endcolor
     if cname in c_uint.__name__:
         return color + '%d' + endcolor
+    if cname in c_longlong.__name__:
+        return color + '%d' + endcolor
     if cname in c_ulonglong.__name__:
         return color + '0x%X' + endcolor
     if cname in c_long.__name__:
@@ -383,6 +404,8 @@ def _ctype_get_color(ctype) -> str:
         return ELECTRIC_BLUE
     if c_uint.__name__ in cname:
         return ELECTRIC_BLUE
+    if c_longlong.__name__ in cname:
+        return ELECTRIC_BLUE
     if c_ulonglong.__name__ in cname:
         return ELECTRIC_BLUE
     if c_long.__name__ in cname:
@@ -409,13 +432,8 @@ def _ctype_format_value(cvalue: Any, ctype, colorized: bool = False) -> str:
         arr_type: Any = _ctype_get_array_type(ctype)
 
         if issubclass(arr_type, c_char) or issubclass(arr_type, c_wchar):
-            try:
-                cvalue.encode("utf-8")
-            except UnicodeEncodeError:
-                values: list[int] = [ord(char) for char in list(cvalue)]
-                fmt               = _ctype_get_format(c_ushort, color)
-            else:
-                return fmt % cvalue
+            return fmt % cvalue
+
         else:
             values: list[int] = list(cvalue)
 
