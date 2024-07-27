@@ -474,6 +474,15 @@ class Process:
 
         return sections
 
+    def GetSection(self, name: str) -> IMAGE_SECTION_HEADER | None:
+        b_name: bytes = name.encode()
+        sections = self.GetSections()
+        for section in sections:
+            if section.Name == b_name:
+                return section
+
+        return None
+
     def Terminate(self, exitCode: int = 0) -> bool:
         """
         Terminates the process. In other words, it kills the process.
