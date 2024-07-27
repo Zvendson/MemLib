@@ -505,6 +505,10 @@ class Process:
         return img.SizeOfImage
 
     def GetSections(self) -> list[IMAGE_SECTION_HEADER]:
+        """
+        :returns: The core module sections of the process, even if the process was created in suspended mode.
+        """
+
         mz = self.GetFileHeader()
         pe = self.GetImageHeader()
 
@@ -526,6 +530,10 @@ class Process:
         return sections
 
     def GetSection(self, name: str) -> IMAGE_SECTION_HEADER | None:
+        """
+        :returns: A core module section by name of the process, even if the process was created in suspended mode.
+        """
+
         b_name: bytes = name.encode()
         sections = self.GetSections()
         for section in sections:

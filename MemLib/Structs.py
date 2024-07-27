@@ -327,8 +327,8 @@ class PROCESSENTRY32(Struct):
     """
     Contains information about a process encountered by an application that traverses processes throughout the system.
 
-    **See also:** `PROCESSENTRY32 <https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32
-    -processentry32>`_
+    **See also:** `PROCESSENTRY32
+    <https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32>`_
     """
 
     _fields_ = [
