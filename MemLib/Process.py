@@ -442,6 +442,17 @@ class Process:
 
         return peb.ImageBaseAddress
 
+    def GetSize(self) -> int:
+        """
+        :returns: The size of the process core module. 0 if the process is not opened.
+        """
+
+        img = self.GetImageHeader()
+        if img is None:
+            return 0
+
+        return img.SizeOfImage
+
     def Terminate(self, exitCode: int = 0) -> bool:
         """
         Terminates the process. In other words, it kills the process.
