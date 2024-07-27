@@ -6,12 +6,10 @@ from __future__ import annotations
 
 from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
-from ctypes import Array, byref, pointer
+from ctypes import Array, byref, pointer, sizeof
 from ctypes.wintypes import BYTE, DWORD, WCHAR
-
 from pathlib import Path
 
-from _ctypes import sizeof
 from psutil import pid_exists
 
 
