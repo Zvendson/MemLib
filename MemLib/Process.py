@@ -3,21 +3,24 @@
 """
 
 from __future__ import annotations
+from typing import TYPE_CHECKING, Callable, List, Literal, Type, TypeVar
 
-from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
 from ctypes import Array, byref, pointer, sizeof
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 from pathlib import Path
 
-from psutil import pid_exists
-
+import psutil
 
 from MemLib.Constants import (
     CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE,
-    NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, TH32CS_SNAPMODULE,
-    TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
+    NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE,
+    PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE, SYNCHRONIZE,
+    TH32CS_SNAPMODULE,
+    TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS,
+    TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
+from MemLib.Decorators import Require32Bit
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
     IMAGE_NT_HEADERS32, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
@@ -43,7 +46,7 @@ if TYPE_CHECKING:
 
 class Process:
     """
-    Represents an interactable process.
+    Represents an interactable process. 64 bit not supported (yet?).
 
     :raises ValueError: If the process does not exist.
     :param processId: The process id of the process.
@@ -51,6 +54,7 @@ class Process:
     """
 
     def __init__(self, processId: int, processHandle: int = 0):
+    @Require32Bit
         if not processId:
             raise ValueError("processId cannot be 0.")
 
@@ -98,7 +102,7 @@ class Process:
         :returns: True if the process exists, False otherwise.
         """
 
-        return pid_exists(self._processId)
+        return psutil.pid_exists(self._processId)
 
     def Open(self, processId: int, access: int = PROCESS_ALL_ACCESS, inherit: bool = False) -> bool:
         """
