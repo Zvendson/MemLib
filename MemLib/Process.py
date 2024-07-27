@@ -367,10 +367,10 @@ class Process:
             CloseHandle(snapshot)
             return module
 
-        name: bytes = name.encode('ascii')
+        name: bytes = name.encode('ascii').lower()
 
         while Module32Next(snapshot, byref(moduleBuffer)):
-            if moduleBuffer.szModule.lower() == name.lower():
+            if moduleBuffer.szModule.lower() == name:
                 module: Module = Module(moduleBuffer, self)
 
                 CloseHandle(snapshot)
@@ -397,14 +397,15 @@ class Process:
             CloseHandle(snapshot)
             raise err
 
-        threadList: List[Thread] = list()
+        threadList:   List[Thread] = list()
+        thread_found: bool         = True
 
-        while Thread32Next(snapshot, byref(threadBuffer)):
-            if threadBuffer.th32OwnerProcessID != self._processId:
-                continue
+        while thread_found:
+            if threadBuffer.th32OwnerProcessID == self._processId:
+                thread: Thread = Thread(threadBuffer.th32ThreadID, self)
+                threadList.append(thread)
 
-            thread: Thread = Thread(threadBuffer.th32ThreadID, self)
-            threadList.append(thread)
+            thread_found = Thread32Next(snapshot, byref(threadBuffer))
 
         CloseHandle(snapshot)
         return threadList
@@ -422,18 +423,21 @@ class Process:
 
         threadBuffer: THREADENTRY32 = THREADENTRY32()
         threadBuffer.dwSize         = threadBuffer.GetSize()
+        thread:      Thread | None  = None
 
         if not Thread32First(snapshot, byref(threadBuffer)):
             err = Win32Exception()
             CloseHandle(snapshot)
             raise err
 
-        thread: Thread | None = None
+        thread_found: bool = True
 
-        while Thread32Next(snapshot, byref(threadBuffer)):
+        while thread_found:
             if threadBuffer.th32OwnerProcessID == self._processId:
                 thread = Thread(threadBuffer.th32ThreadID, self)
                 break
+
+            thread_found = Thread32Next(snapshot, byref(threadBuffer))
 
         CloseHandle(snapshot)
         return thread
@@ -817,7 +821,6 @@ class Process:
         :returns: a list of all processes found
         """
 
-        processName: bytes         = processName.encode('ascii')
         processList: List[Process] = list()
         snapshot:    int           = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
 
@@ -831,11 +834,21 @@ class Process:
             CloseHandle(snapshot)
             return processList
 
-        while Process32Next(snapshot, byref(processBuffer)):
-            if processName != "" and processBuffer.szExeFile.lower() != processName.lower():
-                continue
+        process_name:  bytes = processName.encode('ascii').lower()
+        process_found: bool  = True
+        process:       Process
 
-            processList.append(Process(processBuffer.th32ProcessID))
+        while process_found:
+            if processBuffer.th32ProcessID and (process_name == b"" or processBuffer.szExeFile.lower() == process_name):
+                try:
+                    process = Process(processBuffer.th32ProcessID)
+                except Win32Exception:
+                    process = Process(processBuffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+
+                process._name = processBuffer.szExeFile
+                processList.append(process)
+
+            process_found = Process32Next(snapshot, byref(processBuffer))
 
         CloseHandle(snapshot)
         return processList
@@ -858,15 +871,24 @@ class Process:
             CloseHandle(snapshot)
             return None
 
-        while Process32Next(snapshot, byref(processBuffer)):
-            if processName != "" and processBuffer.szExeFile.lower() != processName.lower():
-                continue
+        process_name:  bytes          = processName.encode('ascii').lower()
+        process:       Process | None = None
+        process_found: bool           = True
 
-            CloseHandle(snapshot)
-            return Process(processBuffer.th32ProcessID)
+        while process_found:
+            if processBuffer.th32ProcessID and (process_name == b"" or processBuffer.szExeFile.lower() == process_name):
+                try:
+                    process = Process(processBuffer.th32ProcessID)
+                except Win32Exception:
+                    process = Process(processBuffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+
+                process._name = processBuffer.szExeFile
+                break
+
+            process_found = Process32Next(snapshot, byref(processBuffer))
 
         CloseHandle(snapshot)
-        return None
+        return process
 
     def _RegisterWait(self) -> bool:
         if not self._wait:
