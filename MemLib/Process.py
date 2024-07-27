@@ -61,6 +61,8 @@ class Process:
         self._processId:    int                       = processId
         self._handle:       int                       = processHandle
         self._access:       int                       = access
+        self._name:         str | None                = None
+        self._path:         Path | None               = None
         self._callbacks:    list                      = list()
         self._wait:         int                       = 0
         self._waitCallback: WaitOrTimerCallback       = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
@@ -255,17 +257,25 @@ class Process:
         :returns: The name of the process. Empty string if the process is not opened.
         """
 
+        if self._name is not None:
+            return self._name
+
         try:
             module: Module = self.GetMainModule()
-        except Win32Exception:
-            return ""
+        except Win32Exception as e:
+            self._name = None
         else:
-            return module.GetName()
+            self._name = module.GetName()
+
+        return self._name
 
     def GetPath(self) -> Path | None:
         """
         :returns: The local path of the process. Empty string if the process is not opened.
         """
+
+        if self._path is not None:
+            return self._path
 
         nameBuffer: Array      = (WCHAR * 4096)()
         sizeBuffer: DWORD      = DWORD(4096)
@@ -275,9 +285,9 @@ class Process:
             path = nameBuffer.value
 
         if isinstance(path, str):
-            return Path(path)
+            self._path = Path(path)
 
-        return None
+        return self._path
 
     def GetPriorityClass(self) -> int:
         """
