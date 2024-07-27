@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from typing import Callable, List, Literal, TYPE_CHECKING, Type, TypeVar
 
-from ctypes          import Array, byref, pointer
+from ctypes import Array, byref, pointer
 from ctypes.wintypes import BYTE, DWORD, WCHAR
 
 from pathlib import Path
+
+from _ctypes import sizeof
 from psutil import pid_exists
 
 
@@ -18,7 +20,12 @@ from MemLib.Constants import (
     NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, TH32CS_SNAPMODULE,
     TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
-from MemLib.Structs import MODULEENTRY32, PEB, PROCESSENTRY32, ProcessBasicInformation, Struct, THREADENTRY32
+from MemLib.Scanner import BinaryScanner
+from MemLib.Structs import (
+    IMAGE_NT_HEADERS32, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
+    ProcessBasicInformation, Struct,
+    THREADENTRY32,
+)
 from MemLib.Module import Module
 from MemLib.Thread import Thread
 from MemLib.Kernel32 import (
@@ -49,11 +56,14 @@ class Process:
         if not processId:
             raise ValueError("processId cannot be 0.")
 
-        self._processId:    int                 = processId
-        self._handle:       int                 = processHandle
-        self._callbacks:    list                = list()
-        self._wait:         int                 = 0
-        self._waitCallback: WaitOrTimerCallback = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
+        self._processId:    int                       = processId
+        self._handle:       int                       = processHandle
+        self._callbacks:    list                      = list()
+        self._wait:         int                       = 0
+        self._waitCallback: WaitOrTimerCallback       = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
+        self._peb:          PEB | None                = None
+        self._mzheader:     MZ_FILEHEADER | None      = None
+        self._imgheader:    IMAGE_NT_HEADERS32 | None = None
 
         if not self._handle:
             self.Open(self._processId)
@@ -381,16 +391,52 @@ class Process:
         CloseHandle(snapshot)
         return thread
 
-    def GetBase(self) -> int:
+    def GetPEB(self) -> PEB | None:
         """
-        :returns: The base address of the process. 0 if the process is not opened.
+        :returns: The PEB struct.
         """
+
+        if self._peb is not None:
+            return self._peb
 
         processInfo: ProcessBasicInformation = ProcessBasicInformation()
         if not NtQueryInformationProcess(self._handle, 0, byref(processInfo), processInfo.GetSize(), 0):
-            return 0
+            return None
 
-        peb: PEB = self.ReadStruct(processInfo.PebBaseAddress, PEB)
+        self._peb = self.ReadStruct(processInfo.PebBaseAddress, PEB)
+        return self._peb
+
+    def GetFileHeader(self) -> MZ_FILEHEADER | None:
+        """
+        :returns: The MZ_FILEHEADER struct.
+        """
+
+        if self._mzheader is not None:
+            return self._mzheader
+
+        self._mzheader = self.ReadStruct(self.GetBase(), MZ_FILEHEADER)
+
+        return self._mzheader
+
+    def GetImageHeader(self) -> IMAGE_NT_HEADERS32 | None:
+        """
+        :returns: The IMAGE_NT_HEADERS32 struct.
+        """
+
+        if self._imgheader is not None:
+            return self._imgheader
+
+        mzheader: MZ_FILEHEADER = self.GetFileHeader()
+        self._imgheader         = self.ReadStruct(self.GetBase() + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
+
+        return self._imgheader
+
+    def GetBase(self) -> int:
+        """
+        :returns: The base address of the process core module. 0 if the process is not opened.
+        """
+
+        peb = self.GetPEB()
         if peb is None:
             return 0
 
@@ -425,7 +471,7 @@ class Process:
 
         raise b''
 
-    def ReadStruct(self, address: int, structClass: Type[T: Struct]) -> T:
+    def ReadStruct(self, address: int, structClass: Type[T: Struct]) -> T | None:
         """
         Reads data from the process into your struct.
 
