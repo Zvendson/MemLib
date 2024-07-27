@@ -483,6 +483,21 @@ class Process:
 
         return None
 
+    def GetScanner(self, sectionName: str = None) -> BinaryScanner | None:
+        if sectionName is None:
+            sections = self.GetSections()
+            if not len(sections):
+                return None
+            wanted_section: IMAGE_SECTION_HEADER = sections[0]
+        else:
+            wanted_section: IMAGE_SECTION_HEADER = self.GetSection(sectionName)
+
+        if wanted_section is None:
+            return None
+
+        buffer: bytes = self.Read(wanted_section.VirtualAddress, wanted_section.VirtualSize)
+        return BinaryScanner(buffer, wanted_section.VirtualAddress)
+
     def Terminate(self, exitCode: int = 0) -> bool:
         """
         Terminates the process. In other words, it kills the process.
