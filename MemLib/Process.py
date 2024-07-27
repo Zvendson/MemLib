@@ -453,6 +453,27 @@ class Process:
 
         return img.SizeOfImage
 
+    def GetSections(self) -> list[IMAGE_SECTION_HEADER]:
+        mz = self.GetFileHeader()
+        pe = self.GetImageHeader()
+
+        sectionBase: int = self.GetBase() + mz.PEHeaderOffset + pe.GetSectionsOffset()
+        sectionSize: int = pe.FileHeader.NumberOfSections
+        sections:    list[IMAGE_SECTION_HEADER] = list()
+
+        for i in range(sectionSize):
+            section: IMAGE_SECTION_HEADER = self.ReadStruct(sectionBase, IMAGE_SECTION_HEADER)
+            section.VirtualAddress += self.GetBase()
+
+            restsize = section.VirtualSize % pe.OptionalHeader.SectionAlignment
+            if restsize:
+                section.VirtualSize += pe.OptionalHeader.SectionAlignment - restsize
+
+            sections.append(section)
+            sectionBase += sizeof(IMAGE_SECTION_HEADER)
+
+        return sections
+
     def Terminate(self, exitCode: int = 0) -> bool:
         """
         Terminates the process. In other words, it kills the process.
