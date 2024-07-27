@@ -163,16 +163,36 @@ class Process:
 
         return NtResumeProcess(self._handle)
 
-    def RegisterOnExitCallback(self, callback: Callable[[int, int], None]):
-        self._callbacks.append(callback)
-        self._RegisterWait()
+    def RegisterOnExitCallback(self, callback: Callable[[int, int], None]) -> bool:
+        """
+        Registers a callback that gets called when the process terminates.
+        The callback takes 2 params:
+        VOID CALLBACK WaitOrTimerCallback(
+            _In_ PVOID   lpParameter,
+            _In_ BOOLEAN TimerOrWaitFired
+        );
 
-    def UnregisterOnExitCallback(self, callback: Callable[[int, int], None]):
+        :returns: True if registered successfully, False otherwise.
+        """
+
+        self._callbacks.append(callback)
+        return self._RegisterWait()
+
+    def UnregisterOnExitCallback(self, callback: Callable[[int, int], None]) -> bool:
+        """
+        Unregisters a callback was previously registered through 'RegisterOnExitCallback'.
+
+        :returns: True if unregistered successfully, False otherwise.
+        """
+
         self._callbacks.remove(callback)
 
         if self._wait and len(self._callbacks) == 0:
-            UnregisterWait(self._wait)
+            success = UnregisterWait(self._wait)
             self._wait = 0
+            return success
+
+        return True
 
     def CreateThread(self,
                      startAddress:     int,
@@ -838,7 +858,7 @@ class Process:
         CloseHandle(snapshot)
         return None
 
-    def _RegisterWait(self) -> None:
+    def _RegisterWait(self) -> bool:
         if not self._wait:
             self._wait = RegisterWaitForSingleObject(
                 self._handle,
@@ -848,10 +868,15 @@ class Process:
                 WT_EXECUTEONLYONCE
             )
 
-    def _UnregisterWait(self) -> None:
+        return self._wait != 0
+
+    def _UnregisterWait(self) -> bool:
         if self._wait:
-            UnregisterWait(self._wait)
+            success: bool = UnregisterWait(self._wait)
             self._wait = 0
+            return success
+
+        return True
 
     def __OnProcessTerminate(self, processId: int, timerOrWaitFired: int) -> None:
         for callback in self._callbacks:
