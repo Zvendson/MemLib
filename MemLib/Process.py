@@ -53,13 +53,14 @@ class Process:
     :param processHandle: The process handle of the process. If 0, the process will be opened.
     """
 
-    def __init__(self, processId: int, processHandle: int = 0):
     @Require32Bit
+    def __init__(self, processId: int, processHandle: int = 0, access: int = PROCESS_ALL_ACCESS):
         if not processId:
             raise ValueError("processId cannot be 0.")
 
         self._processId:    int                       = processId
         self._handle:       int                       = processHandle
+        self._access:       int                       = access
         self._callbacks:    list                      = list()
         self._wait:         int                       = 0
         self._waitCallback: WaitOrTimerCallback       = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
@@ -68,7 +69,7 @@ class Process:
         self._imgheader:    IMAGE_NT_HEADERS32 | None = None
 
         if not self._handle:
-            self.Open(self._processId)
+            self.Open(self._processId, access)
 
         if not self.Exists():
             raise ValueError(f"Process {self._processId} does not exist.")
@@ -81,7 +82,8 @@ class Process:
             self.Close()
 
     def __str__(self) -> str:
-        return f"Process(Name={self.GetName()}, PID={self._processId}, Handle={self._handle}, Path={self.GetPath()})"
+        return (f"Process(Name={self.GetName()}, PID={self._processId}, Handle={self._handle}, Path={self.GetPath()}, "
+                f"AccessRights=0x{self._access:X})")
 
     def __repr__(self) -> str:
         return str(self)
@@ -91,7 +93,7 @@ class Process:
             return False
 
         if isinstance(other, Process):
-            return self._processId == other._processId
+            return self == other
 
         return self._processId == other
 
@@ -112,6 +114,8 @@ class Process:
         :param access: The access rights to open the process.
         :param inherit: Determines processes created by this process will inherit the handle or not.
 
+        :raises Win32Exception: If the process vould not be opened with the desicered access rights.
+
         :returns: True if the process was opened successfully, False otherwise.
         """
 
@@ -119,7 +123,11 @@ class Process:
             self.Close()
 
         self._processId = processId
+        self._access    = access
         self._handle    = OpenProcess(processId, inherit, access)
+
+        if not self._handle:
+            raise Win32Exception()
 
         return self._handle != 0
 
@@ -214,6 +222,13 @@ class Process:
         """
 
         return self._handle
+
+    def GetAccessRights(self) -> int:
+        """
+        :returns: The access rights the process is or will be opened with.
+        """
+
+        return self._access
 
     def GetName(self) -> str:
         """
@@ -486,6 +501,13 @@ class Process:
         return None
 
     def GetScanner(self, sectionName: str = None) -> BinaryScanner | None:
+        """
+        :returns: A scanner object of the core module by section name. Picks first section if none specified.
+        """
+
+        if not self.CanReadMemory():
+            raise RuntimeError(f"Invalid access rights. PROCESS_VM_READ required, got: 0x{self._access:X}")
+
         if sectionName is None:
             sections = self.GetSections()
             if not len(sections):
@@ -499,6 +521,20 @@ class Process:
 
         buffer: bytes = self.Read(wanted_section.VirtualAddress, wanted_section.VirtualSize)
         return BinaryScanner(buffer, wanted_section.VirtualAddress)
+
+    def CanReadMemory(self) -> bool:
+        """
+        :returns: True if the access rights can read memory.
+        """
+
+        return self._access & PROCESS_VM_READ == PROCESS_VM_READ
+
+    def CanWriteMemory(self) -> bool:
+        """
+        :returns: True if the access rights can write memory.
+        """
+
+        return self._access & PROCESS_VM_WRITE == PROCESS_VM_WRITE
 
     def Terminate(self, exitCode: int = 0) -> bool:
         """
