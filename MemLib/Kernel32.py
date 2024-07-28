@@ -726,6 +726,29 @@ def CreateFileMappingW(
     return _CreateFileMappingW(fileHandle, fileMappingAttributes, protect, maximumSizeHigh, maximumSizeLow, name)
 
 
+def OpenFileMappingW(desiredAccess: int, inheritHandle: bool, name: str) -> int:
+    """
+    Opens a named file mapping object.
+
+    :param desiredAccess: The access to the file mapping object. This access is checked against any security descriptor
+                          on the target file mapping object.
+    :param inheritHandle: If this parameter is True, a process created by the CreateProcess function can inherit the
+                          handle; otherwise, the handle cannot be inherited.
+    :param name: The name of the file mapping object.
+    :returns: The name of the file mapping object to be opened. If there is an open handle to a file mapping object by
+              this name and the security descriptor on the mapping object does not conflict with the dwDesiredAccess
+              parameter, the open operation succeeds. The name can have a "Global" or "Local" prefix to explicitly
+              open an object in the global or session namespace. The remainder of the name can contain any character
+              except the backslash character (\\).
+    """
+
+    mapping = _OpenFileMappingW(desiredAccess, inheritHandle, name)
+    if mapping is None:
+        return 0
+
+    return mapping
+
+
 def MapViewOfFile(
         fileMappingObject:  int,
         desiredAccess:      int,
@@ -1187,6 +1210,10 @@ _VirtualProtectEx.restype  = BOOL
 _CreateFileMappingW          = windll.kernel32.CreateFileMappingW
 _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPVOID]
 _CreateFileMappingW.restype  = HANDLE
+
+_OpenFileMappingW          = windll.kernel32.OpenFileMappingW
+_OpenFileMappingW.argtypes = [DWORD, BOOL, LPCWSTR]
+_OpenFileMappingW.restype  = HANDLE
 
 _MapViewOfFile          = windll.kernel32.MapViewOfFile
 _MapViewOfFile.argtypes = [HANDLE, DWORD, DWORD, DWORD, DWORD]
