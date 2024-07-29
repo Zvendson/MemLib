@@ -93,7 +93,7 @@ class UNICODE_STRING(Struct):
     _fields_ = [
         ('Length', USHORT),
         ('MaximumLength', USHORT),
-        ('Buffer', LPWSTR),
+        ('Buffer', LPVOID),
     ]
 
 
