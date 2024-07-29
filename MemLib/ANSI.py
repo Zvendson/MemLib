@@ -136,16 +136,41 @@ END:          str = f"{ESC}[0m"
 
 
 # Identifying the color name: https://www.color-blindness.com/color-name-hue/
-SAFETY_ORANGE:      str = ForeRGB(255, 111, 0)
+SAFETY_ORANGE:      str = ForeRGB(255, 111,   0)
 ELECTRIC_BLUE:      str = ForeRGB(135, 239, 255)
 HELIOTROPE:         str = ForeRGB(230, 130, 255)
 GRANNY_SMITH_APPLE: str = ForeRGB(155, 230, 142)
-FLAMENCO:           str = ForeRGB(232, 152, 77)
+FLAMENCO:           str = ForeRGB(232, 152,  77)
 BRINK_PINK:         str = ForeRGB(250, 102, 129)
 GREY:               str = ForeRGB(120, 120, 120)
 STRAW:              str = ForeRGB(217, 187, 134)
 WHITE:              str = ForeRGB(255, 255, 255)
-JADE:               str = ForeRGB(0, 199, 103)
+JADE:               str = ForeRGB(  0, 199, 103)
+PYOBJECT:           str = ForeRGB(136, 136, 198)
+
+
+def Int(value: int) -> str:
+    return f"{ELECTRIC_BLUE}{value}{END}"
+
+
+def HexInt(value: int) -> str:
+    return f"{ELECTRIC_BLUE}0x{value:X}{END}"
+
+
+def Flt(value: float, decimals: int = 3) -> str:
+    return f"{HELIOTROPE}{value:.{decimals}f}{END}"
+
+
+def Str(value: str) -> str:
+    return f"{GRANNY_SMITH_APPLE}\"{value}\"{END}"
+
+
+def Ptr(value: id) -> str:
+    return f"{BRINK_PINK}0x{value:X}{END}"
+
+
+def Obj(value: object) -> str:
+    return f"{PYOBJECT}{value}{END}"
 
 
 
