@@ -465,7 +465,11 @@ class Process:
         if self._mzheader is not None:
             return self._mzheader
 
-        self._mzheader = self.ReadStruct(self.GetBase(), MZ_FILEHEADER)
+        peb = self.GetPEB()
+        if peb is None:
+            return None
+
+        self._mzheader = self.ReadStruct(peb.ImageBaseAddress, MZ_FILEHEADER)
 
         return self._mzheader
 
@@ -477,8 +481,12 @@ class Process:
         if self._imgheader is not None:
             return self._imgheader
 
+        peb = self.GetPEB()
+        if peb is None:
+            return None
+
         mzheader: MZ_FILEHEADER = self.GetFileHeader()
-        self._imgheader         = self.ReadStruct(self.GetBase() + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
+        self._imgheader         = self.ReadStruct(peb.ImageBaseAddress + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
 
         return self._imgheader
 
@@ -491,7 +499,11 @@ class Process:
         if peb is None:
             return 0
 
-        return peb.ImageBaseAddress
+        pe = self.GetImageHeader()
+        if pe is None:
+            return 0
+
+        return peb.ImageBaseAddress + pe.OptionalHeader.SectionAlignment
 
     def GetSize(self) -> int:
         """
@@ -509,16 +521,17 @@ class Process:
         :returns: The core module sections of the process, even if the process was created in suspended mode.
         """
 
-        mz = self.GetFileHeader()
-        pe = self.GetImageHeader()
+        pe  = self.GetImageHeader()
+        peb = self.GetPEB()
+        mz  = self.GetFileHeader()
 
-        sectionBase: int = self.GetBase() + mz.PEHeaderOffset + pe.GetSectionsOffset()
+        sectionBase: int = peb.ImageBaseAddress + mz.PEHeaderOffset + pe.GetSectionsOffset()
         sectionSize: int = pe.FileHeader.NumberOfSections
         sections:    list[IMAGE_SECTION_HEADER] = list()
 
         for i in range(sectionSize):
             section: IMAGE_SECTION_HEADER = self.ReadStruct(sectionBase, IMAGE_SECTION_HEADER)
-            section.VirtualAddress += self.GetBase()
+            section.VirtualAddress += peb.ImageBaseAddress
 
             restsize = section.VirtualSize % pe.OptionalHeader.SectionAlignment
             if restsize:
