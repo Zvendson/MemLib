@@ -4,30 +4,29 @@
 
 from ctypes import CFUNCTYPE, POINTER, byref
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
-from os import PathLike
-from typing import Callable, Type
+from typing import Callable
 
 from _ctypes import Array
 
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
-from MemLib.FlatAssembler import Compile
+from MemLib.FlatAssembler import compile_asm
 from MemLib.Kernel32 import VirtualAlloc, VirtualFree, Win32Exception
 from MemLib.Structs import Struct
 
 
-def generateAssemblyPayload(file: int | str | bytes | PathLike[str] | PathLike[bytes]) -> str:
+def generate_assembly_payload(file_path: str) -> str:
     """
     Generates a prettified string of opcode from a file using FASM. String is optimized to fit into 120 char line
     length including indentations for "readability".
 
-    :param file: The path to the file including the name of the file.
+    :param file_path: The path to the file including the name of the file.
     :returns: The pretiffied opcode in python like bytes assignments.
     """
 
-    with open(file) as asm:
-        opcode: bytes = Compile(asm.read())
-        opcode: str = opcode.hex().upper()
-        out:    str = ""
+    with open(file_path) as asm:
+        binary: bytes = compile_asm(asm.read())
+        opcode: str = binary.hex().upper()
+        out: str = ""
 
         while len(opcode):
             temp: str = opcode[:74]
@@ -41,13 +40,13 @@ def generateAssemblyPayload(file: int | str | bytes | PathLike[str] | PathLike[b
 class Pattern(Struct):
 
     _fields_ = [
-        ('Length', DWORD),
-        ('Binary', BYTE * 256),
-        ('Mask', BYTE * 256),
-        ("Offset", DWORD),
+        ('length', DWORD),
+        ('binary', BYTE * 256),
+        ('mask', BYTE * 256),
+        ("offset", DWORD),
     ]
 
-    def __init__(self, comboPattern: str, offset: int = 0):
+    def __init__(self, combo_pattern: str, offset: int = 0):
         """
         Container for pattern, utilizes auto breakdown of combo pattern.
         Combo patterns can contain wildcards and spaces.
@@ -60,22 +59,17 @@ class Pattern(Struct):
               Pattern("55 8B EC 5? 33 C0") result to the same Pattern as in the Example.
 
         :raises ValueError: If the pattern has an invalid length (length is not even).
-        :param comboPattern: The pattern.
+        :param combo_pattern: The pattern.
         :param offset: The offset.
         """
 
-        combo: str = comboPattern.replace(' ', '')
-        combo      = combo.replace('*', '?')
-        combo      = combo.replace('.', '?')
-        combo      = combo.replace('_', '?')
-
-        if len(combo) % 2 != 0:
+        if len(combo_pattern) % 2 != 0:
             raise ValueError("Pattern has an invalid length!")
 
-        binary: str = ''
-        mask:   str = ''
+        binary: str = ""
+        mask: str   = ""
 
-        for a, b in zip(combo[::2], combo[1::2]):
+        for a, b in zip(combo_pattern[::2], combo_pattern[1::2]):
             if '?' in (a + b):
                 binary += '00'
                 mask += '?'
@@ -90,12 +84,12 @@ class Pattern(Struct):
             offset
         )
 
-    def IsValid(self):
+    def is_valid(self):
         """
         :returns: True if the pattern is valid, False otherwise.
         """
 
-        return self.Length > 0
+        return self.length > 0
 
 
 class BinaryScanner:
@@ -108,15 +102,15 @@ class BinaryScanner:
 
     class _Buffer(Struct):
         _fields_ = [
-            ('Base', LPVOID),
-            ('End', LPVOID),
+            ('base', LPVOID),
+            ('end', LPVOID),
         ]
 
     def __init__(self, buffer: bytes | None = None, base: int = 0):
         """
         A 32 bit scanner written in assembly that works with a mask. It utilizes a Pattern object to make it more
-        user friendly. You can create multiple Binary Scanner for different byte buffers.
-        Make sure to call 'Close' when you dont need it anymore to free the memory.
+        user-friendly. You can create multiple Binary Scanner for different byte buffers.
+        Make sure to call 'Close' when you don't need it anymore to free the memory.
 
         :raises Win32Exception: If it could not allocate memory for the payload or the buffer.
         :param buffer: The bytes where the scanner will run the pattern on.
@@ -128,60 +122,60 @@ class BinaryScanner:
         # Writing payload to py memory
         payload: bytes = BinaryScanner.__PAYLOAD
 
-        self._handlerAddress: int = VirtualAlloc(0, len(payload), MEM_COMMIT, PAGE_EXECUTE_READWRITE)
-        if not self._handlerAddress:
+        self._handler_address: int = VirtualAlloc(0, len(payload), MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+        if not self._handler_address:
             raise Win32Exception()
 
-        binary: Array = (CHAR * len(payload)).from_address(self._handlerAddress)
+        binary: Array = (CHAR * len(payload)).from_address(self._handler_address)
         binary.value  = payload
 
         # Transform py written payload to a callable function
         functype: CFUNCTYPE = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
 
-        self._handler: Callable[[str, str], int] = functype(self._handlerAddress)
+        self._handler: Callable[[str, str], int] = functype(self._handler_address)
 
         # Writing buffer to py memory
         if buffer is not None:
-            self.SetBuffer(buffer, base)
+            self.set_buffer(buffer, base)
 
-    def GetBase(self) -> int:
+    def get_base(self) -> int:
         return self._base
 
-    def Close(self) -> None:
+    def close(self) -> None:
         """
         Closes the BinaryScanner and frees the allocated memory.
         """
 
-        if not VirtualFree(self._handlerAddress, 0, MEM_RELEASE):
+        if not VirtualFree(self._handler_address, 0, MEM_RELEASE):
             raise Win32Exception()
 
-        self._handlerAddress = 0
+        self._handler_address = 0
 
-    def SetBuffer(self, newBuffer: bytes, base: int = 0) -> None:
+    def set_buffer(self, new_buffer: bytes, base: int = 0) -> None:
         """
         Change the buffer where the BinaryScanner will run the pattern on.
 
         :raises Win32Exception: If it could not allocate memory for the buffer.
-        :param newBuffer: The new buffer.
+        :param new_buffer: The new buffer.
         """
 
-        size: int = len(newBuffer)
+        size: int = len(new_buffer)
 
-        if self._buffer.Base:
+        if self._buffer.base:
             print("freed old buffer")
-            VirtualFree(self._buffer.Base, 0, MEM_RELEASE)
+            VirtualFree(self._buffer.base, 0, MEM_RELEASE)
 
         self._base        = base
-        self._buffer.Base = VirtualAlloc(0, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
-        if not self._buffer.Base:
+        self._buffer.base = VirtualAlloc(0, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+        if not self._buffer.base:
             raise Win32Exception()
 
-        buffer: Array = (CHAR * size).from_address(self._buffer.Base)
-        buffer.value  = newBuffer
+        buffer: Array = (CHAR * size).from_address(self._buffer.base)
+        buffer.value  = new_buffer
 
-        self._buffer.End = self._buffer.Base + size
+        self._buffer.end = self._buffer.base + size
 
-    def FindRVA(self, pattern: str | Pattern) -> int:
+    def find_rva(self, pattern: str | Pattern) -> int:
         """
         Finds the pattern in the buffer and returns the RVA (Relative Virtual Address).
         A RVA is the offset to the base address of a module.
@@ -191,18 +185,18 @@ class BinaryScanner:
         :returns: The RVA where the pattern was found. If not found it returns 0.
         """
 
-        if not self._handlerAddress:
+        if not self._handler_address:
             raise RuntimeError("Scanner is not initialized!")
 
         if isinstance(pattern, str):
             pattern = Pattern(pattern)
 
-        if not isinstance(pattern, Pattern) or not pattern.IsValid():
+        if not isinstance(pattern, Pattern) or not pattern.is_valid():
             raise ValueError("Invalid Pattern: " + str(pattern))
 
         return self._handler(byref(pattern), byref(self._buffer))
 
-    def Find(self, pattern: str | Pattern) -> int:
+    def find(self, pattern: str | Pattern) -> int:
         """
         Finds the pattern in the buffer and returns the virtual Address.
 
@@ -210,13 +204,10 @@ class BinaryScanner:
         :returns: The virtual Address where the pattern was found. If not found it returns 0.
         """
 
-        rva = self.FindRVA(pattern)
+        rva = self.find_rva(pattern)
         return self._base + rva
 
 
 if __name__ == '__main__':
-    scanner: str = generateAssemblyPayload("Scanner.asm")
-    print(scanner)
-
-
-
+    scanner_opcode: str = generate_assembly_payload("Scanner.asm")
+    print(scanner_opcode)

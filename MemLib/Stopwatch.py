@@ -3,20 +3,20 @@ import time
 
 class Stopwatch:
 
-    def __init__(self, watchtime: float):
-        self._watchTime: float = watchtime
+    def __init__(self, watch_time: float):
+        self._watchTime: float = watch_time
         self._timeStarted: float = time.time()
 
-    def Restart(self) -> None:
+    def restart(self) -> None:
         self._timeStarted: float = time.time()
 
-    def IsExpired(self) -> bool:
-        return self.GetElapsedTime() >= self._watchTime
+    def is_expired(self) -> bool:
+        return self.get_elapsed_time() >= self._watchTime
 
-    def GetElapsedTime(self) -> float:
+    def get_elapsed_time(self) -> float:
         return time.time() - self._timeStarted
 
-    def GetElapsedTimeInMS(self) -> int:
+    def get_elapsed_time_in_ms(self) -> int:
         elapsed: float = time.time() - self._timeStarted
         return int(elapsed * 1000.0)
 

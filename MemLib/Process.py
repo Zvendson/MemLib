@@ -3,15 +3,15 @@
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, List, Literal, Type, TypeVar
+from typing import TYPE_CHECKING, Callable, Literal, Type, TypeVar
 
+import psutil
+from pathlib import Path
 
 from ctypes import Array, byref, pointer, sizeof
 from ctypes.wintypes import BYTE, DWORD, WCHAR
-from pathlib import Path
 
-import psutil
-
+from MemLib import Kernel32
 from MemLib.Constants import (
     CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE,
     NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE,
@@ -20,7 +20,7 @@ from MemLib.Constants import (
     TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS,
     TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
-from MemLib.Decorators import Require32Bit
+from MemLib.Decorators import require_32bit
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
     IMAGE_NT_HEADERS32, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
@@ -29,19 +29,11 @@ from MemLib.Structs import (
 )
 from MemLib.Module import Module
 from MemLib.Thread import Thread
-from MemLib.Kernel32 import (
-    CloseHandle, CreateRemoteThread, CreateToolhelp32Snapshot, CreateWaitOrTimerCallback,
-    GetPriorityClass, Module32First, Module32Next, NtQueryInformationProcess,
-    NtResumeProcess, NtSuspendProcess, OpenProcess, Process32First,
-    Process32Next, QueryFullProcessImageNameW, ReadProcessMemory, RegisterWaitForSingleObject,
-    SetPriorityClass, TerminateProcess, Thread32First, Thread32Next,
-    UnregisterWait, VirtualAllocEx, VirtualFreeEx, VirtualProtectEx,
-    WaitOrTimerCallback, Win32Exception, WriteProcessMemory,
-)
 
 
 if TYPE_CHECKING:
     T = TypeVar('T')
+    WaitCallback = Kernel32.WaitOrTimerCallback
 
 
 class Process:
@@ -49,43 +41,45 @@ class Process:
     Represents an interactable process. 64 bit not supported (yet?).
 
     :raises ValueError: If the process does not exist.
-    :param processId: The process id of the process.
-    :param processHandle: The process handle of the process. If 0, the process will be opened.
+    :param process_id: The process id of the process.
+    :param process_handle: The process handle of the process. If 0, the process will be opened.
     """
 
-    @Require32Bit
-    def __init__(self, processId: int, processHandle: int = 0, access: int = PROCESS_ALL_ACCESS):
-        if not processId:
+    @require_32bit
+    def __init__(self, process_id: int, process_handle: int = 0, access: int = PROCESS_ALL_ACCESS,
+                 inherit: bool = False):
+        if not process_id:
             raise ValueError("processId cannot be 0.")
 
-        self._processId:    int                       = processId
-        self._handle:       int                       = processHandle
-        self._access:       int                       = access
-        self._name:         str | None                = None
-        self._path:         Path | None               = None
-        self._callbacks:    list                      = list()
-        self._wait:         int                       = 0
-        self._waitCallback: WaitOrTimerCallback       = CreateWaitOrTimerCallback(self.__OnProcessTerminate)
-        self._peb:          PEB | None                = None
-        self._mzheader:     MZ_FILEHEADER | None      = None
-        self._imgheader:    IMAGE_NT_HEADERS32 | None = None
+        self._process_id: int                      = process_id
+        self._handle: int                          = process_handle
+        self._access: int                          = access
+        self._inherit: bool                        = inherit
+        self._name: str | None                     = None
+        self._path: Path | None                    = None
+        self._callbacks: list                      = list()
+        self._wait: int                            = 0
+        self._wait_callback: WaitCallback          = Kernel32.CreateWaitOrTimerCallback(self.__on_process_terminate)
+        self._peb: PEB | None                      = None
+        self._mzheader: MZ_FILEHEADER | None       = None
+        self._imgheader: IMAGE_NT_HEADERS32 | None = None
 
         if not self._handle:
-            self.Open(self._processId, access)
+            self.open(access, self._inherit, self._process_id)
 
-        if not self.Exists():
-            raise ValueError(f"Process {self._processId} does not exist.")
+        if not self.exists():
+            raise ValueError(f"Process {self._process_id} does not exist.")
 
     def __del__(self):
         self._callbacks.clear()
-        self._UnregisterWait()
+        self._unregister_wait()
 
         if self._handle:
-            self.Close()
+            self.close()
 
     def __str__(self) -> str:
-        return (f"Process(Name={self.GetName()}, PID={self._processId}, Handle={self._handle}, Path={self.GetPath()}, "
-                f"AccessRights=0x{self._access:X})")
+        return (f"Process(Name={self.get_name()}, PID={self._process_id}, Handle={self._handle}, Path="
+                f"{self.get_path()}, AccessRights=0x{self._access:X})")
 
     def __repr__(self) -> str:
         return str(self)
@@ -97,22 +91,22 @@ class Process:
         if isinstance(other, Process):
             return self == other
 
-        return self._processId == other
+        return self._process_id == other
 
-    def Exists(self) -> bool:
+    def exists(self) -> bool:
         """
         Checks if the process exists.
 
         :returns: True if the process exists, False otherwise.
         """
 
-        return psutil.pid_exists(self._processId)
+        return psutil.pid_exists(self._process_id)
 
-    def Open(self, processId: int, access: int = PROCESS_ALL_ACCESS, inherit: bool = False) -> bool:
+    def open(self, access: int = PROCESS_ALL_ACCESS, inherit: bool = False, process_id: int = 0) -> bool:
         """
         Opens the process with the given process id with `PROCESS_ALL_ACCESS`.
 
-        :param processId: The process id of the process.
+        :param process_id: The process id of the process. If 0, will take self._process_id.
         :param access: The access rights to open the process.
         :param inherit: Determines processes created by this process will inherit the handle or not.
 
@@ -122,50 +116,52 @@ class Process:
         """
 
         if self._handle != 0:
-            self.Close()
+            self.close()
 
-        self._processId = processId
-        self._access    = access
-        self._handle    = OpenProcess(processId, inherit, access)
+        if process_id != 0:
+            self._process_id = process_id
+
+        self._access  = access
+        self._inherit = inherit
+        self._handle  = Kernel32.OpenProcess(self._process_id, self._inherit, self._access)
 
         if not self._handle:
-            raise Win32Exception()
+            raise Kernel32.Win32Exception()
 
         return self._handle != 0
 
-    def Close(self) -> bool:
+    def close(self) -> bool:
         """
         Closes the process handle.
 
         :returns: True if the process was closed successfully, False otherwise.
         """
 
-        self._UnregisterWait()
+        self._unregister_wait()
 
-        if CloseHandle(self._handle):
-            self._processId = 0
-            self._handle    = 0
+        if Kernel32.CloseHandle(self._handle):
+            self._handle = 0
             return True
 
         raise False
 
-    def Suspend(self) -> bool:
+    def suspend(self) -> bool:
         """
         Suspends the process. In other words, it freezes the process.
         :returns: True if the process was suspended successfully, False otherwise.
         """
 
-        return NtSuspendProcess(self._handle)
+        return Kernel32.NtSuspendProcess(self._handle)
 
-    def Resume(self) -> bool:
+    def resume(self) -> bool:
         """
         Resumes the process. In other words, it unfreezes the process.
         :returns: True if the process was resumed successfully, False otherwise.
         """
 
-        return NtResumeProcess(self._handle)
+        return Kernel32.NtResumeProcess(self._handle)
 
-    def RegisterOnExitCallback(self, callback: Callable[[int, int], None]) -> bool:
+    def register_on_exit_callback(self, callback: Callable[[int, int], None]) -> bool:
         """
         Registers a callback that gets called when the process terminates.
         The callback takes 2 params:
@@ -178,9 +174,9 @@ class Process:
         """
 
         self._callbacks.append(callback)
-        return self._RegisterWait()
+        return self._register_wait()
 
-    def UnregisterOnExitCallback(self, callback: Callable[[int, int], None]) -> bool:
+    def unregister_on_exit_callback(self, callback: Callable[[int, int], None]) -> bool:
         """
         Unregisters a callback was previously registered through 'RegisterOnExitCallback'.
 
@@ -190,69 +186,65 @@ class Process:
         self._callbacks.remove(callback)
 
         if self._wait and len(self._callbacks) == 0:
-            success = UnregisterWait(self._wait)
+            success = Kernel32.UnregisterWait(self._wait)
             self._wait = 0
             return success
 
         return True
 
-    def CreateThread(self,
-                     startAddress:     int,
-                     parameter:        int = 0,
-                     creationFlags:    int = CREATE_SUSPENDED,
-                     threadAttributes: int = 0,
-                     stackSize:        int = 0) -> Thread:
+    def create_thread(self, start_address: int, parameter: int = 0, creation_flags: int = CREATE_SUSPENDED,
+                      thread_attributes: int = 0, stack_size: int = 0) -> Thread:
         """
         Creates a thread that runs in the virtual address space of this process.
 
-        :param startAddress: A pointer to the application-defined function of type LPTHREAD_START_ROUTINE to be executed
+        :param start_address: A pointer to the application-defined function of type LPTHREAD_START_ROUTINE to be executed
                              by the thread and represents the starting address of the thread in the remote process. The
                              function must exist in the remote process.
         :param parameter: A pointer to a variable to be passed to the thread function.
-        :param creationFlags: The flags that control the creation of the thread.
-        :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for
+        :param creation_flags: The flags that control the creation of the thread.
+        :param thread_attributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for
                                  the new thread and determines whether child processes can inherit the returned handle.
-        :param stackSize: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If
+        :param stack_size: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If
                           this parameter is 0 (zero), the new thread uses the default size for the executable.
         :returns: if waitExecution is set to False, it returns the thread handle. If set to True, it returns the
                   thread's exit code.
         """
 
-        threadId: DWORD = DWORD()
-        threadHandle: int = CreateRemoteThread(
+        thread_id: DWORD = DWORD()
+        thread_handle: int = Kernel32.CreateRemoteThread(
             self._handle,
-            threadAttributes,
-            stackSize,
-            startAddress,
+            thread_attributes,
+            stack_size,
+            start_address,
             parameter,
-            creationFlags,
-            byref(threadId)
+            creation_flags,
+            byref(thread_id)
         )
 
-        return Thread(threadId.value, self, threadHandle)
+        return Thread(thread_id.value, self, thread_handle)
 
-    def GetProcessId(self) -> int:
+    def get_process_id(self) -> int:
         """
         :returns: The process id of the targeted process.
         """
 
-        return self._processId
+        return self._process_id
 
-    def GetHandle(self) -> int:
+    def get_handle(self) -> int:
         """
         :returns: The process handle of the opened process. 0 if not opened.
         """
 
         return self._handle
 
-    def GetAccessRights(self) -> int:
+    def get_access_rights(self) -> int:
         """
         :returns: The access rights the process is or will be opened with.
         """
 
         return self._access
 
-    def GetName(self) -> str:
+    def get_name(self) -> str:
         """
         :returns: The name of the process. Empty string if the process is not opened.
         """
@@ -261,15 +253,15 @@ class Process:
             return self._name
 
         try:
-            module: Module = self.GetMainModule()
-        except Win32Exception as e:
+            module: Module = self.get_main_module()
+        except Kernel32.Win32Exception as e:
             self._name = None
         else:
-            self._name = module.GetName()
+            self._name = module.get_name()
 
         return self._name
 
-    def GetPath(self) -> Path | None:
+    def get_path(self) -> Path | None:
         """
         :returns: The local path of the process. Empty string if the process is not opened.
         """
@@ -277,26 +269,26 @@ class Process:
         if self._path is not None:
             return self._path
 
-        nameBuffer: Array      = (WCHAR * 4096)()
-        sizeBuffer: DWORD      = DWORD(4096)
-        path:       str | None = None
+        name_buffer: Array = (WCHAR * 4096)()
+        size_buffer: DWORD = DWORD(4096)
+        path: str | None   = None
 
-        if QueryFullProcessImageNameW(self._handle, 0, nameBuffer, pointer(sizeBuffer)):
-            path = nameBuffer.value
+        if Kernel32.QueryFullProcessImageNameW(self._handle, 0, name_buffer, pointer(size_buffer)):
+            path = name_buffer.value
 
         if isinstance(path, str):
             self._path = Path(path)
 
         return self._path
 
-    def GetPriorityClass(self) -> int:
+    def get_priority_class(self) -> int:
         """
         :returns: the priority class.
         """
 
-        return GetPriorityClass(self._handle)
+        return Kernel32.GetPriorityClass(self._handle)
 
-    def SetPriorityClass(self, priority: int = NORMAL_PRIORITY_CLASS) -> bool:
+    def set_priority_class(self, priority: int = NORMAL_PRIORITY_CLASS) -> bool:
         """
         Sets the priority class
 
@@ -304,46 +296,46 @@ class Process:
         :returns: True if the priority class has been set. False otherwise.
         """
 
-        return SetPriorityClass(self._handle, priority)
+        return Kernel32.SetPriorityClass(self._handle, priority)
 
-    def GetModules(self) -> List[Module]:
+    def get_modules(self) -> list[Module]:
         """
         :raises Win32Exception: If the process is not opened or if the snapshot could not be created.
         :returns: A list of Modules of the process. Empty list if the process is not opened.
         """
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._processId)
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
         if not snapshot:
-            raise Win32Exception()
+            raise Kernel32.Win32Exception()
 
-        moduleBuffer: MODULEENTRY32 = MODULEENTRY32()
-        moduleBuffer.dwSize         = moduleBuffer.GetSize()
+        module_buffer: MODULEENTRY32 = MODULEENTRY32()
+        module_buffer.dwSize         = module_buffer.get_size()
 
-        if not Module32First(snapshot, byref(moduleBuffer)):
-            CloseHandle(snapshot)
-            raise Win32Exception()
+        if not Kernel32.Module32First(snapshot, byref(module_buffer)):
+            Kernel32.CloseHandle(snapshot)
+            raise Kernel32.Win32Exception()
 
-        moduleList: List[Module] = list()
+        module_list: list[Module] = list()
 
-        while Module32Next(snapshot, byref(moduleBuffer)):
-            module: Module = Module(moduleBuffer, self)
+        while Kernel32.Module32Next(snapshot, byref(module_buffer)):
+            module: Module = Module(module_buffer, self)
 
-            moduleList.append(module)
+            module_list.append(module)
 
-        CloseHandle(snapshot)
-        return moduleList
+        Kernel32.CloseHandle(snapshot)
+        return module_list
 
-    def GetMainModule(self) -> Module:
+    def get_main_module(self) -> Module:
         """
         :raises Win32Exception: If the process is not opened, if the snapshot could not be created or if the main module
                                could not be found.
         :returns: The main module of the process. None if the process is not opened.
         """
 
-        return self.GetModule(None)
+        return self.get_module(None)
 
-    def GetModule(self, name: str | None) -> Module | None:
+    def get_module(self, name: str | None) -> Module | None:
         """
         :param name: The name of the module. If None, the main module will be returned.
         :raises Win32Exception: If the process is not opened, if the snapshot could not be created or if the main module
@@ -351,98 +343,99 @@ class Process:
         :returns: The module with the given name. None if the process is not opened or the module was not found.
         """
 
-        moduleBuffer: MODULEENTRY32 = MODULEENTRY32()
-        moduleBuffer.dwSize         = moduleBuffer.GetSize()
-        snapshot:     int           = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._processId)
+        module_buffer: MODULEENTRY32 = MODULEENTRY32()
+        module_buffer.dwSize         = module_buffer.get_size()
+
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
         if not snapshot:
-            raise Win32Exception()
+            raise Kernel32.Win32Exception()
 
         if name is None:
-            if not Module32First(snapshot, byref(moduleBuffer)):
-                raise Win32Exception()
+            if not Kernel32.Module32First(snapshot, byref(module_buffer)):
+                raise Kernel32.Win32Exception()
 
-            module: Module = Module(moduleBuffer, self)
+            module: Module = Module(module_buffer, self)
 
-            CloseHandle(snapshot)
+            Kernel32.CloseHandle(snapshot)
             return module
 
         name: bytes = name.encode('ascii').lower()
 
-        while Module32Next(snapshot, byref(moduleBuffer)):
-            if moduleBuffer.szModule.lower() == name:
-                module: Module = Module(moduleBuffer, self)
+        while Kernel32.Module32Next(snapshot, byref(module_buffer)):
+            if module_buffer.szModule.lower() == name:
+                module: Module = Module(module_buffer, self)
 
-                CloseHandle(snapshot)
+                Kernel32.CloseHandle(snapshot)
                 return module
 
-        CloseHandle(snapshot)
+        Kernel32.CloseHandle(snapshot)
         return None
 
-    def GetThreads(self) -> List[Thread]:
+    def get_threads(self) -> list[Thread]:
         """
         :raises Win32Exception: If the process is not opened or if the snapshot could not be created.
         :returns: A list of Threads of the process. Empty list if the process is not opened.
         """
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._processId)
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
         if not snapshot:
-            raise Win32Exception()
+            raise Kernel32.Win32Exception()
 
-        threadBuffer: THREADENTRY32 = THREADENTRY32()
-        threadBuffer.dwSize         = threadBuffer.GetSize()
+        thread_buffer: THREADENTRY32 = THREADENTRY32()
+        thread_buffer.dwSize         = thread_buffer.get_size()
 
-        if not Thread32First(snapshot, byref(threadBuffer)):
-            err = Win32Exception()
-            CloseHandle(snapshot)
+        if not Kernel32.Thread32First(snapshot, byref(thread_buffer)):
+            err = Kernel32.Win32Exception()
+            Kernel32.CloseHandle(snapshot)
             raise err
 
-        threadList:   List[Thread] = list()
-        thread_found: bool         = True
+        thread_list: list[Thread] = list()
+        thread_found: bool        = True
 
         while thread_found:
-            if threadBuffer.th32OwnerProcessID == self._processId:
-                thread: Thread = Thread(threadBuffer.th32ThreadID, self)
-                threadList.append(thread)
+            if thread_buffer.th32OwnerProcessID == self._process_id:
+                thread: Thread = Thread(thread_buffer.th32ThreadID, self)
+                thread_list.append(thread)
 
-            thread_found = Thread32Next(snapshot, byref(threadBuffer))
+            thread_found = Kernel32.Thread32Next(snapshot, byref(thread_buffer))
 
-        CloseHandle(snapshot)
-        return threadList
+        Kernel32.CloseHandle(snapshot)
+        return thread_list
 
-    def GetMainThread(self) -> Thread | None:
+    def get_main_thread(self) -> Thread | None:
         """
         :raises Win32Exception: If the process is not opened, if the snapshot could not be created or if the main thread
                                could not be found.
         :returns: The main thread of the process. None if the process is not opened.
         """
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._processId)
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
         if not snapshot:
-            raise Win32Exception()
+            raise Kernel32.Win32Exception()
 
-        threadBuffer: THREADENTRY32 = THREADENTRY32()
-        threadBuffer.dwSize         = threadBuffer.GetSize()
-        thread:      Thread | None  = None
+        thread_buffer: THREADENTRY32 = THREADENTRY32()
+        thread_buffer.dwSize         = thread_buffer.get_size()
+        thread: Thread | None        = None
 
-        if not Thread32First(snapshot, byref(threadBuffer)):
-            err = Win32Exception()
-            CloseHandle(snapshot)
+        if not Kernel32.Thread32First(snapshot, byref(thread_buffer)):
+            err = Kernel32.Win32Exception()
+            Kernel32.CloseHandle(snapshot)
             raise err
 
         thread_found: bool = True
 
         while thread_found:
-            if threadBuffer.th32OwnerProcessID == self._processId:
-                thread = Thread(threadBuffer.th32ThreadID, self)
+            if thread_buffer.th32OwnerProcessID == self._process_id:
+                thread = Thread(thread_buffer.th32ThreadID, self)
                 break
 
-            thread_found = Thread32Next(snapshot, byref(threadBuffer))
+            thread_found = Kernel32.Thread32Next(snapshot, byref(thread_buffer))
 
-        CloseHandle(snapshot)
+        Kernel32.CloseHandle(snapshot)
         return thread
 
-    def GetPEB(self) -> PEB | None:
+    def get_peb(self) -> PEB | None:
         """
         :returns: The PEB struct.
         """
@@ -450,14 +443,14 @@ class Process:
         if self._peb is not None:
             return self._peb
 
-        processInfo: ProcessBasicInformation = ProcessBasicInformation()
-        if not NtQueryInformationProcess(self._handle, 0, byref(processInfo), processInfo.GetSize(), 0):
+        process_info: ProcessBasicInformation = ProcessBasicInformation()
+        if not Kernel32.NtQueryInformationProcess(self._handle, 0, byref(process_info), process_info.get_size(), 0):
             return None
 
-        self._peb = self.ReadStruct(processInfo.PebBaseAddress, PEB)
+        self._peb = self.read_struct(process_info.PebBaseAddress, PEB)
         return self._peb
 
-    def GetFileHeader(self) -> MZ_FILEHEADER | None:
+    def get_file_header(self) -> MZ_FILEHEADER | None:
         """
         :returns: The MZ_FILEHEADER struct.
         """
@@ -465,11 +458,11 @@ class Process:
         if self._mzheader is not None:
             return self._mzheader
 
-        self._mzheader = self.ReadStruct(self.GetBase(), MZ_FILEHEADER)
+        self._mzheader = self.read_struct(self.get_base(), MZ_FILEHEADER)
 
         return self._mzheader
 
-    def GetImageHeader(self) -> IMAGE_NT_HEADERS32 | None:
+    def get_image_header(self) -> IMAGE_NT_HEADERS32 | None:
         """
         :returns: The IMAGE_NT_HEADERS32 struct.
         """
@@ -477,118 +470,124 @@ class Process:
         if self._imgheader is not None:
             return self._imgheader
 
-        mzheader: MZ_FILEHEADER = self.GetFileHeader()
-        self._imgheader         = self.ReadStruct(self.GetBase() + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
+        mzheader: MZ_FILEHEADER = self.get_file_header()
+        self._imgheader         = self.read_struct(self.get_base() + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
 
         return self._imgheader
 
-    def GetBase(self) -> int:
+    def get_base(self) -> int:
         """
         :returns: The base address of the process core module. 0 if the process is not opened.
         """
 
-        peb = self.GetPEB()
+        peb = self.get_peb()
         if peb is None:
             return 0
 
         return peb.ImageBaseAddress
 
-    def GetSize(self) -> int:
+    def get_size(self) -> int:
         """
         :returns: The size of the process core module. 0 if the process is not opened.
         """
 
-        img = self.GetImageHeader()
+        img: IMAGE_NT_HEADERS32 = self.get_image_header()
         if img is None:
             return 0
 
         return img.SizeOfImage
 
-    def GetSections(self) -> list[IMAGE_SECTION_HEADER]:
+    def get_sections(self) -> list[IMAGE_SECTION_HEADER]:
         """
         :returns: The core module sections of the process, even if the process was created in suspended mode.
         """
 
-        mz = self.GetFileHeader()
-        pe = self.GetImageHeader()
+        mz: MZ_FILEHEADER      = self.get_file_header()
+        pe: IMAGE_NT_HEADERS32 = self.get_image_header()
 
-        sectionBase: int = self.GetBase() + mz.PEHeaderOffset + pe.GetSectionsOffset()
-        sectionSize: int = pe.FileHeader.NumberOfSections
-        sections:    list[IMAGE_SECTION_HEADER] = list()
+        section_base: int = self.get_base() + mz.PEHeaderOffset + pe.GetSectionsOffset()
+        section_size: int = pe.FileHeader.NumberOfSections
 
-        for i in range(sectionSize):
-            section: IMAGE_SECTION_HEADER = self.ReadStruct(sectionBase, IMAGE_SECTION_HEADER)
-            section.VirtualAddress += self.GetBase()
+        sections: list[IMAGE_SECTION_HEADER] = list()
 
-            restsize = section.VirtualSize % pe.OptionalHeader.SectionAlignment
-            if restsize:
-                section.VirtualSize += pe.OptionalHeader.SectionAlignment - restsize
+        for i in range(section_size):
+            section: IMAGE_SECTION_HEADER = self.read_struct(section_base, IMAGE_SECTION_HEADER)
+
+            section.VirtualAddress += self.get_base()
+
+            rest_size = section.VirtualSize % pe.OptionalHeader.SectionAlignment
+            if rest_size:
+                section.VirtualSize += pe.OptionalHeader.SectionAlignment - rest_size
 
             sections.append(section)
-            sectionBase += sizeof(IMAGE_SECTION_HEADER)
+            section_base += sizeof(IMAGE_SECTION_HEADER)
 
         return sections
 
-    def GetSection(self, name: str) -> IMAGE_SECTION_HEADER | None:
+    def get_section(self, name: str) -> IMAGE_SECTION_HEADER | None:
         """
         :returns: A core module section by name of the process, even if the process was created in suspended mode.
         """
 
         b_name: bytes = name.encode()
-        sections = self.GetSections()
+
+        sections: list[IMAGE_SECTION_HEADER] = self.get_sections()
         for section in sections:
             if section.Name == b_name:
                 return section
 
         return None
 
-    def GetScanner(self, sectionName: str = None) -> BinaryScanner | None:
+    def get_scanner(self, section_name: str = None) -> BinaryScanner | None:
         """
         :returns: A scanner object of the core module by section name. Picks first section if none specified.
         """
 
-        if not self.CanReadMemory():
+        if not self.can_read_memory():
             raise RuntimeError(f"Invalid access rights. PROCESS_VM_READ required, got: 0x{self._access:X}")
 
-        if sectionName is None:
-            sections = self.GetSections()
+        if section_name is None:
+            sections = self.get_sections()
             if not len(sections):
                 return None
             wanted_section: IMAGE_SECTION_HEADER = sections[0]
         else:
-            wanted_section: IMAGE_SECTION_HEADER = self.GetSection(sectionName)
+            wanted_section: IMAGE_SECTION_HEADER = self.get_section(section_name)
 
         if wanted_section is None:
             return None
 
-        buffer: bytes = self.Read(wanted_section.VirtualAddress, wanted_section.VirtualSize)
-        return BinaryScanner(buffer, wanted_section.VirtualAddress)
+        buffer: bytes = self.read(wanted_section.VirtualAddress, wanted_section.VirtualSize)
+        if len(buffer):
+            return BinaryScanner(buffer, wanted_section.VirtualAddress)
 
-    def CanReadMemory(self) -> bool:
+        return None
+
+    def can_read_memory(self) -> bool:
         """
         :returns: True if the access rights can read memory.
         """
 
         return self._access & PROCESS_VM_READ == PROCESS_VM_READ
 
-    def CanWriteMemory(self) -> bool:
+    def can_write_memory(self) -> bool:
         """
         :returns: True if the access rights can write memory.
         """
 
         return self._access & PROCESS_VM_WRITE == PROCESS_VM_WRITE
 
-    def Terminate(self, exitCode: int = 0) -> bool:
+    def terminate(self, exit_code: int = 0) -> bool:
         """
         Terminates the process. In other words, it kills the process.
 
-        :param exitCode: The exit code of the process.
+        :param exit_code: The exit code of the process.
         :returns: True if the process was terminated successfully, False otherwise.
         """
 
-        return TerminateProcess(self._handle, exitCode)
+        return Kernel32.TerminateProcess(self._handle, exit_code)
 
-    def Read(self, address: int, length: int) -> bytes:
+    def read(self, address: int, length: int) -> bytes:
         """
         Reads data from the process. This method is a wrapper for `ReadProcessMemory`.
 
@@ -597,82 +596,81 @@ class Process:
         :returns: Data on success or an empty byte string on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return b''
 
         buffer: Array = (BYTE * length)()
-
-        if ReadProcessMemory(self._handle, address, byref(buffer), length, None):
+        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), length, None):
             return bytes(buffer)
 
         return b''
 
-    def ReadStruct(self, address: int, structClass: Type[T: Struct]) -> T | None:
+    def read_struct(self, address: int, struct_class: Type[T: Struct]) -> T | None:
         """
         Reads data from the process into your struct.
 
         :param address: 4-Byte address of the data you want to read
-        :param structClass: Your struct class
+        :param struct_class: Your struct type class
         :returns: Your struct filled with data on success or None on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return None
 
-        buffer: T = structClass()
+        buffer: T = struct_class()
 
-        if ReadProcessMemory(self._handle, address, byref(buffer), buffer.GetSize(), None):
-            buffer.ADRESS_EX = address
+        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), buffer.GetSize(), None):
+            buffer.ADDRESS_EX = address
             return buffer
 
         return None
 
-    def ReadDWORD(self, address: int, endianess: Literal["little", "big"] = "little") -> int:
+    def read_dword(self, address: int, endian: Literal["little", "big"] = "little") -> int:
         """
         Reads a DWORD from the process.
 
         :param address: 4-Byte address of the data DWORD you want to read
-        :param endianess: The endianess of the DWORD ("little" or "big")
+        :param endian: The endianess of the DWORD ("little" or "big")
         :returns: The DWORD as int
         """
 
-        if not self.Exists():
+        if not self.exists():
             return 0
 
-        result: bytes = self.Read(address, 4)
-        return int.from_bytes(result, endianess)
+        result: bytes = self.read(address, 4)
+        return int.from_bytes(result, endian)
 
-    def ReadWORD(self, address: int, endianess: Literal["little", "big"] = "little") -> int:
+    def read_word(self, address: int, endian: Literal["little", "big"] = "little") -> int:
         """
         Reads a WORD from the process.
 
         :param address: 4-Byte address of the data WORD you want to read
-        :param endianess: The endianess of the WORD ("little" or "big")
+        :param endian: The endianess of the WORD ("little" or "big")
         :returns: The WORD as int
         """
 
-        if not self.Exists():
+        if not self.exists():
             return 0
 
-        result: bytes = self.Read(address, 2)
-        return int.from_bytes(result, endianess)
+        result: bytes = self.read(address, 2)
+        return int.from_bytes(result, endian)
 
-    def ReadBYTE(self, address: int, endianess: Literal["little", "big"] = "little") -> int:
+    def read_byte(self, address: int, endian: Literal["little", "big"] = "little") -> int:
         """
         Reads a BYTE from the process.
 
         :param address: 4-Byte address of the data BYTE you want to read
-        :param endianess: The endianess of the BYTE ("little" or "big")
+        :param endian: The endianess of the BYTE ("little" or "big")
         :returns: The BYTE as int
         """
 
-        if not self.Exists():
+        if not self.exists():
             return 0
 
-        result: bytes = self.Read(address, 1)
-        return int.from_bytes(result, endianess)
+        result: bytes = self.read(address, 1)
+        return int.from_bytes(result, endian)
 
-    def ReadString(self, address: int, length: int, strip: bool = True) -> bytes:
+    def read_string(self, address: int, length: int, strip: bool = True) -> bytes:
         """
         Reads a string from the process. The string will be encoded in UTF-8.
 
@@ -682,10 +680,10 @@ class Process:
         :returns: The string in UTF-8.
         """
 
-        if not self.Exists():
+        if not self.exists():
             return b''
 
-        result: bytes = self.Read(address, length)
+        result: bytes = self.read(address, length)
         if strip:
             termination = result.find(b'\x00')
             if termination != -1:
@@ -693,7 +691,7 @@ class Process:
 
         return result
 
-    def ReadWideString(self, address: int, length: int, strip: bool = True) -> str:
+    def read_wide_string(self, address: int, length: int, strip: bool = True) -> str:
         """
         Reads a wide string from the process. The string will be encoded in UTF-16.
 
@@ -703,10 +701,10 @@ class Process:
         :returns: the wide string in UTF-16.
         """
 
-        if not self.Exists():
+        if not self.exists():
             return ""
 
-        result: bytes = self.Read(address, length * 2)
+        result: bytes = self.read(address, length * 2)
         if strip:
             termination = result.find(b'\x00\x00')
             if termination != -1:
@@ -714,28 +712,28 @@ class Process:
 
         return result.decode(encoding="utf-16")
 
-    def Write(self, address: int, *data: bytes) -> bool:
+    def write(self, address: int, binary_data: bytes) -> bool:
         """
         Writes data to the process at the specified address.
 
         :param address: 4-Byte address of the data you want to write to
-        :param data: The data you want to write
+        :param binary_data: The data you want to write
         :returns: True on success and False on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return False
 
-        binary_data:   bytes = b''.join(data)
-        size:          int   = len(binary_data)
-        oldProtection: int   = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success:       bool  = WriteProcessMemory(self._handle, address, binary_data, size, None)
+        size: int           = len(binary_data)
+        old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
 
-        self.Protect(address, size, oldProtection)
+        success: bool = Kernel32.WriteProcessMemory(self._handle, address, binary_data, size, None)
+
+        self.protect(address, size, old_protection)
 
         return success
 
-    def WriteStruct(self, address: int, data: Type[T: Struct]) -> bool:
+    def write_struct(self, address: int, data: Type[T: Struct]) -> bool:
         """
         Writes the data of the struct to the process at the specified address.
 
@@ -744,18 +742,18 @@ class Process:
         :returns: True on success and False on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return False
 
-        size:          int  = data.GetSize()
-        oldProtection: int  = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success:       bool = WriteProcessMemory(self._handle, address, byref(data), size, None)
+        size: int           = data.get_size()
+        old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
+        success: bool       = Kernel32.WriteProcessMemory(self._handle, address, byref(data), size, None)
 
-        self.Protect(address, size, oldProtection)
+        self.protect(address, size, old_protection)
 
         return success
 
-    def ZeroMemory(self, address: int, size: int) -> bool:
+    def zero_memory(self, address: int, size: int) -> bool:
         """
         Fills the memory at the specified address with 0x00.
 
@@ -764,163 +762,158 @@ class Process:
         :returns: True on success and False on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return False
 
-        oldProtection: int  = self.Protect(address, size, PAGE_EXECUTE_READWRITE)
-        success:       bool = self.Write(address, b'\x00' * size)
+        old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
+        success: bool       = self.write(address, b'\x00' * size)
 
-        self.Protect(address, size, oldProtection)
+        self.protect(address, size, old_protection)
 
         return success
 
-    def Allocate(self,
-                 size:           int,
-                 address:        int = 0,
-                 allocationType: int = MEM_COMMIT,
-                 protect:        int = PAGE_EXECUTE_READWRITE) -> int:
+    def allocate(self, size: int, address: int = 0, allocation_type: int = MEM_COMMIT,
+                 protect: int = PAGE_EXECUTE_READWRITE) -> int:
         """
         Allocates memory in the process.
 
         :param size: the size of the memory you want to allocate
         :param address: the address you want to allocate the memory at
-        :param allocationType: the allocation type
+        :param allocation_type: the allocation type
         :param protect: the protection type
         :returns: the address of the allocated memory on success and 0 on failure
         """
 
-        if not self.Exists():
+        if not self.exists():
             return 0
 
-        return VirtualAllocEx(self._handle, address, size, allocationType, protect)
+        return Kernel32.VirtualAllocEx(self._handle, address, size, allocation_type, protect)
 
-    def Free(self, address: int, size: int = 0, freeType: int = MEM_RELEASE) -> bool:
+    def free(self, address: int, size: int = 0, free_type: int = MEM_RELEASE) -> bool:
         """
         Frees previously allocated memory in the process.
 
         :param address: 4-Byte address of the memory you want to free
         :param size: the size of the memory you want to free
-        :param freeType: the free type
+        :param free_type: the free type
         :returns: True on success and False on failure
         """
 
-        return VirtualFreeEx(self._handle, address, size, freeType)
+        return Kernel32.VirtualFreeEx(self._handle, address, size, free_type)
 
-    def Protect(self, address, size, newProtection: int) -> int:
+    def protect(self, address, size, new_protection: int) -> int:
         """
         Changes the protection of the memory at the specified address.
 
         :param address: 4-Byte address of the memory you want to change the protection of
         :param size: the size of the memory you want to change the protection of
-        :param newProtection: the new protection type
+        :param new_protection: the new protection type
         :returns: the old protection type on success and 0 on failure
         """
 
-        oldProtection: DWORD = DWORD()
-        if not VirtualProtectEx(int(self._handle), address, size, newProtection, oldProtection):
+        old_protection: DWORD = DWORD()
+        if not Kernel32.VirtualProtectEx(int(self._handle), address, size, new_protection, old_protection):
             return 0
 
-        return oldProtection.value
+        return old_protection.value
 
     @staticmethod
-    def GetProcessList(processName: str = "") -> List[Process]:
+    def get_process_list(process_name: str = "") -> list[Process]:
         """
-        :param processName: the name of the processes to filter
+        :param process_name: the name of the processes to filter
         :returns: a list of all processes found
         """
 
-        processList: List[Process] = list()
-        snapshot:    int           = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        process_list: list[Process] = list()
 
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
-            return processList
+            return process_list
 
-        processBuffer: PROCESSENTRY32 = PROCESSENTRY32()
-        processBuffer.dwSize          = processBuffer.GetSize()
+        process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
+        process_buffer.dwSize          = process_buffer.get_size()
 
-        if not Process32First(snapshot, byref(processBuffer)):
-            CloseHandle(snapshot)
-            return processList
+        if not Kernel32.Process32First(snapshot, byref(process_buffer)):
+            Kernel32.CloseHandle(snapshot)
+            return process_list
 
-        process_name:  bytes = processName.encode('ascii').lower()
-        process_found: bool  = True
-        process:       Process
+        process_name: bytes = process_name.encode('ascii').lower()
+        process_found: bool = True
+
+        process: Process
 
         while process_found:
-            if processBuffer.th32ProcessID and (process_name == b"" or processBuffer.szExeFile.lower() == process_name):
+            if process_buffer.th32ProcessID and (process_name == b"" or process_buffer.szExeFile.lower() == process_name):
                 try:
-                    process = Process(processBuffer.th32ProcessID)
-                except Win32Exception:
-                    process = Process(processBuffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+                    process = Process(process_buffer.th32ProcessID)
+                except Kernel32.Win32Exception:
+                    process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
 
-                process._name = processBuffer.szExeFile
-                processList.append(process)
+                process._name = process_buffer.szExeFile.decode('ascii')
+                process_list.append(process)
 
-            process_found = Process32Next(snapshot, byref(processBuffer))
+            process_found = Kernel32.Process32Next(snapshot, byref(process_buffer))
 
-        CloseHandle(snapshot)
-        return processList
+        Kernel32.CloseHandle(snapshot)
+        return process_list
 
     @staticmethod
-    def GetFirstProcess(processName: str = "") -> Process | None:
+    def get_first_process(process_name: str = "") -> Process | None:
         """
-        :param processName: the name of the process
+        :param process_name: the name of the process
         :returns: a process by its name
         """
 
-        snapshot: int = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
             return None
 
-        processBuffer: PROCESSENTRY32 = PROCESSENTRY32()
-        processBuffer.dwSize          = processBuffer.GetSize()
+        process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
+        process_buffer.dwSize          = process_buffer.get_size()
 
-        if not Process32First(snapshot, byref(processBuffer)):
-            CloseHandle(snapshot)
+        if not Kernel32.Process32First(snapshot, byref(process_buffer)):
+            Kernel32.CloseHandle(snapshot)
             return None
 
-        process_name:  bytes          = processName.encode('ascii').lower()
-        process:       Process | None = None
-        process_found: bool           = True
+        process_name:  bytes    = process_name.encode('ascii').lower()
+        process: Process | None = None
+        process_found: bool     = True
 
         while process_found:
-            if processBuffer.th32ProcessID and (process_name == b"" or processBuffer.szExeFile.lower() == process_name):
+            if process_buffer.th32ProcessID and (process_name == b"" or process_buffer.szExeFile.lower() == process_name):
                 try:
-                    process = Process(processBuffer.th32ProcessID)
-                except Win32Exception:
-                    process = Process(processBuffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+                    process = Process(process_buffer.th32ProcessID)
+                except Kernel32.Win32Exception:
+                    process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
 
-                process._name = processBuffer.szExeFile
+                process._name = process_buffer.szExeFile
                 break
 
-            process_found = Process32Next(snapshot, byref(processBuffer))
+            process_found = Kernel32.Process32Next(snapshot, byref(process_buffer))
 
-        CloseHandle(snapshot)
+        Kernel32.CloseHandle(snapshot)
         return process
 
-    def _RegisterWait(self) -> bool:
+    def _register_wait(self) -> bool:
         if not self._wait:
-            self._wait = RegisterWaitForSingleObject(
+            self._wait = Kernel32.RegisterWaitForSingleObject(
                 self._handle,
-                self._waitCallback,
-                self._processId,
+                self._wait_callback,
+                self._process_id,
                 INFINITE,
                 WT_EXECUTEONLYONCE
             )
 
         return self._wait != 0
 
-    def _UnregisterWait(self) -> bool:
+    def _unregister_wait(self) -> bool:
         if self._wait:
-            success: bool = UnregisterWait(self._wait)
+            success: bool = Kernel32.UnregisterWait(self._wait)
             self._wait = 0
             return success
 
         return True
 
-    def __OnProcessTerminate(self, processId: int, timerOrWaitFired: int) -> None:
+    def __on_process_terminate(self, process_id: int, timer_or_wait_fired: int) -> None:
         for callback in self._callbacks:
-            callback(processId, timerOrWaitFired)
-
-
-
+            callback(process_id, timer_or_wait_fired)

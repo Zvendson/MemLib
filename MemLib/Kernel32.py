@@ -1047,7 +1047,7 @@ class Win32Exception(RuntimeError):
         return self._message
 
     def __str__(self) -> str:
-        return '%s (0x%08x)' % (self._message, self._errorCode)
+        return f"{self._message} (0x{self._errorCode:08X})"
 
     def __repr__(self) -> str:
         return 'Win32Exception(%s)' % str(self)

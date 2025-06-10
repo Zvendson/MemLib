@@ -10,21 +10,21 @@ class Credentials:
     """
     Dataclass for account credentials and options to set.
 
-    :param Name: The custom name of the account
-    :param EMail: E-Mail of the account
-    :param Password: Password of the account
-    :param Path: Local path to an executable
-    :param Args: Extra arguments to launch the bot with
+    :param name: The custom name of the account
+    :param e_mail: E-Mail of the account
+    :param password: Password of the account
+    :param path: Local path to an executable
+    :param args: Extra arguments to launch the bot with
     """
 
-    Name:     str             = ""
-    EMail:    str             = ""
-    Password: str             = ""
-    Path:     str             = ""
-    Args:     str | list[str] = ""
+    name: str             = ""
+    e_mail: str           = ""
+    password: str         = ""
+    path: str             = ""
+    args: str | list[str] = ""
 
     def __setattr__(self, name, value):
-        if name != "Args":
+        if name != "args":
             self.__dict__[name] = value
             return
 
@@ -58,14 +58,14 @@ class CredentialManager:
         except Exception as e:
             raise e
 
-    def GetCredentials(self, groupname: str, name: str) -> Credentials | None:
+    def get_credentials(self, group_name: str, name: str) -> Credentials | None:
         """
-        :param groupname: The name of the group the credentials are stored under.
+        :param group_name: The name of the group the credentials are stored under.
         :param name: The name of the credentials.
         :return: The credentials and arguments for the account with the given name or None if the bot does not exist
         """
 
-        group = self._kpf.find_groups(name=groupname, first=True)
+        group = self._kpf.find_groups(name=group_name, first=True)
         if group is None:
             return None
 
@@ -74,39 +74,39 @@ class CredentialManager:
             return None
 
         return Credentials(
-            Name=entry.title,
-            EMail=entry.username,
-            Password=entry.password,
-            Path=entry.url,
-            Args=entry.notes
+            name=entry.title,
+            e_mail=entry.username,
+            password=entry.password,
+            path=entry.url,
+            args=entry.notes
         )
 
-    def AddCredentials(self, groupname: str, credentials: Credentials) -> bool:
+    def add_credentials(self, group_name: str, credentials: Credentials) -> bool:
         """
         Adds or updates the credentials. If the account does not exist it will be created. If the account already
         exists, the credentials will be updated.
 
-        :param groupname: The name of the group where the credentials will be stored.
+        :param group_name: The name of the group where the credentials will be stored.
         :param credentials: The credentials
 
         :return: True if the credentials were added or updated successfully otherwise False.
         """
 
-        group = self._kpf.find_groups(name=groupname, first=True)
+        group = self._kpf.find_groups(name=group_name, first=True)
         if group is None:
-            group = self._kpf.add_group(self._kpf.root_group, groupname)
+            group = self._kpf.add_group(self._kpf.root_group, group_name)
 
-        entry = self._kpf.find_entries(title=credentials.Name, first=True, group=group)
+        entry = self._kpf.find_entries(title=credentials.name, first=True, group=group)
         if entry is not None:
             self._kpf.delete_entry(entry)
 
         entry = self._kpf.add_entry(
             group,
-            title=credentials.Name,
-            username=credentials.EMail,
-            password=credentials.Password,
-            url=credentials.Path,
-            notes=credentials.Args
+            title=credentials.name,
+            username=credentials.e_mail,
+            password=credentials.password,
+            url=credentials.path,
+            notes=credentials.args
         )
 
         self._kpf.save()

@@ -5,96 +5,82 @@ Simple RGB to ANSI converter.
 """
 
 
-class ForeColor:
-
-    def __init__(self, red: int, green: int, blue: int):
-        self._red:   int = red
-        self._green: int = green
-        self._blue:  int = blue
-
-    def __str__(self) -> str:
-        return ForeRGB(self._red, self._green, self._blue)
-
-    def __repr__(self) -> str:
-        return str(self)
-
-
-def ForeRGB(red: int, green: int, blue: int) -> str:
+def fore_rgb(red: int, green: int, blue: int) -> str:
     return f"\033[38;2;{red};{green};{blue}m"
 
 
-def BackRGB(red: int, green: int, blue: int) -> str:
+def back_rgb(red: int, green: int, blue: int) -> str:
     return f"\033[48;2;{red};{green};{blue}m"
 
 
-def CursorPos(line: int, column: int) -> str:
+def cursor_pos(line: int, column: int) -> str:
     if not line and not column:
         return f"{ESC}[H"
 
     return f"{ESC}[{line};{column}H"
 
 
-def CursorCol(column: int) -> str:
+def cursor_col(column: int) -> str:
     if not column:
         return ""
     return f"{ESC}[{column}G"
 
 
-def CursorUp(lines: int) -> str:
+def cursor_up(lines: int) -> str:
     if not lines:
         return ""
 
     return f"{ESC}[{lines}A"
 
 
-def CursorDown(lines: int) -> str:
+def cursor_down(lines: int) -> str:
     if not lines:
         return ""
 
     return f"{ESC}[{lines}B"
 
 
-def CursorRight(columns: int) -> str:
+def cursor_right(columns: int) -> str:
     if not columns:
         return ""
 
     return f"{ESC}[{columns}C"
 
 
-def CursorLeft(columns: int) -> str:
+def cursor_left(columns: int) -> str:
     if not columns:
         return ""
 
     return f"{ESC}[{columns}D"
 
 
-def CursorNextLine(lines: int) -> str:
+def cursor_next_line(lines: int) -> str:
     if not lines:
         return ""
 
     return f"{ESC}[{lines}E"
 
 
-def CursorPrevLine(lines: int) -> str:
+def cursor_prev_line(lines: int) -> str:
     if not lines:
         return ""
 
     return f"{ESC}[{lines}F"
 
 
-def CursorSaveDEC() -> str:
+def cursor_save_dec() -> str:
     return f"{ESC} 7"
 
 
-def CursorSaveSEC() -> str:
+def cursor_save_sec() -> str:
     return f"{ESC}[s"
 
 
-def CursorRestoreDEC() -> str:
+def cursor_restore_dec() -> str:
     return f"{ESC} 8"
 
 
-def CursorRestoreSEC() -> str:
+def cursor_restore_sec() -> str:
     return f"{ESC}[u"
 
 
@@ -136,16 +122,16 @@ END:          str = f"{ESC}[0m"
 
 
 # Identifying the color name: https://www.color-blindness.com/color-name-hue/
-SAFETY_ORANGE:      str = ForeRGB(255, 111, 0)
-ELECTRIC_BLUE:      str = ForeRGB(135, 239, 255)
-HELIOTROPE:         str = ForeRGB(230, 130, 255)
-GRANNY_SMITH_APPLE: str = ForeRGB(155, 230, 142)
-FLAMENCO:           str = ForeRGB(232, 152, 77)
-BRINK_PINK:         str = ForeRGB(250, 102, 129)
-GREY:               str = ForeRGB(120, 120, 120)
-STRAW:              str = ForeRGB(217, 187, 134)
-WHITE:              str = ForeRGB(255, 255, 255)
-JADE:               str = ForeRGB(0, 199, 103)
+SAFETY_ORANGE:      str = fore_rgb(255, 111, 0)
+ELECTRIC_BLUE:      str = fore_rgb(135, 239, 255)
+HELIOTROPE:         str = fore_rgb(230, 130, 255)
+GRANNY_SMITH_APPLE: str = fore_rgb(155, 230, 142)
+FLAMENCO:           str = fore_rgb(232, 152, 77)
+BRINK_PINK:         str = fore_rgb(250, 102, 129)
+GREY:               str = fore_rgb(120, 120, 120)
+STRAW:              str = fore_rgb(217, 187, 134)
+WHITE:              str = fore_rgb(255, 255, 255)
+JADE:               str = fore_rgb(0, 199, 103)
 
 
 

@@ -25,51 +25,51 @@ class SharedMemoryBuffer(Struct):
     """
     SharedMemoryBuffer is a structure that contains the information about the shared memory.
 
-    +---------------+---------------------------------------------------------------+
-    | **Fields**                                                                    |
-    +---------------+---------------------------------------------------------------+
-    | Handle        | File mapping handle of python.                                |
-    +---------------+---------------------------------------------------------------+
-    | HandleEx      | File mapping handle of target process.                        |
-    +---------------+---------------------------------------------------------------+
-    | BaseAddress   | Address of shared memory in python.                           |
-    +---------------+---------------------------------------------------------------+
-    | BaseAddressEx | Address of shared memory in target process.                   |
-    +---------------+---------------------------------------------------------------+
-    | SizeHigh      | The high-order DWORD of the maximum size of the file mapping. |
-    +---------------+---------------------------------------------------------------+
-    | SizeLow       | The low-order DWORD of the maximum size of the file mapping.  |
-    +---------------+---------------------------------------------------------------+
+    +-----------------+---------------------------------------------------------------+
+    | **Fields**                                                                      |
+    +-----------------+---------------------------------------------------------------+
+    | handle          | File mapping handle of python.                                |
+    +-----------------+---------------------------------------------------------------+
+    | handle_ex       | File mapping handle of target process.                        |
+    +-----------------+---------------------------------------------------------------+
+    | base_address    | Address of shared memory in python.                           |
+    +-----------------+---------------------------------------------------------------+
+    | base_address_ex | Address of shared memory in target process.                   |
+    +-----------------+---------------------------------------------------------------+
+    | size_high        | The high-order DWORD of the maximum size of the file mapping. |
+    +-----------------+---------------------------------------------------------------+
+    | size_low         | The low-order DWORD of the maximum size of the file mapping.  |
+    +-----------------+---------------------------------------------------------------+
     """
 
     _fields_ = [
-        ('Handle', HANDLE),
-        ('HandleEx', HANDLE),
-        ('BaseAddress', LPVOID),
-        ('BaseAddressEx', LPVOID),
-        ('SizeHigh', DWORD),
-        ('SizeLow', DWORD),
+        ('handle', HANDLE),
+        ('handle_ex', HANDLE),
+        ('base_address', LPVOID),
+        ('base_address_ex', LPVOID),
+        ('size_high', DWORD),
+        ('size_low', DWORD),
     ]
 
-    def IsValid(self):
+    def is_valid(self):
         """
         :returns: True if the SharedMemoryBuffer is valid, False otherwise.
         """
 
-        if not self.HandleEx:
+        if not self.handle_ex:
             return False
-        if not self.BaseAddressEx:
+        if not self.base_address_ex:
             return False
 
         return True
 
 
-def CloseSharedMemoryConnection(handle: int, baseAddr: int) -> None:
+def close_shared_memory_connection(handle: int, base_addr: int) -> None:
         """
         Disconnects from the shared memory.
 
         :param handle: The handle
-        :param address: The address of the mapfile
+        :param base_addr: The address of the mapfile
         :raises Exception: If an error occurs while disconnecting from the shared memory. The exception represents the
                            list of errors that occurred. The list of errors is formatted as follows::
                                [Error 1] -> <error 1>
@@ -80,15 +80,15 @@ def CloseSharedMemoryConnection(handle: int, baseAddr: int) -> None:
         """
 
         errors: List[Win32Exception] = list()
-        if baseAddr and not UnmapViewOfFile(baseAddr):
+        if base_addr and not UnmapViewOfFile(base_addr):
             errors.append(Win32Exception())
 
         if handle and not CloseHandle(handle):
             errors.append(Win32Exception())
 
         if len(errors):
-            fmtError: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
-            raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
+            fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
+            raise Exception(f'Caught {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
 
 
 class SharedMemory:
@@ -106,11 +106,11 @@ class SharedMemory:
         if process is None:
             raise ValueError("'process' cannot be None.")
 
-        self._process:       Process                   = process
-        self._memoryBuffer:  SharedMemoryBuffer | None = None
-        self._bufferAddress: int                       = 0
+        self._process: Process                         = process
+        self._memory_buffer: SharedMemoryBuffer | None = None
+        self._buffer_address: int                      = 0
 
-    def CanReconnect(self, address: int) -> bool:
+    def can_reconnect(self, address: int) -> bool:
         """
         Checks if the shared memory stored at the specified address is valid. If the shared memory is valid, it can be
         reconnected. If the shared memory is not valid, it cannot be reconnected. If the shared memory is not stored
@@ -120,11 +120,11 @@ class SharedMemory:
         :returns: True if the shared memory can be reconnected, False otherwise.
         """
 
-        mapping: SharedMemoryBuffer = self._process.ReadStruct(address, SharedMemoryBuffer)
+        mapping: SharedMemoryBuffer = self._process.read_struct(address, SharedMemoryBuffer)
 
-        return mapping.IsValid()
+        return mapping.is_valid()
 
-    def Create(self, size: int) -> None:
+    def create(self, size: int) -> None:
         """
         Creates the shared memory and maps target process to the shared memory.
 
@@ -138,42 +138,42 @@ class SharedMemory:
             raise ValueError(f"invalid size: 0x{size:X}")
 
         mapping: SharedMemoryBuffer = SharedMemoryBuffer()
-        mapping.SizeHigh            = size >> 32 & 0xFFFFFFFF
-        mapping.SizeLow             = size & 0xFFFFFFFF
+        mapping.size_high           = size >> 32 & 0xFFFFFFFF
+        mapping.size_low            = size & 0xFFFFFFFF
 
-        mapping.Handle = CreateFileMappingW(
+        mapping.handle = CreateFileMappingW(
             -1,
             0,
             PAGE_EXECUTE_READWRITE,
-            mapping.SizeHigh,
-            mapping.SizeLow,
+            mapping.size_high,
+            mapping.size_low,
             None
         )
 
-        if not mapping.Handle:
+        if not mapping.handle:
             raise Win32Exception()
 
-        mapping.BaseAddress = MapViewOfFile(
-            mapping.Handle,
+        mapping.base_address = MapViewOfFile(
+            mapping.handle,
             FILE_MAP_EXECUTE | FILE_MAP_WRITE,
             0,
             0,
             0
         )
 
-        if not mapping.BaseAddress:
+        if not mapping.base_address:
             error: Win32Exception = Win32Exception()
-            CloseHandle(mapping.Handle)
+            CloseHandle(mapping.handle)
             raise error
 
-        # BaseAddressEx
-        procHandle:    int    = self._process.GetHandle()
-        addressBuffer: LPVOID = LPVOID(0)
+        # base_address_ex
+        proc_handle: int       = self._process.get_handle()
+        address_buffer: LPVOID = LPVOID(0)
 
         NtMapViewOfSection(
-            mapping.Handle,
-            procHandle,
-            byref(addressBuffer),
+            mapping.handle,
+            proc_handle,
+            byref(address_buffer),
             0,
             0,
             byref(LARGE_INTEGER()),
@@ -183,40 +183,40 @@ class SharedMemory:
             PAGE_EXECUTE_READWRITE
         )
 
-        if not addressBuffer.value:
+        if not address_buffer.value:
             error: Win32Exception = Win32Exception()
 
-            UnmapViewOfFile(mapping.BaseAddress)
-            CloseHandle(mapping.Handle)
+            UnmapViewOfFile(mapping.base_address)
+            CloseHandle(mapping.handle)
 
             raise error
 
-        mapping.BaseAddressEx = addressBuffer.value
+        mapping.base_address_ex = address_buffer.value
 
-        handleEx:   HANDLE = HANDLE()
-        duplicated: bool   = DuplicateHandle(
+        handle_ex: HANDLE = HANDLE()
+        duplicated: bool  = DuplicateHandle(
             -1,
-            mapping.Handle,
-            procHandle,
-            handleEx,
+            mapping.handle,
+            proc_handle,
+            handle_ex,
             0,
             False,
             DUPLICATE_SAME_ACCESS
         )
 
-        if not handleEx or not duplicated:
+        if not handle_ex or not duplicated:
             error: Win32Exception = Win32Exception()
 
-            NtUnmapViewOfSection(procHandle, mapping.BaseAddressEx)
-            UnmapViewOfFile(mapping.BaseAddress)
-            CloseHandle(mapping.Handle)
+            NtUnmapViewOfSection(proc_handle, mapping.base_address_ex)
+            UnmapViewOfFile(mapping.base_address)
+            CloseHandle(mapping.handle)
 
             raise error
 
-        mapping.HandleEx   = handleEx
-        self._memoryBuffer = mapping
+        mapping.handle_ex   = handle_ex
+        self._memory_buffer = mapping
 
-    def Destroy(self) -> None:
+    def destroy(self) -> None:
         """
         Disconnects from the shared memory and frees it.
 
@@ -229,43 +229,43 @@ class SharedMemory:
         :returns: None
         """
 
-        errors:     List[Win32Exception] = list()
-        procHandle: int                  = self._process.GetHandle()
-        handle:     int                  = self._memoryBuffer.Handle
-        handleEx:   int                  = self._memoryBuffer.HandleEx
-        baseAddr:   int                  = self._memoryBuffer.BaseAddress
-        baseAddrEx: int                  = self._memoryBuffer.BaseAddressEx
+        errors: List[Win32Exception] = list()
+        proc_handle: int             = self._process.get_handle()
+        handle: int                  = self._memory_buffer.handle
+        handle_ex: int               = self._memory_buffer.handle_ex
+        base_addr: int               = self._memory_buffer.base_address
+        base_addr_ex: int            = self._memory_buffer.base_address_ex
 
-        if baseAddr and not UnmapViewOfFile(self._memoryBuffer.BaseAddress):
+        if base_addr and not UnmapViewOfFile(self._memory_buffer.base_address):
             errors.append(Win32Exception())
 
-        if handle and not CloseHandle(self._memoryBuffer.Handle):
+        if handle and not CloseHandle(self._memory_buffer.handle):
             errors.append(Win32Exception())
 
-        if baseAddrEx and self._memoryBuffer.BaseAddressEx and not NtUnmapViewOfSection(procHandle, baseAddrEx):
+        if base_addr_ex and self._memory_buffer.base_address_ex and not NtUnmapViewOfSection(proc_handle, base_addr_ex):
             errors.append(Win32Exception())
 
-        closed: bool = DuplicateHandle(procHandle, handleEx, -1, None, 0, False, DUPLICATE_CLOSE_SOURCE)
-        if handleEx and not closed:
+        closed: bool = DuplicateHandle(proc_handle, handle_ex, -1, None, 0, False, DUPLICATE_CLOSE_SOURCE)
+        if handle_ex and not closed:
             errors.append(Win32Exception())
 
         if len(errors):
-            fmtError: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
-            raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmtError))
+            fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
+            raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
 
-        self._memoryBuffer.Handle        = 0
-        self._memoryBuffer.HandleEx      = 0
-        self._memoryBuffer.BaseAddress   = 0
-        self._memoryBuffer.BaseAddressEx = 0
+        self._memory_buffer.handle          = 0
+        self._memory_buffer.handle_ex       = 0
+        self._memory_buffer.base_address    = 0
+        self._memory_buffer.base_address_ex = 0
 
-    def Connect(self, memHandle: int, memAddress: int) -> None:
+    def connect(self, mem_handle: int, mem_address: int) -> None:
         """
         Connects to an existing shared memory stored at the address. The shared memory must be valid and stored
         at the specified address. If the shared memory is not valid or it is not stored at the specified address, an
         exception is raised.
 
-        :param memHandle: The handle of the shared memory.
-        :param memAddress: The address of the shared memory.
+        :param mem_handle: The handle of the shared memory.
+        :param mem_address: The address of the shared memory.
         :raises ValueError: If the shared memory buffer is not valid at the specified address.
         :raises Win32Exception: If an error occurs while connecting to the shared memory.
         :returns: None
@@ -273,14 +273,14 @@ class SharedMemory:
 
         # Create buffer
         mapping: SharedMemoryBuffer = SharedMemoryBuffer()
-        mapping.HandleEx            = memHandle
-        mapping.BaseAddressEx       = memAddress
+        mapping.handle_ex           = mem_handle
+        mapping.base_address_ex     = mem_address
 
         # Handle
-        handle:     HANDLE = HANDLE()
-        duplicated: bool   = DuplicateHandle(
-            self.GetProcess().GetHandle(),
-            memHandle,
+        handle: HANDLE   = HANDLE()
+        duplicated: bool = DuplicateHandle(
+            self.get_process().get_handle(),
+            mem_handle,
             -1,
             handle,
             0,
@@ -291,11 +291,11 @@ class SharedMemory:
         if not duplicated or handle.value == 0:
             raise Win32Exception()
 
-        mapping.Handle = handle.value
+        mapping.handle = handle.value
 
-        # BaseAddress
+        # base_address
         base: int = MapViewOfFile(
-            mapping.Handle,
+            mapping.handle,
             FILE_MAP_EXECUTE | FILE_MAP_WRITE,
             0,
             0,
@@ -305,36 +305,36 @@ class SharedMemory:
         if not base:
             error: Win32Exception = Win32Exception()
 
-            CloseHandle(mapping.Handle)
+            CloseHandle(mapping.handle)
 
             raise error
 
-        mapping.BaseAddress = base
-        self._memoryBuffer  = mapping
-        self._bufferAddress = 0
+        mapping.base_address = base
+        self._memory_buffer  = mapping
+        self._buffer_address = 0
 
-    def ConnectFromBuffer(self, bufferAddress: int) -> None:
+    def connect_from_buffer(self, buffer_address: int) -> None:
         """
         Connects to an existing shared memory stored at the address. The shared memory must be valid and stored
         at the specified address. If the shared memory is not valid or it is not stored at the specified address, an
         exception is raised.
 
-        :param bufferAddress: The address where the shared memory buffer is stored.
+        :param buffer_address: The address where the shared memory buffer is stored.
         :raises ValueError: If the shared memory buffer is not valid at the specified address.
         :raises Win32Exception: If an error occurs while connecting to the shared memory.
         :returns: None
         """
 
         # Read buffer
-        mapping: SharedMemoryBuffer = self._process.ReadStruct(bufferAddress, SharedMemoryBuffer)
-        if not mapping.IsValid():
-            raise ValueError(f"Invalid SharedMemory stored at address 0x{bufferAddress:X}.")
+        mapping: SharedMemoryBuffer = self._process.read_struct(buffer_address, SharedMemoryBuffer)
+        if not mapping.is_valid():
+            raise ValueError(f"Invalid SharedMemory stored at address 0x{buffer_address:X}.")
 
         # Handle
-        handle:    HANDLE = HANDLE()
-        duplicated: bool  = DuplicateHandle(
-            self._process.GetHandle(),
-            mapping.HandleEx,
+        handle: HANDLE   = HANDLE()
+        duplicated: bool = DuplicateHandle(
+            self._process.get_handle(),
+            mapping.handle_ex,
             -1,
             handle,
             0,
@@ -345,11 +345,11 @@ class SharedMemory:
         if not handle or not duplicated:
             raise Win32Exception()
 
-        mapping.Handle = handle.value
+        mapping.handle = handle.value
 
-        # BaseAddress
+        # base_address
         base: int = MapViewOfFile(
-            mapping.Handle,
+            mapping.handle,
             FILE_MAP_EXECUTE | FILE_MAP_WRITE,
             0,
             0,
@@ -359,15 +359,15 @@ class SharedMemory:
         if not base:
             error: Win32Exception = Win32Exception()
 
-            CloseHandle(mapping.Handle)
+            CloseHandle(mapping.handle)
 
             raise error
 
-        mapping.BaseAddress = base
-        self._memoryBuffer  = mapping
-        self._bufferAddress = bufferAddress
+        mapping.base_address = base
+        self._memory_buffer  = mapping
+        self._buffer_address = buffer_address
 
-    def Disconnect(self) -> None:
+    def disconnect(self) -> None:
         """
         Disconnects from the shared memory.
 
@@ -380,12 +380,12 @@ class SharedMemory:
         :returns: None
         """
 
-        CloseSharedMemoryConnection(self._memoryBuffer.Handle, self._memoryBuffer.BaseAddress)
+        close_shared_memory_connection(self._memory_buffer.handle, self._memory_buffer.base_address)
 
-        self._memoryBuffer.Handle      = 0
-        self._memoryBuffer.BaseAddress = 0
+        self._memory_buffer.handle       = 0
+        self._memory_buffer.base_address = 0
 
-    def Store(self, address: int) -> bool:
+    def store(self, address: int) -> bool:
         """
         Stores the shared memory at the specified address.
 
@@ -393,71 +393,71 @@ class SharedMemory:
         :returns: True if the shared memory was stored successfully, False otherwise.
         """
 
-        if self._process.WriteStruct(address, self.GetBuffer()):
-            self._bufferAddress = address
+        if self._process.write_struct(address, self.get_buffer()):
+            self._buffer_address = address
             return True
 
         return False
 
-    def Free(self) -> bool:
+    def free(self) -> bool:
         """
         Frees the shared memory buffer in target process.
 
         :returns: True if the shared memory buffer was freed successfully, False otherwise.
         """
 
-        return self._process.ZeroMemory(self._bufferAddress, self._memoryBuffer.GetSize())
+        return self._process.zero_memory(self._buffer_address, self._memory_buffer.get_size())
 
-    def GetHandle(self) -> int:
+    def get_handle(self) -> int:
         """
         :returns: The handle of the shared memory of the python process.
         """
 
-        return self._memoryBuffer.Handle
+        return self._memory_buffer.handle
 
-    def GetHandleEx(self) -> int:
+    def get_handle_ex(self) -> int:
         """
         :returns: The handle of the shared memory of the target process.
         """
 
-        return self._memoryBuffer.HandleEx
+        return self._memory_buffer.handle_ex
 
-    def GetBaseAddress(self) -> int:
+    def get_base_address(self) -> int:
         """
         :returns: The base address of the shared memory of the python process.
         """
 
-        return self._memoryBuffer.BaseAddress
+        return self._memory_buffer.base_address
 
-    def GetBaseAddressEx(self) -> int:
+    def get_base_address_ex(self) -> int:
         """
         :returns: The base address of the shared memory of the target process.
         """
 
-        return self._memoryBuffer.BaseAddressEx
+        return self._memory_buffer.base_address_ex
 
-    def GetSizeHigh(self) -> int:
+    def get_size_high(self) -> int:
         """
         :returns: The high size of the shared memory.
         """
 
-        return self._memoryBuffer.SizeHigh
+        return self._memory_buffer.size_high
 
-    def GetSizeLow(self) -> int:
+    def get_size_low(self) -> int:
         """
         :returns: The low size of the shared memory.
         """
 
-        return self._memoryBuffer.SizeLow
+        return self._memory_buffer.size_low
 
-    def GetBuffer(self) -> SharedMemoryBuffer:
+    def get_buffer(self) -> SharedMemoryBuffer:
         """
         :returns: A reference to the shared memory buffer.
         """
 
-        return self._memoryBuffer
+        return self._memory_buffer
 
-    def GetProcess(self) -> Process:
+    def get_process(self) -> Process:
         """
         :returns: A reference to the target process.
         """
@@ -465,12 +465,9 @@ class SharedMemory:
         return self._process
 
     def __str__(self) -> str:
-        return f'SharedMemory(Address=0x{self._memoryBuffer.BaseAddress:X} ' \
-               f'Process={self._process.GetProcessId()} ' \
-               f'at 0x{self.GetBaseAddressEx():X})'
+        return f'SharedMemory(Address=0x{self._memory_buffer.base_address:X} ' \
+               f'Process={self._process.get_process_id()} ' \
+               f'at 0x{self.get_base_address_ex():X})'
 
     def __repr__(self) -> str:
         return str(self)
-
-
-

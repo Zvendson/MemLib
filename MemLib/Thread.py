@@ -52,68 +52,68 @@ class Priority(IntEnum):
 
 class Thread:
     """
-    :param threadId: The thread buffer struct
+    :param thread_id: The thread buffer struct
     :param process: The thread's process
 
     .. note:: **See also:**
         `THREADENTRY32 <https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32>`_
     """
 
-    def __init__(self, threadId: int, process: Process, handle: int = 0):
-        self._process:  Process = process
-        self._threadId: int     = threadId
-        self._handle:   int     = handle
+    def __init__(self, thread_id: int, process: Process, handle: int = 0):
+        self._process: Process = process
+        self._threadId: int    = thread_id
+        self._handle: int      = handle
 
     def __del__(self):
-        self.Close()
+        self.close()
 
     def __enter__(self):
         if not self._handle:
-            self.Open()
+            self.open()
 
         return self
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
-        self.Close()
+        self.close()
 
-    def GetId(self) -> int:
+    def get_id(self) -> int:
         """
         :returns: The thread identifier, compatible with the thread identifier returned by the CreateProcess function.
         """
 
         return self._threadId
 
-    def GetHandle(self) -> int:
+    def get_handle(self) -> int:
         if not self._handle:
-            self.Open()
+            self.open()
         return self._handle
 
-    def GetPriority(self) -> Priority:
+    def get_priority(self) -> Priority:
         """
         :returns: The thread's priority level.
         """
 
-        level = GetThreadPriority(self.GetHandle())
+        level = GetThreadPriority(self.get_handle())
         if level == 0x7FFFFFFF:
             raise Win32Exception()
 
         return Priority(LONG(level).value)
 
-    def SetPriority(self, priority: Priority | int) -> int:
+    def set_priority(self, priority: Priority | int) -> int:
         """
         :returns: True if priority could be changed. False otherwise.
         """
 
-        return SetThreadPriority(self.GetHandle(), priority)
+        return SetThreadPriority(self.get_handle(), priority)
 
-    def GetProcess(self) -> Process:
+    def get_process(self) -> Process:
         """
         :returns: a reference to its :py:class:`~process.Process`.
         """
 
         return self._process
 
-    def Open(self, access: int = THREAD_ALL_ACCESS, inherit: bool = False) -> int:
+    def open(self, access: int = THREAD_ALL_ACCESS, inherit: bool = False) -> int:
         """
         Opens the thread with the specified access rights.
 
@@ -123,13 +123,13 @@ class Thread:
         """
 
         if self._handle != 0:
-            self.Close()
+            self.close()
 
         self._handle = OpenThread(self._threadId, inherit, access)
 
         return self._handle != 0
 
-    def Close(self) -> bool:
+    def close(self) -> bool:
         """
         Closes the thread handle.
         :returns: True if the thread was closed successfully, False otherwise.
@@ -144,29 +144,29 @@ class Thread:
 
         raise False
 
-    def Suspend(self) -> bool:
+    def suspend(self) -> bool:
         """
         Resumes the thread.
         :returns: True if the thread was resumed successfully, False otherwise.
         """
 
-        return SuspendThread(self.GetHandle()) != 0
+        return SuspendThread(self.get_handle()) != 0
 
-    def Resume(self, maxDepth = 50) -> bool:
+    def resume(self, max_depth = 50) -> bool:
         """
         Resumes the thread.
         :returns: True if the thread was resumed successfully, False otherwise.
         """
 
         depth: int = 0
-        while ResumeThread(self.GetHandle()) != 0:
+        while ResumeThread(self.get_handle()) != 0:
             depth += 1
-            if depth >= maxDepth:
+            if depth >= max_depth:
                 return False
 
         return True
 
-    def Join(self, timeout: int = INFINITE) -> int:
+    def join(self, timeout: int = INFINITE) -> int:
         """
         Resumes the thread if suspended and waits until thread exited or the timout ran out.
 
@@ -175,28 +175,28 @@ class Thread:
         :returns: The exit code if successful waited for the thread, -1 otherwise (timeout as well).
         """
 
-        self.Resume()
+        self.resume()
 
-        result: int = WaitForSingleObject(self.GetHandle(), timeout)
+        result: int = WaitForSingleObject(self.get_handle(), timeout)
         if result == WAIT_FAILED:
             raise Win32Exception()
 
         if result == WAIT_OBJECT_0:
-            return GetExitCodeThread(self.GetHandle())
+            return GetExitCodeThread(self.get_handle())
 
         return -1
 
-    def Terminate(self, exitCode: int = 0) -> bool:
-        return TerminateThread(self.GetHandle(), exitCode)
+    def terminate(self, exit_code: int = 0) -> bool:
+        return TerminateThread(self.get_handle(), exit_code)
 
     def __eq__(self, other: Thread) -> bool:
-        sameId:        bool = (self._threadId == other.GetId())
-        sameProcessId: bool = (self._process.GetProcessId() == other._process.GetProcessId())
+        same_id: bool         = self._threadId == other.get_id()
+        same_process_id: bool = self._process.get_process_id() == other._process.get_process_id()
 
-        return sameId and sameProcessId
+        return same_id and same_process_id
 
     def __repr__(self) -> str:
-        return f"Thread(id={self.GetId()}, process='{self._process.GetProcessId()}')"
+        return f"Thread(id={self.get_id()}, process='{self._process.get_process_id()}')"
 
 
 

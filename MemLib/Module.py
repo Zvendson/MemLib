@@ -41,28 +41,28 @@ class Module:
         self._base:    int     = module.modBaseAddr
         self._size:    int     = module.modBaseSize
 
-    def GetBase(self) -> int:
+    def get_base(self) -> int:
         """
         :returns: The base address of the module.
         """
 
         return self._base
 
-    def GetHandle(self) -> int:
+    def get_handle(self) -> int:
         """
         :returns: The handle of the module.
         """
 
         return self._handle
 
-    def GetName(self) -> str:
+    def get_name(self) -> str:
         """
         :returns: The Module name and its extension. *Example:* :olive:`"kernel32.dll"`
         """
 
         return self._name
 
-    def GetPath(self) -> Path | None:
+    def get_path(self) -> Path | None:
         """
         :returns: The local path of the module.
         """
@@ -72,7 +72,7 @@ class Module:
 
         return None
 
-    def GetProcAddress(self, name: str) -> int:
+    def get_proc_address(self, name: str) -> int:
         """
         Retrieves the address of an exported function (also known as a procedure) or variable from the module.
 
@@ -90,14 +90,14 @@ class Module:
 
         return handle
 
-    def GetProcess(self) -> Process:
+    def get_process(self) -> Process:
         """
         :returns: a reference to its :py:class:`~process.Process`.
         """
 
         return self._process
 
-    def GetSize(self) -> int:
+    def get_size(self) -> int:
         """
         :returns: the size of Bytes of the module.
 
@@ -108,13 +108,16 @@ class Module:
         return self._size
 
     def __eq__(self, other: Module) -> bool:
-        sameHandle:    bool = (self._handle == other.GetHandle())
-        sameProcessId: bool = (self._process.GetProcessId() == other._process.GetProcessId())
+        same_handle: bool     = self._handle == other.get_handle()
+        same_process_id: bool = self._process.get_process_id() == other._process.get_process_id()
 
-        return sameHandle and sameProcessId
+        return same_handle and same_process_id
+
+    def __str__(self) -> str:
+        return f"Module('{self.get_name()}' in Process '{self._process.get_process_id()}')"
 
     def __repr__(self) -> str:
-        return f"Module('{self.GetName()}' in Process '{self._process.GetProcessId()}')"
+        return str(self)
 
 
 

@@ -17,7 +17,7 @@ from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitExce
 _STRING_TYPES: tuple[Type[bytes], Type[str]] = (type(b''), type(u''))
 
 
-def FuncTimer(out: Callable[[str], Any]) -> Callable:
+def func_timer(out: Callable[[str], Any]) -> Callable:
     """
     Decorator to meassure the time of execution for the tagged function when called.
 
@@ -46,7 +46,7 @@ def FuncTimer(out: Callable[[str], Any]) -> Callable:
     return decorator
 
 
-def Require32Bit(f: Callable) -> Callable:
+def require_32bit(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 32:
             raise Not32BitException()
@@ -55,7 +55,7 @@ def Require32Bit(f: Callable) -> Callable:
     return wrapper
 
 
-def Require64Bit(f: Callable) -> Callable:
+def require_64bit(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 64:
             raise Not64BitException()
@@ -64,7 +64,7 @@ def Require64Bit(f: Callable) -> Callable:
     return wrapper
 
 
-def RequireAdmin(f: Callable) -> Callable:
+def require_admin(f: Callable) -> Callable:
     def wrapper(*args, **kwargs):
         if windll.shell32.IsUserAnAdmin() == 0:
             raise NoAdminPrivileges()
@@ -73,7 +73,7 @@ def RequireAdmin(f: Callable) -> Callable:
     return wrapper
 
 
-def Deprecated(reason: Callable | str) -> Callable:
+def deprecated(reason: Callable | str) -> Callable:
     """
     This is a decorator which can be used to mark functions
     as deprecated. It will result in a warning being emitted
@@ -146,11 +146,3 @@ def Deprecated(reason: Callable | str) -> Callable:
 
     else:
         raise TypeError(repr(type(reason)))
-
-
-def HellWOrld():
-    sleep(1.0)
-    return "Hello World"
-
-
-
