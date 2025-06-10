@@ -1,8 +1,11 @@
 """
 :platform: Windows
-"""
 
-from __future__ import annotations
+Contains structures and classes to manage runtime code hooks in external processes.
+
+- HookBuffer: Structure for storing hook information in remote memory.
+- Hook:      Manages jump/call hooks, their state, and their persistence.
+"""
 
 import struct
 from ctypes.wintypes import BYTE, DWORD
@@ -13,18 +16,29 @@ from MemLib.Structs import Struct
 
 class HookBuffer(Struct):
     """
-    A buffer structure containing necessary infos about a hook. It can be stored in a process to guarantee that it
-    can be restored when python crashes.
+    Structure to store information about an installed hook.
+
+    Used to persist the original bytes and metadata at a specified location in the target process,
+    so the hook can be restored even after a crash or restart.
+
+    Fields:
+        original_opcode (BYTE * 5):   Original bytes at the hook address.
+        source_address  (DWORD):      Address where the hook was installed.
+        target_address  (DWORD):      Address where the jump/call redirects to.
     """
 
     _pack_ = 1
-    _fields_ = [
-        ("original_opcode", BYTE * 5),
-        ("source_address", DWORD),
-        ("target_address", DWORD),
-    ]
+    original_opcode: BYTE * 5
+    source_address:  DWORD
+    target_address:  DWORD
 
     def has_contents(self) -> bool:
+        """
+        Checks if the buffer contains valid hook information.
+
+        Returns:
+            bool: True if both original_opcode and addresses are set, False otherwise.
+        """
         values = list(self.original_opcode)
 
         for val in values:
@@ -41,28 +55,42 @@ class HookBuffer(Struct):
 
 class Hook:
     """
-    Prepares a Jump-Call in target process and make it toggleable. It also detects if it was already enabled and sets
-    the state accordingly. If storeBufferAddress is 0, there will be no way to get the original opcodes back when the
-    hook was already written. If storeBufferAddress is nonzero it will check if its already written and adapt to the
-    buffer and will store a struct of 14 Bytes at the address in every case.
+    Manages an inline code hook (e.g., a JMP) in a remote process.
 
-    :param name: The name of the Hook.
-    :param process: Target Process.
-    :param source: The address in the Process to write the jump at.
-    :param destination: The address in the Process where the jump should target to.
-    :param enable_hook: If True it writes the jump immediately into targets process memory.
-    :param buffer: The address in the Process to store the buffer.
+    On construction, can immediately enable the hook and optionally store the original
+    bytes and hook information in remote process memory for recovery.
+
+    Parameters:
+        name (str):        Identifier for the hook.
+        process (Process): The target process object.
+        source (int):      Address in the target process to patch (hook entry point).
+        destination (int): Address in the target process to jump/call to.
+        enable_hook (bool):If True, immediately installs the hook.
+        buffer (int):      Address in the target process for storing HookBuffer. If zero, persistence is skipped.
+
+    Usage:
+        hook = Hook(name="MyHook", process=proc, source=0x401000, destination=0x402000, enable_hook=True, buffer=0x500000)
     """
 
     def __init__(self, *, name: str, process: Process, source: int, destination: int, enable_hook: bool = False,
                  buffer: int = 0) -> None:
+        """
+        Initializes a new Hook instance.
 
+        Parameters:
+            name (str):        Name of the hook.
+            process (Process): Target process.
+            source (int):      Hook address in the process.
+            destination (int): Jump/call target address.
+            enable_hook (bool):Enable the hook immediately.
+            buffer (int):      Remote address to store buffer struct (for crash recovery).
+        """
         self._name: str                 = name
         self._process: Process          = process
         self._src_address: int          = source
         self._dst_address: int          = destination
         self._opcode: bytes             = struct.pack('=Bi', 0xE9, destination - source - 0x0005)
-        self._enabled: bool             = enable_hook
+        self._enabled: bool             = False
         self._buffer_address: int       = buffer
         self._buffer: HookBuffer | None = None
 
@@ -80,19 +108,22 @@ class Hook:
             self._enabled = True
 
         self.store(buffer)
-        self.enable(enable_hook)
+        if enable_hook:
+            self.enable()
 
     @classmethod
-    def from_stored_buffer(cls, name: str, process: Process, buffer_address: int = 0) -> Hook:
+    def from_stored_buffer(cls, name: str, process: Process, buffer_address: int = 0) -> 'Hook':
         """
-        Creates a hook instance from target address.
+        Creates a Hook instance using a stored HookBuffer in process memory.
 
-        :param name: the name of the hook.
-        :param process: the process.
-        :param buffer_address: the address in the Process to store the original opcodes.
-        :returns: the hook instance.
+        Parameters:
+            name (str):         Name for the hook.
+            process (Process):  Target process.
+            buffer_address (int):Remote address containing the HookBuffer.
+
+        Returns:
+            Hook: New Hook instance restored from buffer.
         """
-
         buffer: HookBuffer = process.read_struct(buffer_address, HookBuffer)
 
         return cls(
@@ -104,92 +135,138 @@ class Hook:
         )
 
     def __str__(self):
+        """
+        Returns a human-readable string representation of the hook.
+
+        Returns:
+            str: Human-readable summary.
+        """
         return f"{self._name}-Hook(Source=0x{self._src_address:08X}, Target=0x{self._dst_address:08X}, Storage=" \
                f"0x{self._buffer.get_address():08X}, Hook='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
                f"='{bytes(self._buffer.original_opcode).hex(' ').upper()}', Process={self._process.get_process_id()})"
 
     def __repr__(self):
+        """
+        Returns the canonical string representation of the hook.
+
+        Returns:
+            str: Canonical string representation.
+        """
         return str(self)
 
-    def get_name(self) -> str:
+    @property
+    def name(self) -> str:
+        """
+        Returns the name of the hook.
+
+        Returns:
+            str: The hook name.
+        """
         return self._name
 
-    def get_source_address(self) -> int:
+    @property
+    def src_address(self) -> int:
         """
-        :returns: The address where the hook is or will be written.
-        """
+        Returns the address where the hook is or will be written.
 
+        Returns:
+            int: The source address for the hook.
+        """
         return self._src_address
 
-    def get_destination_address(self) -> int:
+    @property
+    def dest_address(self) -> int:
         """
-        :returns: The target address of the jump-call.
-        """
+        Returns the jump/call target address of the hook.
 
+        Returns:
+            int: The destination address.
+        """
         return self._dst_address
 
-    def get_process(self) -> Process:
+    @property
+    def process(self) -> Process:
         """
-        :returns: the process the hook is written in.
-        """
+        Returns the process object where the hook is managed.
 
+        Returns:
+            Process: The target process.
+        """
         return self._process
 
-    def get_buffer(self) -> HookBuffer:
+    @property
+    def buffer(self) -> HookBuffer:
         """
-        :returns: the buffer containing the hook details. (original opcode, source addr, target addr)
-        """
+        Returns the buffer structure with the original opcode and addresses.
 
+        Returns:
+            HookBuffer: The buffer instance.
+        """
         return self._buffer
 
     def is_enabled(self) -> bool:
-        """        
-        :returns: True if enabled, False otherwise.
         """
+        Checks if the hook is currently enabled.
 
+        Returns:
+            bool: True if enabled, False otherwise.
+        """
         return self._enabled
 
-    def enable(self, enable_hook: bool) -> None:
+    def enable(self) -> None:
         """
-        Enables or disables the hook.
+        Installs (enables) the hook in the target process.
 
-        :param enable_hook: If True the hook will write a jump at the source address to targets address. If False it will
-                           restore the jump to the original opcode.
+        If the hook is already enabled, this method does nothing.
+        Otherwise, it writes the JMP instruction at the source address
+        and updates the enabled state.
         """
-
-        if self._enabled == enable_hook:
+        if self._enabled:
             return
 
-        self._enabled = enable_hook
+        self._process.write(self._src_address, self._opcode)
+        self._enabled = True
 
-        if enable_hook:
-            self._process.write(self._src_address, self._opcode)
-        else:
-            self._process.write(self._src_address, bytes(self._buffer.original_opcode))
+    def disable(self) -> None:
+        """
+        Restores (disables) the original bytes at the hook location.
+
+        If the hook is not enabled, this method does nothing.
+        Otherwise, it writes back the saved original opcode at the source
+        address and updates the enabled state.
+        """
+        if not self._enabled:
+            return
+
+        self._process.write(self._src_address, bytes(self._buffer.original_opcode))
+        self._enabled = False
 
     def toggle(self) -> bool:
         """
-        Toggles the Hook between enabled and disabled.
+        Toggles the enabled state of the hook (on/off).
 
-        :returns: The new state.
+        Returns:
+            bool: The new enabled state (True if enabled, False if disabled).
         """
+        if self._enabled:
+            self.disable()
+        else:
+            self.enable()
 
-        self.enable(not self._enabled)
         return self._enabled
 
     def store(self, buffer_address: int) -> bool:
         """
-        Stores the buffer at the specific address
+        Stores the buffer information at a specified address in the target process.
 
-        :param buffer_address: the address in the Process to store the buffer.
-        :returns: True if it could store it successfully, False otherwise.
+        Parameters:
+            buffer_address (int): Address to store the HookBuffer.
+
+        Returns:
+            bool: True if buffer is stored successfully, False otherwise.
         """
-
         if buffer_address:
             self._buffer_address = buffer_address
             return self._process.write_struct(self._buffer_address, self._buffer)
 
         return False
-
-
-
