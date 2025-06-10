@@ -605,7 +605,7 @@ class Process:
         if ReadProcessMemory(self._handle, address, byref(buffer), length, None):
             return bytes(buffer)
 
-        raise b''
+        return b''
 
     def ReadStruct(self, address: int, structClass: Type[T: Struct]) -> T | None:
         """
