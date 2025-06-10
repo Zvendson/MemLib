@@ -505,7 +505,7 @@ class Process:
         mz: MZ_FILEHEADER      = self.get_file_header()
         pe: IMAGE_NT_HEADERS32 = self.get_image_header()
 
-        section_base: int = self.get_base() + mz.PEHeaderOffset + pe.GetSectionsOffset()
+        section_base: int = self.get_base() + mz.PEHeaderOffset + pe.get_sections_offset()
         section_size: int = pe.FileHeader.NumberOfSections
 
         sections: list[IMAGE_SECTION_HEADER] = list()

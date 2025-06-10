@@ -2,8 +2,6 @@
 :platform: Windows
 """
 
-from __future__ import annotations
-
 from ctypes import (
     Array, Structure, addressof, c_byte,
     c_char, c_char_p, c_double, c_float,
@@ -12,10 +10,10 @@ from ctypes import (
     c_void_p, c_wchar, c_wchar_p, create_string_buffer, memmove,
     sizeof,
 )
-from typing import Any
+from typing import Any, Union
 
 # noinspection PyProtectedMember
-from _ctypes import _Pointer
+from _ctypes import _Pointer, _SimpleCData
 
 from MemLib.ANSI import (
     BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO,
@@ -25,15 +23,36 @@ from MemLib.ANSI import (
 from MemLib.Decorators import deprecated
 
 
-class Struct(Structure):
+# Credits: https://github.com/dfint/peclasses/blob/main/peclasses/annotated_structure.py
+class AnnotatedStructMetaclass(type(Structure)):
+    def __new__(cls, name, bases, namespace, **kwargs):
+        _annotations: Any = namespace.get("__annotations__")
+        if _annotations:
+            fields: list[tuple] = list()
+            for name, declared_type in _annotations.items():
+                if name in ["IDENTIFIER", "ADDRESS_EX"]:
+                    continue
+
+                if isinstance(declared_type, str):
+                    raise TypeError("Struct got a non C Type typehint. You might have 'from __fututre__ import "
+                                    "annotations' imported. Recommended is moving it to a file without "
+                                    "annotations being imported, or simply remove the import.")
+
+                field: tuple = (name, declared_type)
+                fields.append(field)
+
+            namespace["_fields_"] = fields
+        return super().__new__(cls, name, bases, namespace, **kwargs)
+
+
+class Struct(Structure, metaclass=AnnotatedStructMetaclass):
     """
-    A structure wrapper for the ctype library to allow for pretty debug printing and some utils.
+    A structure wrapper for the ctype library. it automatically adds _fields_ and fills it according to type
+    annotations from the class. It also adds some utils that allow for pretty debug printing other utils.
     """
 
     IDENTIFIER: str | list[str] | tuple[str] = None
     ADDRESS_EX: int = 0x0
-
-    _fields_ = []
 
     def __init__(self, *args: Any, **kw: Any):
         super(Struct, self).__init__(*args, **kw)
@@ -49,7 +68,7 @@ class Struct(Structure):
         return self.to_bytes()
 
     @classmethod
-    def from_bytes(cls, buffer: bytes) -> Struct:
+    def from_bytes(cls, buffer: bytes) -> 'Struct':
         struct: Struct = cls()
         size:   int    = len(buffer)
 
@@ -61,7 +80,7 @@ class Struct(Structure):
         return struct
 
     @classmethod
-    def from_addr(cls, address: int) -> Struct | None:
+    def from_addr(cls, address: int) -> 'Struct':
         return cls.from_address(address)
 
     def to_bytes(self):
