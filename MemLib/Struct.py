@@ -10,9 +10,8 @@ from ctypes import (
     c_int, c_long, c_longlong, c_size_t, c_ubyte,
     c_uint, c_ulong, c_ulonglong, c_ushort,
     c_void_p, c_wchar, c_wchar_p, memmove,
-    sizeof, wintypes,
+    sizeof,
 )
-from ctypes.wintypes import CHAR
 from typing import Any
 
 # noinspection PyProtectedMember
@@ -26,8 +25,6 @@ from MemLib.ANSI import (
 from MemLib.Decorators import Deprecated
 
 
-# redeclaring, because ctypes made BYTE a signed value, which is incorrect.
-wintypes.BYTE = c_ubyte
 
 
 class Struct(Structure):
