@@ -257,7 +257,7 @@ class Process:
         except Kernel32.Win32Exception as e:
             self._name = None
         else:
-            self._name = module.get_name()
+            self._name = module.name()
 
         return self._name
 
@@ -619,7 +619,7 @@ class Process:
 
         buffer: T = struct_class()
 
-        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), buffer.GetSize(), None):
+        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), buffer.get_size(), None):
             buffer.ADDRESS_EX = address
             return buffer
 
@@ -687,7 +687,7 @@ class Process:
         if strip:
             termination = result.find(b'\x00')
             if termination != -1:
-                result = result[:termination + 1]
+                result = result[:termination]
 
         return result
 
