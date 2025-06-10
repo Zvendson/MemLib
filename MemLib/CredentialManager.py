@@ -8,45 +8,70 @@ from pykeepass.exceptions import CredentialsError
 @dataclass(kw_only=True)
 class Credentials:
     """
-    Dataclass for account credentials and options to set.
+    Stores account credentials and extra arguments for an account.
 
-    :param name: The custom name of the account
-    :param e_mail: E-Mail of the account
-    :param password: Password of the account
-    :param path: Local path to an executable
-    :param args: Extra arguments to launch the bot with
+    Fields:
+        name (str): Custom name for the account entry.
+        e_mail (str): E-mail address associated with the account.
+        password (str): Account password.
+        url (str): URL to the account login.
+        args (str | list[str]): Extra arguments.
+
+    Note:
+        The 'args' field can be a single string or a list of strings. Lists will be joined with spaces.
     """
 
     name: str             = ""
     e_mail: str           = ""
     password: str         = ""
-    path: str             = ""
+    url: str              = ""
     args: str | list[str] = ""
 
     def __setattr__(self, name, value):
+        """
+        Sets the attribute value for the Credentials dataclass.
+        The 'args' field is normalized to a string, even if a list is provided.
+        """
         if name != "args":
-            self.__dict__[name] = value
+            super().__setattr__(name, value)
             return
 
         if isinstance(value, list):
-            self.__dict__[name] = ' '.join(value)
+            super().__setattr__(name, ' '.join(value))
         elif isinstance(value, str):
-            self.__dict__[name] = value
+            super().__setattr__(name, value)
         else:
-            self.__dict__[name] = ''
+            super().__setattr__(name, '')
 
 
 class CredentialManager:
     """
-    Class to manage the credentials and extra arguments for an account. The credentials are stored in a KeePass
-    database. It is strongly adviced to use a password, to keep your data safe.
-    The database will be created if it does not exist.
+    Manages credentials and extra arguments for accounts stored in a KeePass database.
 
-    :param filepath: The path to the database file.
-    :param password: The master password to open the database
+    The database is created automatically if it does not exist. It is strongly recommended to use a master password
+    for your database to keep your data safe.
+
+    Parameters:
+        filepath (Path | str): Path to the KeePass database file.
+        password (str, optional): Master password for the database.
+
+    Raises:
+        ValueError: If the master password is invalid.
+        Exception: For any other error when opening or creating the database.
     """
 
     def __init__(self, filepath: Path | str, password: str = None):
+        """
+        Initializes the CredentialManager, opening or creating the KeePass database at the specified path.
+
+        Args:
+            filepath (Path | str): Path to the database file.
+            password (str, optional): Master password to open or create the database.
+
+        Raises:
+            ValueError: If the password is invalid.
+            Exception: For any other error in database handling.
+        """
         try:
             self._kpf = PyKeePass(filepath, password=password)
         except FileNotFoundError:
@@ -60,9 +85,14 @@ class CredentialManager:
 
     def get_credentials(self, group_name: str, name: str) -> Credentials | None:
         """
-        :param group_name: The name of the group the credentials are stored under.
-        :param name: The name of the credentials.
-        :return: The credentials and arguments for the account with the given name or None if the bot does not exist
+        Retrieves credentials and extra arguments for a given account name in the specified group.
+
+        Args:
+            group_name (str): Name of the group under which credentials are stored.
+            name (str): Name of the credential entry (account name).
+
+        Returns:
+            Credentials | None: The credentials and arguments for the account, or None if not found.
         """
 
         group = self._kpf.find_groups(name=group_name, first=True)
@@ -77,19 +107,25 @@ class CredentialManager:
             name=entry.title,
             e_mail=entry.username,
             password=entry.password,
-            path=entry.url,
+            url=entry.url,
             args=entry.notes
         )
 
     def add_credentials(self, group_name: str, credentials: Credentials) -> bool:
         """
-        Adds or updates the credentials. If the account does not exist it will be created. If the account already
-        exists, the credentials will be updated.
+        Adds or updates credentials for an account in the specified group.
 
-        :param group_name: The name of the group where the credentials will be stored.
-        :param credentials: The credentials
+        If the account already exists, its credentials will be updated. Otherwise, a new entry is created.
 
-        :return: True if the credentials were added or updated successfully otherwise False.
+        Args:
+            group_name (str): Name of the group where the credentials will be stored.
+            credentials (Credentials): Credentials to add or update.
+
+        Returns:
+            bool: True if credentials were added or updated successfully, False otherwise.
+
+        Note:
+            The KeePass database is automatically saved after the operation.
         """
 
         group = self._kpf.find_groups(name=group_name, first=True)
@@ -105,7 +141,7 @@ class CredentialManager:
             title=credentials.name,
             username=credentials.e_mail,
             password=credentials.password,
-            url=credentials.path,
+            url=credentials.url,
             notes=credentials.args
         )
 
