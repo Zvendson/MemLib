@@ -263,7 +263,7 @@ class Module:
         :return: True if both modules have the same handle and parent process, else False.
         """
         same_handle: bool     = self._handle == other.handle
-        same_process_id: bool = self._process.get_process_id() == other._process.get_process_id()
+        same_process_id: bool = self._process.process_id == other._process.process_id
 
         return same_handle and same_process_id
 
@@ -273,7 +273,7 @@ class Module:
 
         :return: String representation.
         """
-        return f"Module('{self.name}' in Process '{self._process.get_process_id()}')"
+        return f"Module('{self.name}' in Process '{self._process.process_id}')"
 
     def __repr__(self) -> str:
         """

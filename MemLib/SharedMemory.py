@@ -167,7 +167,7 @@ class SharedMemory:
             raise error
 
         # base_address_ex
-        proc_handle: int       = self._process.get_handle()
+        proc_handle: int       = self._process.handle
         address_buffer: LPVOID = LPVOID(0)
 
         NtMapViewOfSection(
@@ -228,13 +228,13 @@ class SharedMemory:
                                [Error n] -> <error n>
         :returns: None
         """
-
         errors: List[Win32Exception] = list()
-        proc_handle: int             = self._process.get_handle()
-        handle: int                  = self._memory_buffer.handle
-        handle_ex: int               = self._memory_buffer.handle_ex
-        base_addr: int               = self._memory_buffer.base_address
-        base_addr_ex: int            = self._memory_buffer.base_address_ex
+
+        proc_handle: int  = self._process.handle
+        handle: int       = self._memory_buffer.handle
+        handle_ex: int    = self._memory_buffer.handle_ex
+        base_addr: int    = self._memory_buffer.base_address
+        base_addr_ex: int = self._memory_buffer.base_address_ex
 
         if base_addr and not UnmapViewOfFile(self._memory_buffer.base_address):
             errors.append(Win32Exception())
@@ -279,7 +279,7 @@ class SharedMemory:
         # Handle
         handle: HANDLE   = HANDLE()
         duplicated: bool = DuplicateHandle(
-            self.get_process().get_handle(),
+            self.get_process().handle,
             mem_handle,
             -1,
             handle,
@@ -333,7 +333,7 @@ class SharedMemory:
         # Handle
         handle: HANDLE   = HANDLE()
         duplicated: bool = DuplicateHandle(
-            self._process.get_handle(),
+            self._process.handle,
             mapping.handle_ex,
             -1,
             handle,
@@ -466,7 +466,7 @@ class SharedMemory:
 
     def __str__(self) -> str:
         return f'SharedMemory(Address=0x{self._memory_buffer.base_address:X} ' \
-               f'Process={self._process.get_process_id()} ' \
+               f'Process={self._process.process_id} ' \
                f'at 0x{self.get_base_address_ex():X})'
 
     def __repr__(self) -> str:

@@ -1,10 +1,34 @@
 """
-:platform: Windows
+High-level, Pythonic wrappers for selected Win32 and NT native API functions.
+
+This module provides type-safe, exception-friendly bindings to many essential
+Windows kernel functions for process, thread, memory, and module management,
+using `ctypes` and best practices for cross-version compatibility.
+
+Features:
+    - Consistent, well-documented interfaces for major Win32/NT APIs.
+    - Custom Win32Exception class with detailed error reporting.
+    - Strong type hints for safety and IDE autocompletion.
+    - Modern docstrings with links to Microsoft documentation.
+    - Designed for both scripting and extension by power users.
+
+Example:
+    from Kernel32 import OpenProcess, ReadProcessMemory, Win32Exception
+
+    try:
+        handle = OpenProcess(PROCESS_ALL_ACCESS, False, 1234)
+        # ... do something ...
+    except Win32Exception as ex:
+        print(f"Windows API Error: {ex}")
+
+See also:
+    - https://docs.microsoft.com/en-us/windows/win32/api/
+    - https://docs.python.org/3/library/ctypes.html
 """
 
 from __future__ import annotations
 
-from ctypes import Array, POINTER, WINFUNCTYPE, byref, windll
+from ctypes import Array, POINTER, WINFUNCTYPE, byref, create_unicode_buffer, windll
 from ctypes.wintypes import (
     BOOL, INT, LONG, DWORD,
     UINT, ULONG, PDWORD, PULONG,
@@ -20,444 +44,494 @@ from MemLib.Constants import STATUS_SUCCESS
 WaitOrTimerCallback = WINFUNCTYPE(None, LPVOID, BOOL)
 
 
-def SUCCEEDED(HRESULT: int) -> bool:
+def SUCCEEDED(hresult: int) -> bool:
     """
-    Generic test for success on any status value (non-negative numbers indicate success).
-    """
+    Determines whether the given HRESULT value indicates success.
 
-    value: LONG = LONG(HRESULT)
+    Args:
+        hresult (int): Status code to evaluate.
+
+    Returns:
+        bool: True if HRESULT is non-negative, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winerror/nf-winerror-succeeded
+    """
+    value: LONG = LONG(hresult)
     return value.value >= 0
 
 
-def FAILED(HRESULT: int) -> bool:
+def FAILED(hresult: int) -> bool:
     """
-    Generic test for failure on any status value (non-negative numbers indicate success).
-    """
+    Determines whether the given HRESULT value indicates failure.
 
-    value: LONG = LONG(HRESULT)
+    Args:
+        hresult (int): Status code to evaluate.
+
+    Returns:
+        bool: True if HRESULT is negative, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winerror/nf-winerror-failed
+    """
+    value: LONG = LONG(hresult)
     return value.value < 0
 
 
 def GetLastError() -> int:
     """
-    Retrieves the calling thread's last-error code value. The last-error code is maintained on a per-thread basis.
+    Gets the last-error code value for the calling thread.
 
-    :returns: The return value is the calling thread's last-error code.
+    Returns:
+        int: Last-error code.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
     """
-
     return _GetLastError()
 
 
 def FormatMessageW(
-        flags:      int,
-        source:     object,
-        messageId:  int,
-        languageId: int,
-        buffer:     Array,
-        size:       int,
-        arguments:  object) -> int:
+        flags:       int,
+        source:      object,
+        message_id:  int,
+        language_id: int,
+        buffer:      Array,
+        size:        int,
+        arguments:   object) -> int:
     """
-    Formats a message string. The function requires a message definition as input. The message definition can come from
-    a buffer passed into the function. It can come from a message table resource in an already-loaded module. Or the
-    caller can ask the function to search the system's message table resource(s) for the message definition. The
-    function finds the message definition in a message table resource based on a message identifier and a language
-    identifier. The function copies the formatted message text to an output buffer, processing any embedded insert
-    sequences if requested.
+    Formats a message string for a system error or message definition.
 
-    :param flags: The formatting options, and how to interpret the lpSource parameter.
-    :param source: The location of the message definition.
-    :param messageId: The message identifier for the requested message.
-    :param languageId: The language identifier for the requested message.
-    :param buffer: A pointer to a buffer that receives the null-terminated string that specifies the formatted message.
-    :param size: If the FORMAT_MESSAGE_ALLOCATE_BUFFER flag is not set, this parameter specifies the size of the
-                 output buffer, in TCHARs. If FORMAT_MESSAGE_ALLOCATE_BUFFER is set, this parameter specifies the
-                 minimum number of TCHARs to allocate for an output buffer.
-    :param arguments: An array of values that are used as insert values in the formatted message.
-    :returns: If the function succeeds, the return value is the number of TCHARs stored in the output buffer, excluding
-              the terminating null character. If the function fails, the return value is zero. To get extended error
-              information, call GetLastError.
+    Args:
+        flags (int): Formatting and source options.
+        source (object): Location of the message definition.
+        message_id (int): Message identifier.
+        language_id (int): Language identifier.
+        buffer (Array): Buffer to receive the formatted message.
+        size (int): Size of the buffer.
+        arguments (object): Arguments for inserts in the message.
+
+    Returns:
+        int: Number of TCHARs stored in buffer (excluding null), or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew
     """
-
-    return _FormatMessageW(flags, source, messageId, languageId, buffer, size, arguments)
+    return _FormatMessageW(flags, source, message_id, language_id, buffer, size, arguments)
 
 
 def CreateProcessW(
-        applicationName:    str | None,
-        commandLine:        str,
-        processAttributes:  int,
-        threadAttributes:   int,
-        inheritHandles:     bool,
-        creationFlags:      int,
-        environment:        int,
-        currentDirectory:   str | None,
-        startupInfo:        object,
-        processInformation: object) -> bool:
+        application_name: str | None,
+        command_line:        str,
+        process_attributes:  int,
+        thread_attributes:   int,
+        inherit_handles:     bool,
+        creation_flags:      int,
+        environment:         int,
+        current_directory:   str | None,
+        startup_info:        object,
+        process_information: object) -> bool:
     """
-    Creates a new process and its primary thread. The new process runs in the security context of the calling process.
+    Creates a new process and its primary thread.
 
-    :param applicationName: The name of the module to be executed.
-    :param commandLine: The command line to be executed.
-    :param processAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle
-                              to the new process object can be inherited by child processes.
-    :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether the returned handle to
-                             the new thread object can be inherited by child processes.
-    :param inheritHandles: If this parameter is TRUE, each inheritable handle in the calling process is inherited by the
-                           new process.
-    :param creationFlags: The flags that control the priority class and the creation of the process.
-    :param environment: A pointer to the environment block for the new process.
-    :param currentDirectory: The full path to the current directory for the process. f this parameter is NULL, the new
-                             process will have the same current drive and directory as the calling process.
-    :param startupInfo: A pointer to a StartupInfoW structure.
-    :param processInformation: A pointer to a PROCESS_INFORMATION structure that receives identification information
-                               about the new process.
-    :returns: If the function succeeds, the return value is TRUE, False otherwise. If the function fails, the return
-              value is zero. To get extended error information, call GetLastError.
+    Args:
+        application_name (str | None): Path to executable.
+        command_line (str): Command line string.
+        process_attributes (int): SECURITY_ATTRIBUTES for process handle inheritance.
+        thread_attributes (int): SECURITY_ATTRIBUTES for thread handle inheritance.
+        inherit_handles (bool): If True, inheritable handles are inherited.
+        creation_flags (int): Flags controlling process creation.
+        environment (int): Pointer to environment block.
+        current_directory (str | None): Working directory.
+        startup_info (object): Pointer to STARTUPINFO struct.
+        process_information (object): Pointer to PROCESS_INFORMATION struct.
+
+    Returns:
+        bool: True if the process was created successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessw
     """
-
     return _CreateProcessW(
-        applicationName,
-        commandLine,
-        processAttributes,
-        threadAttributes,
-        BOOL(inheritHandles),
-        creationFlags,
+        application_name,
+        command_line,
+        process_attributes,
+        thread_attributes,
+        BOOL(inherit_handles),
+        creation_flags,
         environment,
-        currentDirectory,
-        startupInfo,
-        processInformation
+        current_directory,
+        startup_info,
+        process_information
     )
 
 
-def GetPriorityClass(processHandle: int) -> int:
+def GetPriorityClass(process_handle: int) -> int:
     """
-    Retrieves the priority class for the specified process. This value, together with the priority value of each thread
-    of the process, determines each thread's base priority level.
+    Retrieves the priority class of a process.
 
-    :param processHandle: A handle to the process.
-    :returns: If the function succeeds, the return value is the priority class of the specified process. If the
-              function fails, the return value is zero. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process.
 
-    .. note:: **See also:**
-        `GetPriorityClass <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
-        -getpriorityclass>`_
+    Returns:
+        int: Priority class, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass
     """
+    return _GetPriorityClass(process_handle)
 
-    return _GetPriorityClass(processHandle)
 
-
-def SetPriorityClass(processHandle: int, priorityClass: int) -> bool:
+def SetPriorityClass(process_handle: int, priority_class: int) -> bool:
     """
-    Sets the priority class for the specified process. This value together with the priority value of each thread of the
-    process determines each thread's base priority level.
+    Sets the priority class for a specified process.
 
-    :param processHandle: A handle to the process.
-    :param priorityClass: The priority class for the process.
-    :returns: If the function succeeds, the return value is the priority class of the specified process. If the
-              function fails, the return value is zero. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process.
+        priority_class (int): New priority class.
 
-    .. note:: **See also:**
-        `GetPriorityClass <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
-        -getpriorityclass>`_
+    Returns:
+        bool: True if set successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setpriorityclass
     """
+    return _SetPriorityClass(process_handle, priority_class)
 
-    return _SetPriorityClass(processHandle, priorityClass)
 
-
-def GetExitCodeProcess(processHandle: int) -> int:
+def GetExitCodeProcess(process_handle: int) -> int:
     """
-    Retrieves the termination status of the specified process.
+    Gets the termination status code for a specified process.
 
-    :param processHandle: A handle to the process.
-    :returns: If the function succeeds, the return value is the termination status of the specified process. If the
-              function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process.
+
+    Returns:
+        int: Exit code on success, or -1 on failure.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodeprocess
     """
-
-    exitCode: DWORD = DWORD()
-    if _GetExitCodeProcess(processHandle, byref(exitCode)):
-        return exitCode.value
+    exit_code: DWORD = DWORD()
+    if _GetExitCodeProcess(process_handle, byref(exit_code)):
+        return exit_code.value
 
     return -1
 
 
 def CreateRemoteThread(
-        processHandle:    int,
-        threadAttributes: int,
-        stackSize:        int,
-        startAddress:     int,
-        parameter:        int,
-        creationFlags:    int,
-        threadId:         POINTER) -> int:
+        process_handle:    int,
+        thread_attributes: int,
+        stack_size:        int,
+        start_address:     int,
+        parameter:         int,
+        creation_flags:    int,
+        thread_id:         POINTER) -> int:
     """
-    Creates a thread that runs in the virtual address space of another process.
+    Creates a thread that runs in another process's address space.
 
-    :param processHandle: A handle to the process in which the thread is to be created.
-    :param threadAttributes: A pointer to a SECURITY_ATTRIBUTES structure that specifies a security descriptor for the
-                             new thread and determines whether child processes can inherit the returned handle.
-    :param stackSize: The initial size of the stack, in bytes. The system rounds this value to the nearest page. If this
-                      parameter is 0 (zero), the new thread uses the default size for the executable.
-    :param startAddress: A pointer to the application-defined function of type LPTHREAD_START_ROUTINE to be executed by
-                         the thread and represents the starting address of the thread in the remote process. The
-                         function must exist in the remote process.
-    :param parameter: A pointer to a variable to be passed to the thread function.
-    :param creationFlags: The flags that control the creation of the thread.
-    :param threadId: A pointer to store the threadId at.
-    :returns: If the function succeeds, the return value is the termination status of the specified process. If the
-              function fails, the return value is (DWORD) -1. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the target process.
+        thread_attributes (int): SECURITY_ATTRIBUTES pointer.
+        stack_size (int): Initial stack size.
+        start_address (int): Thread entry point address.
+        parameter (int): Parameter to pass to thread.
+        creation_flags (int): Creation flags.
+        thread_id (POINTER): Pointer to receive the thread identifier.
+
+    Returns:
+        int: Handle to the new thread, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread
     """
-
     return _CreateRemoteThread(
-        processHandle,
-        threadAttributes,
-        stackSize,
-        startAddress,
+        process_handle,
+        thread_attributes,
+        stack_size,
+        start_address,
         parameter,
-        creationFlags,
-        threadId
+        creation_flags,
+        thread_id
     )
 
 
-def OpenThread(threadId: int, inheritHandle: bool, desiredAccess: int) -> int:
+def OpenThread(thread_id: int, inherit_handle: bool, desired_access: int) -> int:
     """
-    Opens an existing local process object.
+    Opens an existing thread.
 
-    :param threadId: The identifier of the local process to be opened.
-    :param inheritHandle: If this value is TRUE, processes created by this process will inherit the handle. Otherwise,
-                          the processes do not inherit this handle.
-    :param desiredAccess: The access to the process object.
-    :returns: If the function succeeds, the return value is an open handle to the specified process. If the function
-              fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        thread_id (int): Thread identifier.
+        inherit_handle (bool): Whether the handle is inheritable.
+        desired_access (int): Requested access rights.
+
+    Returns:
+        int: Handle to the thread, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openthread
     """
-
-    handle: int | None = _OpenThread(desiredAccess, inheritHandle, threadId)
+    handle: int | None = _OpenThread(desired_access, inherit_handle, thread_id)
     if handle is None:
         return 0
 
     return handle
 
 
-def ResumeThread(threadHandle: int) -> int:
+def ResumeThread(thread_handle: int) -> int:
     """
-    Decrements a thread's suspend count. When the suspend count is decremented to zero, the execution of the thread is
-    resumed.
+    Decrements the suspend count of a thread, resuming it if the count reaches zero.
 
-    :param threadHandle: A handle to the thread to be restarted.
-    :returns: If the function succeeds, the return value is the thread's previous suspend count. If the function fails,
-              the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
+    Args:
+        thread_handle (int): Handle to the thread.
+
+    Returns:
+        int: Previous suspend count, or -1 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-resumethread
     """
+    return _ResumeThread(thread_handle)
 
-    return _ResumeThread(threadHandle)
 
-
-def SuspendThread(threadHandle: int) -> int:
+def SuspendThread(thread_handle: int) -> int:
     """
-    Suspends the specified thread.
+    Increments the suspend count of a thread, suspending it if the count is greater than zero.
 
-    :param threadHandle: A handle to the thread that is to be suspended.
-    :returns: If the function succeeds, the return value is the thread's previous suspend count. If the function fails,
-              the return value is (DWORD) -1. To get extended error information, use the GetLastError function.
+    Args:
+        thread_handle (int): Handle to the thread.
+
+    Returns:
+        int: Previous suspend count, or -1 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-suspendthread
     """
+    return _SuspendThread(thread_handle)
 
-    return _SuspendThread(threadHandle)
 
-
-def GetExitCodeThread(threadHandle: int) -> int:
+def GetExitCodeThread(thread_handle: int) -> int:
     """
-    Retrieves the termination status of the specified thread.
+    Gets the exit code for a specified thread.
 
-    :param threadHandle: A handle to the thread.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is
-              (DWORD) -1. To get extended error information, call GetLastError.
+    Args:
+        thread_handle (int): Handle to the thread.
+
+    Returns:
+        int: Thread exit code, or -1 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getexitcodethread
     """
-
-    exitCode: DWORD = DWORD()
-    if _GetExitCodeThread(threadHandle, byref(exitCode)):
-        return exitCode.value
+    exit_code: DWORD = DWORD()
+    if _GetExitCodeThread(thread_handle, byref(exit_code)):
+        return exit_code.value
 
     return -1
 
 
-def GetThreadDescription(threadHandle: int) -> str:
+def GetThreadDescription(thread_handle: int) -> str:
     """
-    Retrieves the description that was assigned to a thread by calling SetThreadDescription.
+    Retrieves the description for a specified thread.
 
-    :param threadHandle: A handle to the thread.
-    :returns: If the function succeeds, the return value is the HRESULT that denotes a successful operation. If the
-              function fails, the return value is an HRESULT that denotes the error.
+    Args:
+        thread_handle (int): Handle to the thread.
 
+    Returns:
+        str: Thread description, or empty string if unavailable.
 
-    .. note:: **See also:**
-        `HRESULT Values <https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/705fb797-2175-4a90-b5a3
-        -3918024b10b8>`_
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreaddescription
     """
+    name_buffer: Array = (WCHAR * 1024)()
 
-    nameBuffer: Array = (WCHAR * 1024)()
-
-    if SUCCEEDED(_GetThreadDescription(threadHandle, nameBuffer)):
-        return nameBuffer.value[:-2]
+    if SUCCEEDED(_GetThreadDescription(thread_handle, name_buffer)):
+        return name_buffer.value[:-2]
 
     return ""
 
 
-def SetThreadDescription(threadHandle: int, threadDescription: str) -> bool:
+def SetThreadDescription(thread_handle: int, thread_description: str) -> bool:
     """
-    Retrieves the description that was assigned to a thread by calling SetThreadDescription.
+    Sets a description for a specified thread.
 
-    :param threadHandle: A handle to the thread.
-    :param threadDescription: A string that specifies the description of the thread.
-    :returns: If the function succeeds, the return value is the HRESULT that denotes a successful operation. If the
-              function fails, the return value is an HRESULT that denotes the error.
+    Args:
+        thread_handle (int): Handle to the thread.
+        thread_description (str): Description to assign.
 
+    Returns:
+        bool: True if successful, otherwise False.
 
-    .. note:: **See also:**
-        `HRESULT Values <https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-erref/705fb797-2175-4a90-b5a3
-        -3918024b10b8>`_
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreaddescription
     """
+    return _SetThreadDescription(thread_handle, thread_description)
 
-    return _SetThreadDescription(threadHandle, threadDescription)
 
-
-def GetThreadPriority(threadHandle: int) -> int:
+def GetThreadPriority(thread_handle: int) -> int:
     """
-    Retrieves the priority value for the specified thread. This value, together with the priority class of the thread's
-    process, determines the thread's base-priority level.
+    Gets the priority value of a thread.
 
-    :param threadHandle: A handle to the thread.
-    :returns: If the function succeeds, the return value is the thread's priority level. If the function fails,
-              the return value is THREAD_PRIORITY_ERROR_RETURN. To get extended error information, call GetLastError.
+    Args:
+        thread_handle (int): Handle to the thread.
 
-    .. note:: **See also:**
-        `GetThreadPriority <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
-        -getthreadpriority>`_
+    Returns:
+        int: Priority level, or THREAD_PRIORITY_ERROR_RETURN if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getthreadpriority
     """
+    return _GetThreadPriority(thread_handle)
 
-    return _GetThreadPriority(threadHandle)
 
-
-def SetThreadPriority(threadHandle: int, priority: int) -> bool:
+def SetThreadPriority(thread_handle: int, priority: int) -> bool:
     """
-    Retrieves the priority value for the specified thread. This value, together with the priority class of the thread's
-    process, determines the thread's base-priority level.
+    Sets the priority value of a thread.
 
-    :param threadHandle: A handle to the thread.
-    :param priority: The priority value for the thread.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
-              To get extended error information, call GetLastError.
+    Args:
+        thread_handle (int): Handle to the thread.
+        priority (int): New priority value.
 
-    .. note:: **See also:**
-        `SetThreadPriority <https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi
-        -setthreadpriority>`_
+    Returns:
+        bool: True if successful, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority
     """
+    return _SetThreadPriority(thread_handle, priority)
 
-    return _SetThreadPriority(threadHandle, priority)
 
-
-def TerminateThread(threadHandle: int, exitCode: int) -> bool:
+def TerminateThread(thread_handle: int, exit_code: int) -> bool:
     """
-    Retrieves the termination status of the specified thread.
+    Terminates a thread.
 
-    :param threadHandle: A handle to the thread.
-    :param exitCode: The exit code for the thread. Use the GetExitCodeThread function to retrieve a thread's exit value.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
-              get extended error information, call GetLastError.
+    Args:
+        thread_handle (int): Handle to the thread.
+        exit_code (int): Exit code for the thread.
+
+    Returns:
+        bool: True if successful, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminatethread
     """
-
-    return bool(_TerminateThread(threadHandle, exitCode))
+    return bool(_TerminateThread(thread_handle, exit_code))
 
 
 def WaitForSingleObject(handle: int, milliseconds: int) -> int:
     """
-    Waits until the specified object is in the signaled state or the time-out interval elapses.
+    Waits until the specified object is signaled or a timeout occurs.
 
-    :param handle: A handle to the object.
-    :param milliseconds: The time-out interval, in milliseconds. If a nonzero value is specified, the function waits
-                         until the object is signaled or the interval elapses. Can use INFINITE to wait forever.
-    :returns: If the function succeeds, the return value indicates the event that caused the function to return.
-              It can be one of the following values: WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT, WAIT_FAILED.
+    Args:
+        handle (int): Handle to the object.
+        milliseconds (int): Timeout interval in milliseconds.
+
+    Returns:
+        int: Wait result (WAIT_OBJECT_0, WAIT_TIMEOUT, etc).
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-waitforsingleobject
     """
-
     return _WaitForSingleObject(handle, milliseconds)
 
 
 def CreateWaitOrTimerCallback(callback: Callable[[int, int], None]) -> WaitOrTimerCallback:
+    """
+    Creates a callback function suitable for wait/timer operations.
+
+    Args:
+        callback (Callable[[int, int], None]): Callback function.
+
+    Returns:
+        WaitOrTimerCallback: Wrapped callback.
+
+    See also:
+        https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/ms687066(v=vs.85)
+    """
     return WaitOrTimerCallback(callback)
 
 
 def RegisterWaitForSingleObject(
-        objHandle:    int,
-        callback:     WaitOrTimerCallback,
-        context:      int,
-        milliseconds: int,
-        flags:        int) -> int:
+        obj_handle:    int,
+        callback:      WaitOrTimerCallback,
+        context:       int,
+        milliseconds:  int,
+        flags:         int) -> int:
     """
-    Directs a wait thread in the thread pool to wait on the object. The wait thread queues the specified callback
-    function to the thread pool when one of the following occurs:
-    - The specified object is in the signaled state.
-    - The time-out interval elapses.
+    Registers a wait operation for a specified object and callback.
 
-    :param objHandle: A handle to the object.
-    :param callback: A function callback with 2 parameter: lpParameter (int) and TimerOrWaitFired (bool), no return.
-    :param context: A single value that is passed to the callback function.
-    :param milliseconds: The time-out interval, in milliseconds.
-    :param flags: Flags to define the behavious.
-    :returns: The wait handle. 0 if failed.
+    Args:
+        obj_handle (int): Handle to the object.
+        callback (WaitOrTimerCallback): Callback function.
+        context (int): User-defined value passed to callback.
+        milliseconds (int): Timeout interval.
+        flags (int): Wait operation flags.
 
-    .. note:: **See also:** `RegisterWaitForSingleObject
-          <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registerwaitforsingleobject>`_
+    Returns:
+        int: Wait handle, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-registerwaitforsingleobject
     """
-
-    outHandle: HANDLE = HANDLE()
-    if not _RegisterWaitForSingleObject(byref(outHandle), objHandle, callback, context, milliseconds, flags):
+    out_handle: HANDLE = HANDLE()
+    if not _RegisterWaitForSingleObject(byref(out_handle), obj_handle, callback, context, milliseconds, flags):
         return 0
 
-    if outHandle.value is None:
+    if out_handle.value is None:
         return 0
 
-    return outHandle.value
+    return out_handle.value
 
 
-def UnregisterWait(waitHandle: int) -> bool:
+def UnregisterWait(wait_handle: int) -> bool:
     """
-    Cancels a registered wait operation issued by the RegisterWaitForSingleObject function.
+    Cancels a registered wait operation.
 
-    :param waitHandle: The wait handle. This handle is returned by the RegisterWaitForSingleObject function.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
-              To get extended error information, call GetLastError.
+    Args:
+        wait_handle (int): Handle from RegisterWaitForSingleObject.
 
-    .. note:: **See also:** `UnregisterWaitEx <https://learn.microsoft.com/en-us/windows/win32/sync/unregisterwaitex>`_
+    Returns:
+        bool: True if successful, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-unregisterwait
     """
+    return _UnregisterWait(wait_handle) != 0
 
-    return _UnregisterWait(waitHandle) != 0
 
-
-def UnregisterWaitEx(waitHandle: int, completionEvent: int) -> bool:
+def UnregisterWaitEx(wait_handle: int, completion_event: int) -> bool:
     """
-    Cancels a registered wait operation issued by the RegisterWaitForSingleObject function.
+    Cancels a registered wait operation and optionally signals an event on completion.
 
-    :param waitHandle: The wait handle. This handle is returned by the RegisterWaitForSingleObject function.
-    :param completionEvent: A handle to the event object to be signaled when the wait operation has been
-                            unregistered. This parameter can be 0.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
-              To get extended error information, call GetLastError.
+    Args:
+        wait_handle (int): Wait handle.
+        completion_event (int): Handle to event to signal, or 0.
 
-    .. note:: **See also:** `UnregisterWaitEx <https://learn.microsoft.com/en-us/windows/win32/sync/unregisterwaitex>`_
+    Returns:
+        bool: True if successful, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/sync/unregisterwaitex
     """
+    return _UnregisterWaitEx(wait_handle, completion_event) != 0
 
-    return _UnregisterWaitEx(waitHandle, completionEvent) != 0
 
-
-def OpenProcess(processId: int, inheritHandle: bool, desiredAccess: int) -> int:
+def OpenProcess(process_id: int, inherit_handle: bool, desired_access: int) -> int:
     """
-    Opens an existing local process object.
+    Opens an existing process.
 
-    :param processId: The identifier of the local process to be opened.
-    :param inheritHandle: If this value is TRUE, processes created by this process will inherit the handle. Otherwise,
-                          the processes do not inherit this handle.
-    :param desiredAccess: The access to the process object.
-    :returns: If the function succeeds, the return value is an open handle to the specified process. If the function
-              fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        process_id (int): Process identifier.
+        inherit_handle (bool): Whether the handle is inheritable.
+        desired_access (int): Access mask.
+
+    Returns:
+        int: Handle to the process, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocess
     """
-
-    handle: int | None = _OpenProcess(desiredAccess, inheritHandle, processId)
+    handle: int | None = _OpenProcess(desired_access, inherit_handle, process_id)
     if handle is None:
         return 0
 
@@ -468,281 +542,321 @@ def CloseHandle(handle: int) -> bool:
     """
     Closes an open object handle.
 
-    :param handle: A valid handle to an open object.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
-              get extended error information, call GetLastError.
-    """
+    Args:
+        handle (int): Handle to the object.
 
+    Returns:
+        bool: True if closed successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle
+    """
     return _CloseHandle(handle)
 
 
 def DuplicateHandle(
-        sourceProcessHandle: int,
-        sourceHandle:        int,
-        targetProcessHandle: int,
-        targetHandle:        Type[POINTER],
-        desiredAccess:       int,
-        inheritHandle:       bool,
-        options:             int) -> bool:
+        source_process_handle: int,
+        source_handle:         int,
+        target_process_handle: int,
+        target_handle:         Type[POINTER],
+        desired_access:        int,
+        inherit_handle:        bool,
+        options:               int) -> bool:
     """
     Duplicates an object handle.
 
-    :param sourceProcessHandle: A handle to the process with the handle to duplicate.
-    :param sourceHandle: The handle to be duplicated.
-    :param targetProcessHandle: A handle to the process that is to receive the duplicated handle.
-    :param targetHandle: A pointer to a variable that receives the duplicate handle.
-    :param desiredAccess: The access requested for the new handle.
-    :param inheritHandle: A variable that indicates whether the handle is inheritable.
-    :param options: Optional actions.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
-              get extended error information, call GetLastError.
-    """
+    Args:
+        source_process_handle (int): Handle to source process.
+        source_handle (int): Handle to duplicate.
+        target_process_handle (int): Handle to target process.
+        target_handle (Type[POINTER]): Receives the new handle.
+        desired_access (int): Access mask for new handle.
+        inherit_handle (bool): If True, new handle is inheritable.
+        options (int): Duplication options.
 
+    Returns:
+        bool: True if duplicated successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-duplicatehandle
+    """
     return _DuplicateHandle(
-        sourceProcessHandle,
-        sourceHandle,
-        targetProcessHandle,
-        targetHandle,
-        desiredAccess,
-        BOOL(inheritHandle),
+        source_process_handle,
+        source_handle,
+        target_process_handle,
+        target_handle,
+        desired_access,
+        BOOL(inherit_handle),
         options
     )
 
 
-def TerminateProcess(processHandle: int, exitCode: int) -> bool:
+def TerminateProcess(process_handle: int, exit_code: int) -> bool:
     """
     Terminates the specified process and all of its threads.
 
-    :param processHandle: A handle to the process to be terminated.
-    :param exitCode: The exit code to be used by the process and threads terminated as a result of this call.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero. To
-              get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process.
+        exit_code (int): Exit code for the process.
+
+    Returns:
+        bool: True if terminated successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess
     """
+    return _TerminateProcess(process_handle, exit_code)
 
-    return _TerminateProcess(processHandle, exitCode)
 
-
-def GetModuleHandleA(moduleName: str) -> int:
+def GetModuleHandleA(module_name: str | bytes) -> int:
     """
-    Retrieves a module handle for the specified module. The module must have been loaded by the calling process.
+    Retrieves a handle to the specified module in the calling process (ANSI version).
 
-    :param moduleName: The name of the loaded module (either a .dll or .exe file).
-    :returns: If the function succeeds, the return value is a handle to the specified module. If the function fails,
-              the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        module_name (str | bytes): Name of the loaded module (DLL or EXE). If a string is provided,
+            it will be encoded to ANSI bytes.
+
+    Returns:
+        int: Handle to the specified module, or 0 if the module is not found.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlea
     """
+    if isinstance(module_name, str):
+        module_name = module_name.encode('ascii')
+    return _GetModuleHandleA(module_name)
 
-    return _GetModuleHandleA(moduleName.encode())
 
-
-def GetModuleHandleW(moduleName: str) -> int:
+def GetModuleHandleW(module_name: str | bytes) -> int:
     """
-    Retrieves a module handle for the specified module. The module must have been loaded by the calling process.
+    Retrieves a handle to the specified module in the calling process (Unicode version).
 
-    :param moduleName: The name of the loaded module (either a .dll or .exe file).
-    :returns: If the function succeeds, the return value is a handle to the specified module. If the function fails,
-              the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        module_name (str): Name of the loaded module (DLL or EXE). If given as bytes, it will be decoded to a string.
+
+    Returns:
+        int: Handle to the specified module, or 0 if the module is not found.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getmodulehandlew
     """
+    if isinstance(module_name, bytes):
+        module_name = module_name.decode('ascii')
+    return _GetModuleHandleW(module_name)
 
-    return _GetModuleHandleW(moduleName)
 
-
-def GetProcAddress(moduleHandle: int, processName: str) -> int:
+def GetProcAddress(module_handle: int, process_name: str) -> int:
     """
-    Retrieves the address of an exported function or variable from the specified dynamic-link library (DLL).
+    Retrieves the address of an exported function or variable from a DLL.
 
-    :param moduleHandle: A handle to the DLL module that contains the function or variable.
-    :param processName: The function or variable name, or the function's ordinal value.
-    :returns: If the function succeeds, the return value is the address of the exported function or variable. If the
-              function fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        module_handle (int): Handle to the module.
+        process_name (str): Function or variable name.
+
+    Returns:
+        int: Address of the exported function or variable, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
     """
-
-    return _GetProcAddress(moduleHandle, processName.encode('ascii'))
+    return _GetProcAddress(module_handle, process_name.encode('ascii'))
 
 
 def ReadProcessMemory(
-        processHandle:     int,
-        baseAddress:       int,
-        buffer:            object,
-        size:              int,
-        numberOfBytesRead: object) -> bool:
+        process_handle:       int,
+        base_address:         int,
+        buffer:               object,
+        size:                 int,
+        number_of_bytes_read: object) -> bool:
     """
-    Reads data from an area of memory in a specified process. The entire area to be read must be accessible or the
-    operation fails.
+    Reads memory from another process.
 
-    :param processHandle: A handle to the process with memory that is being read.
-    :param baseAddress: A pointer to the base address in the specified process from which to read.
-    :param buffer: A pointer to a buffer that receives the contents from the address space of the specified process.
-    :param size: The number of bytes to be read from the specified process.
-    :param numberOfBytesRead: A pointer to a variable that receives the number of bytes transferred into the specified
-                              buffer.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is 0
-              (zero). To get extended error information, call GetLastError. The function fails if the requested read
-              operation crosses into an area of the process that is inaccessible.
+    Args:
+        process_handle (int): Handle to the process.
+        base_address (int): Address to start reading from.
+        buffer (object): Output buffer.
+        size (int): Number of bytes to read.
+        number_of_bytes_read (object): Variable to receive the number of bytes read.
+
+    Returns:
+        bool: True if read successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-readprocessmemory
     """
-
-    return _ReadProcessMemory(processHandle, baseAddress, buffer, size, numberOfBytesRead)
+    return _ReadProcessMemory(process_handle, base_address, buffer, size, number_of_bytes_read)
 
 
 def WriteProcessMemory(
-        processHandle:        int,
-        baseAddress:          int,
-        buffer:               object,
-        size:                 int,
-        numberOfBytesWritten: object) -> bool:
+        process_handle:          int,
+        base_address:            int,
+        buffer:                  object,
+        size:                    int,
+        number_of_bytes_written: object) -> bool:
     """
-    Writes data to an area of memory in a specified process. The entire area to be written to must be accessible or the
-    operation fails.
+    Writes memory to another process.
 
-    :param processHandle: A handle to the process with memory that is being read.
-    :param baseAddress: A pointer to the base address in the specified process from which to read.
-    :param buffer: A pointer to the buffer that contains data to be written in the address space of the specified
-                   process.
-    :param size: The number of bytes to be written to the specified process.
-    :param numberOfBytesWritten: A pointer to a variable that receives the number of bytes transferred into the
-                                 specified process.
-    :returns: If the function fails, the return value is 0 (zero). To get extended error information, call GetLastError.
-              The function fails if the requested read operation crosses into an area of the process that is
-              inaccessible.
+    Args:
+        process_handle (int): Handle to the process.
+        base_address (int): Address to start writing to.
+        buffer (object): Data buffer.
+        size (int): Number of bytes to write.
+        number_of_bytes_written (object): Variable to receive the number of bytes written.
+
+    Returns:
+        bool: True if written successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory
     """
+    return _WriteProcessMemory(process_handle, base_address, buffer, size, number_of_bytes_written)
 
-    return _WriteProcessMemory(processHandle, baseAddress, buffer, size, numberOfBytesWritten)
 
-
-def VirtualAlloc(address: int, size: int, allocationType: int, protect: int) -> int:
+def VirtualAlloc(address: int, size: int, allocation_type: int, protect: int) -> int:
     """
-    Reserves, commits, or changes the state of a region of pages in the virtual address space of the calling process.
-    Memory allocated by this function is automatically initialized to zero. To allocate memory in the address space of
-    another process, use the VirtualAllocEx function.
+    Allocates memory in the calling process.
 
-    :param address: The starting address of the region to allocate.
-    :param size: The size of the region, in bytes. If the lpAddress parameter is NULL, this value is rounded up to the
-                 next page boundary.
-    :param allocationType: The type of memory allocation.
-    :param protect: The memory protection for the region of pages to be allocated.
-    :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
-              function fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        address (int): Desired address (or 0).
+        size (int): Size in bytes.
+        allocation_type (int): Allocation type flags.
+        protect (int): Memory protection flags.
+
+    Returns:
+        int: Address of allocated memory, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc
     """
+    return _VirtualAlloc(address, size, allocation_type, protect)
 
-    return _VirtualAlloc(address, size, allocationType, protect)
 
-
-def VirtualAllocEx(processHandle: int, address: int, size: int, allocationType: int, protect: int) -> int:
+def VirtualAllocEx(process_handle: int, address: int, size: int, allocation_type: int, protect: int) -> int:
     """
-    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified
-    process. The function initializes the memory it allocates to zero.
+    Allocates memory in another process.
 
-    :param processHandle: The handle to a process.
-    :param address: The pointer that specifies a desired starting address for the region of pages that you want to
-                    allocate.
-    :param size: The size of the region of memory to allocate, in bytes.
-    :param allocationType: The type of memory allocation.
-    :param protect: The memory protection for the region of pages to be allocated.
-    :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
-              function fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process.
+        address (int): Desired address (or 0).
+        size (int): Size in bytes.
+        allocation_type (int): Allocation type flags.
+        protect (int): Memory protection flags.
+
+    Returns:
+        int: Address of allocated memory, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualallocex
     """
+    return _VirtualAllocEx(process_handle, address, size, allocation_type, protect)
 
-    return _VirtualAllocEx(processHandle, address, size, allocationType, protect)
 
-
-def VirtualFree(address: int, size: int, freeType: int) -> bool:
+def VirtualFree(address: int, size: int, free_type: int) -> bool:
     """
-    Releases, decommits, or releases and decommits a region of pages within the virtual address space of the calling
-    process. To free memory allocated in another process by the VirtualAllocEx function, use the VirtualFreeEx function.
+    Releases or decommits memory in the calling process.
 
-    :param address: A pointer to the base address of the region of pages to be freed.
-    :param size: The size of the region of memory to be freed, in bytes.
-    :param freeType: The type of free operation.
-    :returns: If the function succeeds, the return value is nonzero. f the function fails, the return value is 0 (zero).
-              To get extended error information, call GetLastError.
+    Args:
+        address (int): Address to free.
+        size (int): Size to free.
+        free_type (int): Free operation flags.
+
+    Returns:
+        bool: True if successful, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfree
     """
+    return _VirtualFree(address, size, free_type)
 
-    return _VirtualFree(address, size, freeType)
 
-
-def VirtualFreeEx(processHandle: int, address: int, size: int, freeType: int) -> bool:
+def VirtualFreeEx(process_handle: int, address: int, size: int, free_type: int) -> bool:
     """
-    Reserves, commits, or changes the state of a region of memory within the virtual address space of a specified
-    process. The function initializes the memory it allocates to zero.
+    Releases or decommits memory in the virtual address space of a specified process.
 
-    :param processHandle: The handle to a process.
-    :param address: The pointer that specifies a desired starting address for the region of pages that you want to
-                    allocate.
-    :param size: The size of the region of memory to allocate, in bytes.
-    :param freeType: The type of memory allocation.
-    :returns: If the function succeeds, the return value is the base address of the allocated region of pages. If the
-              function fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        process_handle (int): Handle to the process whose memory is to be freed.
+        address (int): Starting address of the region to be freed.
+        size (int): Size of the region to free, in bytes.
+        free_type (int): Type of free operation (e.g., MEM_RELEASE or MEM_DECOMMIT).
+
+    Returns:
+        bool: True if the memory was freed successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualfreeex
     """
+    return _VirtualFreeEx(process_handle, address, size, free_type)
 
-    return _VirtualFreeEx(processHandle, address, size, freeType)
 
-
-def VirtualProtectEx(processHandle: int, address: int, size: int, newProtect: int, oldProtect: object) -> bool:
+def VirtualProtectEx(process_handle: int, address: int, size: int, new_protect: int, old_protect: object) -> bool:
     """
     Changes the protection on a region of committed pages in the virtual address space of a specified process.
 
-    :param processHandle: A handle to the process whose memory protection is to be changed.
-    :param address: A pointer to the base address of the region of pages whose access protection attributes are to be
-                    changed.
-    :param size: The size of the region whose access protection attributes are changed, in bytes.
-    :param newProtect: The memory protection option.
-    :param oldProtect: A pointer to a variable that receives the previous access protection of the first page in the
-                       specified region of pages.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
-              To get extended error information, call GetLastError.
-    """
+    Args:
+        process_handle (int): Handle to the process.
+        address (int): Base address of the region to change.
+        size (int): Size of the region in bytes.
+        new_protect (int): New memory protection option (e.g., PAGE_READWRITE).
+        old_protect (object): Variable to receive the previous protection attributes.
 
-    return _VirtualProtectEx(processHandle, address, size, newProtect, oldProtect)
+    Returns:
+        bool: True if the protection was changed successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-virtualprotectex
+    """
+    return _VirtualProtectEx(process_handle, address, size, new_protect, old_protect)
 
 
 def CreateFileMappingW(
-        fileHandle:            int,
-        fileMappingAttributes: int,
-        protect:               int,
-        maximumSizeHigh:       int,
-        maximumSizeLow:        int,
-        name:                  str | None) -> int:
+        file_handle:             int,
+        file_mapping_attributes: int,
+        protect:                 int,
+        maximum_size_high:       int,
+        maximum_size_low:        int,
+        name:                    str | None) -> int:
     """
     Creates or opens a named or unnamed file mapping object for a specified file.
 
-    :param fileHandle: A handle to the file from which to create a file mapping object.
-    :param fileMappingAttributes: A pointer to a SECURITY_ATTRIBUTES structure that determines whether a returned handle
-                                  can be inherited by child processes.
-    :param protect: Specifies the page protection of the file mapping object.
-    :param maximumSizeHigh: The high-order DWORD of the maximum size of the file mapping object.
-    :param maximumSizeLow: The low-order DWORD of the maximum size of the file mapping object.
-    :param name: The name of the file mapping object.
-    :returns: If the function succeeds, the return value is a handle to the newly created file mapping object. If the
-              object exists before the function call, the function returns a handle to the existing object (with its
-              current size, not the specified size), and GetLastError returns ERROR_ALREADY_EXISTS. If the function
-              fails, the return value is 0. To get extended error information, call GetLastError.
-    """
+    Args:
+        file_handle (int): Handle to the file to be mapped.
+        file_mapping_attributes (int): Pointer to SECURITY_ATTRIBUTES for handle inheritance, or 0.
+        protect (int): Memory protection for the mapping object.
+        maximum_size_high (int): High-order DWORD of the maximum mapping size.
+        maximum_size_low (int): Low-order DWORD of the maximum mapping size.
+        name (str | None): Name of the file mapping object (optional).
 
+    Returns:
+        int: Handle to the file mapping object, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-createfilemappingw
+    """
     if name is None:
         _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPVOID]
         name: int = 0
     else:
         _CreateFileMappingW.argtypes = [HANDLE, ULONG, DWORD, DWORD, DWORD, LPWSTR]
 
-    return _CreateFileMappingW(fileHandle, fileMappingAttributes, protect, maximumSizeHigh, maximumSizeLow, name)
+    return _CreateFileMappingW(file_handle, file_mapping_attributes, protect, maximum_size_high, maximum_size_low, name)
 
 
-def OpenFileMappingW(desiredAccess: int, inheritHandle: bool, name: str) -> int:
+def OpenFileMappingW(desired_access: int, inherit_handle: bool, name: str) -> int:
     """
     Opens a named file mapping object.
 
-    :param desiredAccess: The access to the file mapping object. This access is checked against any security descriptor
-                          on the target file mapping object.
-    :param inheritHandle: If this parameter is True, a process created by the CreateProcess function can inherit the
-                          handle; otherwise, the handle cannot be inherited.
-    :param name: The name of the file mapping object.
-    :returns: The name of the file mapping object to be opened. If there is an open handle to a file mapping object by
-              this name and the security descriptor on the mapping object does not conflict with the dwDesiredAccess
-              parameter, the open operation succeeds. The name can have a "Global" or "Local" prefix to explicitly
-              open an object in the global or session namespace. The remainder of the name can contain any character
-              except the backslash character (\\).
-    """
+    Args:
+        desired_access (int): Access rights for the mapping object.
+        inherit_handle (bool): If True, handle can be inherited by child processes.
+        name (str): Name of the file mapping object.
 
-    mapping = _OpenFileMappingW(desiredAccess, inheritHandle, name)
+    Returns:
+        int: Handle to the file mapping object, or 0 if not found.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-openfilemappingw
+    """
+    mapping = _OpenFileMappingW(desired_access, inherit_handle, name)
     if mapping is None:
         return 0
 
@@ -750,322 +864,424 @@ def OpenFileMappingW(desiredAccess: int, inheritHandle: bool, name: str) -> int:
 
 
 def MapViewOfFile(
-        fileMappingObject:  int,
-        desiredAccess:      int,
-        fileOffsetHigh:     int,
-        fileOffsetLow:      int,
-        numberOfBytesToMap: int) -> int:
+        file_mapping_object:    int,
+        desired_access:         int,
+        file_offset_high:       int,
+        file_offset_low:        int,
+        number_of_bytes_to_map: int) -> int:
     """
-    Maps a view of a file mapping into the address space of a calling process.
+    Maps a view of a file mapping object into the address space of the calling process.
 
-    :param fileMappingObject: A handle to a file mapping object.
-    :param desiredAccess: The type of access to a file mapping object, which determines the page protection of the pages.
-    :param fileOffsetHigh: A high-order DWORD of the file offset where the view begins.
-    :param fileOffsetLow: A low-order DWORD of the file offset where the view is to begin.
-    :param numberOfBytesToMap: The number of bytes of a file mapping to map to the view.
-    :returns: If the function succeeds, the return value is the starting address of the mapped view. If the function
-              fails, the return value is NULL. To get extended error information, call GetLastError.
+    Args:
+        file_mapping_object (int): Handle to the file mapping object.
+        desired_access (int): Access type for the mapped view.
+        file_offset_high (int): High-order DWORD of file offset where the view begins.
+        file_offset_low (int): Low-order DWORD of file offset where the view begins.
+        number_of_bytes_to_map (int): Number of bytes to map.
+
+    Returns:
+        int: Address of the mapped view, or 0 if failed.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-mapviewoffile
     """
+    return _MapViewOfFile(file_mapping_object, desired_access, file_offset_high, file_offset_low, number_of_bytes_to_map)
 
-    return _MapViewOfFile(fileMappingObject, desiredAccess, fileOffsetHigh, fileOffsetLow, numberOfBytesToMap)
 
-
-def UnmapViewOfFile(baseAddress: int) -> bool:
+def UnmapViewOfFile(base_address: int) -> bool:
     """
     Unmaps a mapped view of a file from the calling process's address space.
 
-    :param baseAddress: A pointer to the base address of the mapped view of a file that is to be unmapped.
-    :returns: If the function succeeds, the return value is nonzero. If the function fails, the return value is zero.
-              To get extended error information, call GetLastError.
-    """
+    Args:
+        base_address (int): Base address of the mapped view.
 
-    return _UnmapViewOfFile(baseAddress)
+    Returns:
+        bool: True if unmapped successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-unmapviewoffile
+    """
+    return _UnmapViewOfFile(base_address)
 
 
 def NtMapViewOfSection(
-        sectionHandle:      int,
-        processHandle:      int,
-        baseAddress:        object,
-        zeroBits:           int,
-        commitSize:         int,
-        sectionOffset:      object,
-        viewSize:           object,
-        inheritDisposition: int,
-        allocationType:     int,
-        win32Protect:       int) -> int:
+        section_handle:      int,
+        process_handle:      int,
+        base_address:        object,
+        zero_bits:           int,
+        commit_size:         int,
+        section_offset:      object,
+        view_size:           object,
+        inherit_disposition: int,
+        allocation_type:     int,
+        win32_protect:       int) -> int:
     """
-    Maps a view of a section into the virtual address space of a subject process.
+    Maps a view of a section object into the virtual address space of a specified process.
 
-    :param sectionHandle: Handle to a section object.
-    :param processHandle: Handle to the object that represents the process that the view should be mapped into.
-    :param baseAddress: Pointer to a variable that receives the base address of the view.
-    :param zeroBits: Specifies the number of high-order address bits that must be zero in the base address of the
-                     section view.
-    :param commitSize: Specifies the size, in bytes, of the initially committed region of the view.
-    :param sectionOffset: A pointer to a variable that receives the offset, in bytes, from the beginning of the section
-                          to the view.
-    :param viewSize: A pointer to a SIZE_T variable.
-    :param inheritDisposition: Specifies how the view is to be shared with child processes.
-    :param allocationType: Specifies a set of flags that describes the type of allocation to be performed for the
-                           specified region of pages.
-    :param win32Protect: Specifies the type of protection for the region of initially committed pages.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        section_handle (int): Handle to the section object to map.
+        process_handle (int): Handle to the target process.
+        base_address (object): Receives the base address of the mapped view (output pointer).
+        zero_bits (int): Number of high-order address bits that must be zero in the base address.
+        commit_size (int): Size in bytes of the initially committed region.
+        section_offset (object): Pointer to the offset, in bytes, from the start of the section.
+        view_size (object): Pointer to the size of the view (input/output).
+        inherit_disposition (int): Flags for sharing with child processes.
+        allocation_type (int): Allocation flags for the view.
+        win32_protect (int): Protection for the region of initially committed pages.
+
+    Returns:
+        bool: True if the section was mapped successfully, otherwise False.
+
+    See also:
+        https://ntdoc.m417z.com/ntmapviewofsection
+        https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection
     """
-
-    ntStatus: int = _NtMapViewOfSection(
-        sectionHandle,
-        processHandle,
-        baseAddress,
-        zeroBits,
-        commitSize,
-        sectionOffset,
-        viewSize,
-        inheritDisposition,
-        allocationType,
-        win32Protect
+    nt_status: int = _NtMapViewOfSection(
+        section_handle,
+        process_handle,
+        base_address,
+        zero_bits,
+        commit_size,
+        section_offset,
+        view_size,
+        inherit_disposition,
+        allocation_type,
+        win32_protect
     )
 
-    return ntStatus == STATUS_SUCCESS
+    return nt_status == STATUS_SUCCESS
 
 
-def NtUnmapViewOfSection(processHandle: int, baseAddress: int) -> bool:
+def NtUnmapViewOfSection(process_handle: int, base_address: int) -> bool:
     """
-    Unmaps a view of a section from the virtual address space of a subject process.
+    Unmaps a view of a section from the virtual address space of a process.
 
-    :param processHandle: Handle to a process object that was previously passed to NtMapViewOfSection.
-    :param baseAddress: Pointer to the base virtual address of the view to unmap.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        process_handle (int): Handle to the process whose view is to be unmapped.
+        base_address (int): Base address of the mapped view.
+
+    Returns:
+        bool: True if the view was unmapped successfully, otherwise False.
+
+    See also:
+        https://malapi.io/winapi/NtUnmapViewOfSection
+        https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwunmapviewofsection
     """
-
-    ntStatus: int = _NtUnmapViewOfSection(processHandle, baseAddress)
-    return ntStatus == STATUS_SUCCESS
+    nt_status: int = _NtUnmapViewOfSection(process_handle, base_address)
+    return nt_status == STATUS_SUCCESS
 
 
 def NtQueryInformationProcess(
-        processHandle:            int,
-        processInformationClass:  object,
-        processInformation:       object,
-        processInformationLength: int,
-        returnLength:             int) -> bool:
+        process_handle:             int,
+        process_information_class:  object,
+        process_information:        object,
+        process_information_length: int,
+        return_length:              int) -> bool:
     """
-    Retrieves information about the specified process.
+    Retrieves information about a specified process.
 
-    :param processHandle: A handle to the process for which information is to be retrieved.
-    :param processInformationClass: The type of process information to be retrieved.
-    :param processInformation: A pointer to a buffer supplied by the calling application into which the function writes
-                               the requested information.
-    :param processInformationLength: The size of the buffer pointed to by the ProcessInformation parameter, in bytes.
-    :param returnLength: A pointer to a variable in which the function returns the size of the requested information.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        process_handle (int): Handle to the process.
+        process_information_class (object): Type of process information to retrieve.
+        process_information (object): Buffer to receive the requested information.
+        process_information_length (int): Size of the buffer, in bytes.
+        return_length (int): Variable that receives the number of bytes returned.
+
+    Returns:
+        bool: True if the information was retrieved successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess
     """
-
-    ntStatus: int = _NtQueryInformationProcess(
-        processHandle,
-        processInformationClass,
-        processInformation,
-        processInformationLength,
-        returnLength
+    nt_status: int = _NtQueryInformationProcess(
+        process_handle,
+        process_information_class,
+        process_information,
+        process_information_length,
+        return_length
     )
+    return nt_status == STATUS_SUCCESS
 
-    return ntStatus == STATUS_SUCCESS
 
-
-def NtSuspendProcess(processHandle: int) -> bool:
+def NtSuspendProcess(process_handle: int) -> bool:
     """
-    Suspend the target process.
+    Suspends all threads in the specified process.
 
-    :param processHandle: A handle to the process to be suspended.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        process_handle (int): Handle to the process to suspend.
+
+    Returns:
+        bool: True if the process was suspended successfully, otherwise False.
+
+    See also:
+        https://cyberstoph.org/posts/2021/05/fun-with-processes-suspend-and-resume/
     """
+    nt_status: int = _NtSuspendProcess(process_handle)
+    return nt_status == STATUS_SUCCESS
 
-    ntStatus: int = _NtSuspendProcess(processHandle)
-    return ntStatus == STATUS_SUCCESS
 
-
-def NtResumeProcess(processHandle: int) -> bool:
+def NtResumeProcess(process_handle: int) -> bool:
     """
-    Resume the target process.
+    Resumes all threads in the specified process.
 
-    :param processHandle: A handle to the process to be resumed.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        process_handle (int): Handle to the process to resume.
+
+    Returns:
+        bool: True if the process was resumed successfully, otherwise False.
+
+    See also:
+        https://cyberstoph.org/posts/2021/05/fun-with-processes-suspend-and-resume/
     """
+    nt_status: int = _NtResumeProcess(process_handle)
+    return nt_status == STATUS_SUCCESS
 
-    ntStatus: int = _NtResumeProcess(processHandle)
-    return ntStatus == STATUS_SUCCESS
 
-
-def CreateToolhelp32Snapshot(flags: int, th32ProcessId: int) -> int:
+def CreateToolhelp32Snapshot(flags: int, th32_process_id: int) -> int:
     """
-    Takes a snapshot of the specified processes, as well as the heaps, modules, and threads used by these processes.
+    Takes a snapshot of the specified set of processes, including heaps, modules, and threads.
 
-    :param flags: The portions of the system to be included in the snapshot.
-    :param th32ProcessId: The process identifier of the process to be included in the snapshot. This parameter can be
-                          zero to indicate the current process.
-    :returns: If the function succeeds, it returns an open handle to the specified snapshot.
+    Args:
+        flags (int): Bitmask specifying what to include in the snapshot (e.g., TH32CS_SNAPPROCESS, TH32CS_SNAPMODULE).
+        th32_process_id (int): Process ID to snapshot, or 0 to snapshot all processes.
+
+    Returns:
+        int: Handle to the snapshot on success, or 0 if the call fails.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot
     """
+    return _CreateToolhelp32Snapshot(flags, th32_process_id)
 
-    return _CreateToolhelp32Snapshot(flags, th32ProcessId)
 
-
-def Process32Next(snapshotHandle: int, lppe: object) -> bool:
+def Process32Next(snapshot_handle: int, lppe: object) -> bool:
     """
-    Retrieves information about the next process recorded in a system snapshot.
+    Retrieves information about the next process in a system snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lppe: A pointer to a PROCESSENTRY32 structure.
-    :returns: Returns TRUE if the next entry of the process list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lppe (object): Pointer to a PROCESSENTRY32 structure to receive process info.
+
+    Returns:
+        bool: True if the next process was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32next
     """
+    return _Process32Next(snapshot_handle, lppe)
 
-    return _Process32Next(snapshotHandle, lppe)
 
-
-def Process32First(snapshotHandle: int, lppe: object) -> bool:
+def Process32First(snapshot_handle: int, lppe: object) -> bool:
     """
-    Retrieves information about the first process encountered in a system snapshot.
+    Retrieves information about the first process in a system snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lppe: A pointer to a PROCESSENTRY32 structure.
-    :returns: Returns TRUE if the first entry of the process list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lppe (object): Pointer to a PROCESSENTRY32 structure to receive process info.
+
+    Returns:
+        bool: True if the first process was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32first
     """
+    return _Process32First(snapshot_handle, lppe)
 
-    return _Process32First(snapshotHandle, lppe)
 
-
-def Module32Next(snapshotHandle: int, lpme: object) -> bool:
+def Module32Next(snapshot_handle: int, lpme: object) -> bool:
     """
-    Retrieves information about the next module associated with a process or thread.
+    Retrieves information about the next module associated with a process in a snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lpme: A pointer to a MODULEENTRY32 structure.
-    :returns: Returns TRUE if the next entry of the module list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lpme (object): Pointer to a MODULEENTRY32 structure to receive module info.
+
+    Returns:
+        bool: True if the next module was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-module32next
     """
+    return _Module32Next(snapshot_handle, lpme)
 
-    return _Module32Next(snapshotHandle, lpme)
 
-
-def Module32First(snapshotHandle: int, lpme: object) -> bool:
+def Module32First(snapshot_handle: int, lpme: object) -> bool:
     """
-    Retrieves information about the first module associated with a process.
+    Retrieves information about the first module associated with a process in a snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lpme: A pointer to a MODULEENTRY32 structure.
-    :returns: Returns TRUE if the first entry of the module list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lpme (object): Pointer to a MODULEENTRY32 structure to receive module info.
+
+    Returns:
+        bool: True if the first module was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-module32first
     """
+    return _Module32First(snapshot_handle, lpme)
 
-    return _Module32First(snapshotHandle, lpme)
 
-
-def Thread32Next(snapshotHandle: int, lpte: object) -> bool:
+def Thread32Next(snapshot_handle: int, lpte: object) -> bool:
     """
-    Retrieves information about the next thread of any process encountered in the system memory snapshot.
+    Retrieves information about the next thread in a system snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lpte: A pointer to a THREADENTRY32 structure.
-    :returns: Returns TRUE if the next entry of the thread list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lpte (object): Pointer to a THREADENTRY32 structure to receive thread info.
+
+    Returns:
+        bool: True if the next thread was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-thread32next
     """
+    return _Thread32Next(snapshot_handle, lpte)
 
-    return _Thread32Next(snapshotHandle, lpte)
 
-
-def Thread32First(snapshotHandle: int, lpte: object) -> bool:
+def Thread32First(snapshot_handle: int, lpte: object) -> bool:
     """
-    Retrieves information about the first thread of any process encountered in a system snapshot.
+    Retrieves information about the first thread in a system snapshot.
 
-    :param snapshotHandle: A handle to the snapshot returned from a previous call to the CreateToolhelp32Snapshot
-                           function.
-    :param lpte: A pointer to a THREADENTRY32 structure.
-    :returns: Returns TRUE if the first entry of the thread list has been copied to the buffer or FALSE otherwise.
+    Args:
+        snapshot_handle (int): Handle to the snapshot from CreateToolhelp32Snapshot.
+        lpte (object): Pointer to a THREADENTRY32 structure to receive thread info.
+
+    Returns:
+        bool: True if the first thread was retrieved, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-thread32first
     """
+    return _Thread32First(snapshot_handle, lpte)
 
-    return _Thread32First(snapshotHandle, lpte)
 
-
-def GetStdHandle(stdHandle: int) -> int:
+def GetStdHandle(std_handle: int) -> int:
     """
-    Retrieves a handle to the specified standard device (standard input, standard output, or standard error).
+    Retrieves a handle to a specified standard device (input, output, or error).
 
-    :param stdHandle: The standard device identifier. Can be STD_INPUT_HANDLE, STD_OUTPUT_HANDLE or STD_ERROR_HANDLE.
+    Args:
+        std_handle (int): Identifier for the standard device (e.g., STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE).
+
+    Returns:
+        int: Handle to the specified device, or INVALID_HANDLE_VALUE on failure.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/console/getstdhandle
     """
+    return _GetStdHandle(std_handle)
 
-    return _GetStdHandle(stdHandle)
 
-
-def QueryFullProcessImageNameW(processHandle: int, flags: int, exeName: object, ptrSize: object) -> bool:
+def QueryFullProcessImageNameW(process_handle: int, flags: int, exe_name: object, ptr_size: object) -> bool:
     """
-    Retrieves the full name of the executable image for the specified process.
+    Retrieves the full path of the executable image for the specified process.
 
-    :param processHandle: A handle to the process.
-    :param flags: This parameter can be one of the following values:\n
-                    0 - The name should use the Win32 path format.\n
-                    1 - The name should use the native system path format.
-    :param exeName: A pointer to a buffer that receives the full path to the executable image.
-    :param ptrSize: On input, specifies the size of the lpExeName buffer, in characters. On success, receives the
-                    number of characters written to the buffer, not including the null-terminating character.
-    :returns: True if the function succeeds, False otherwise.
+    Args:
+        process_handle (int): Handle to the process.
+        flags (int): Format flag for the path. Use 0 for Win32 path format, 1 for native system path format.
+        exe_name (object): Buffer (writable) to receive the full path to the executable image.
+        ptr_size (object): On input, specifies the size of exeName in characters. On success, receives the number of
+            characters written (excluding the null terminator).
+
+    Returns:
+        bool: True if the full process image name was retrieved successfully, otherwise False.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-queryfullprocessimagenamew
     """
-
-    return _QueryFullProcessImageNameW(processHandle, flags, exeName, ptrSize)
+    return _QueryFullProcessImageNameW(process_handle, flags, exe_name, ptr_size)
 
 
 class Win32Exception(RuntimeError):
     """
-    Simple Exception-class to represent Windows Errors in python.
+    Exception class representing a Windows API error.
 
-    :param errorCode: Windows error code. if not provided, the windows last error will be used.
-    :param customMessage: A customized message to show when raised. if not provided, the windows message
-                          will be used.
+    Args:
+        error_code (int, optional): The Windows error code. If not provided, the last error from Windows will be used.
+        custom_message (str, optional): A custom error message. If not provided, the message will be generated from Windows.
 
-    .. note:: **See also:** `GetLastError
-          <https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror>`_ and
-          `FormatMessageW <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew>`_
+    Note:
+        See also:
+            - `GetLastError <https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror>`_
+            - `FormatMessageW <https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-formatmessagew>`_
     """
 
-    def __init__(self, errorCode: int = None, customMessage: str = None):
-        self._errorCode: int = GetLastError() if (errorCode is None) else errorCode
-        self._message:   str = customMessage
-
-        if customMessage is None:
-            self.__FormatMessage()
-
-    def GetErrorCode(self) -> int:
+    def __init__(self, error_code: int = None, custom_message: str = None):
         """
-        :returns: The error code.
-        """
+        Initializes a Win32Exception with the provided error code and message.
 
-        return self._errorCode
-
-    def GetErrorMessage(self) -> str:
+        Args:
+            error_code (int, optional): The Windows error code. If None, the result of GetLastError() will be used.
+            custom_message (str, optional): A custom message. If None, a message will be retrieved using FormatMessageW.
         """
-        :returns: The error message of the error code.
-        """
+        self._error_code: int = GetLastError() if (error_code is None) else error_code
+        self._message:   str = custom_message
 
+        if custom_message is None:
+            self.__format_message()
+
+    @property
+    def code(self) -> int:
+        """
+        Returns the Windows error code associated with this exception.
+
+        Returns:
+            int: The Windows error code.
+        """
+        return self._error_code
+
+    @property
+    def message(self) -> str:
+        """
+        Returns the descriptive error message for this exception.
+
+        Returns:
+            str: The error message string.
+        """
         return self._message
 
     def __str__(self) -> str:
-        return f"{self._message} (0x{self._errorCode:08X})"
+        """
+        Returns a string representation of the exception.
+
+        Returns:
+            str: The error message and code in a formatted string.
+        """
+        return f"{self._message} (0x{self._error_code:08X})"
 
     def __repr__(self) -> str:
+        """
+        Returns a representation of the exception suitable for debugging.
+
+        Returns:
+            str: The exception as a string.
+        """
         return 'Win32Exception(%s)' % str(self)
 
-    def __FormatMessage(self) -> None:
-        size = 256
+    def __format_message(self) -> None:
+        """
+        Retrieves the error message string for the error code using FormatMessageW.
+
+        If the buffer is too small, it will be increased until the message fits
+        or a maximum buffer size is reached. If the message cannot be retrieved,
+        sets the message to 'Unknown Error'.
+        """
+        size: int = 256
 
         while size < 0x10000:  # Found 0x10000 in C# std lib
-            msgBuffer: Array = (WCHAR * size)()
+            msg_buffer: Array = create_unicode_buffer(size)
 
-            result = FormatMessageW(0x200 | 0x1000 | 0x2000, None, self._errorCode, 0, msgBuffer, size, None)
+            result: int = FormatMessageW(0x200 | 0x1000 | 0x2000, None, self._error_code, 0, msg_buffer, size, None)
 
             if result > 0:
-                self._message = msgBuffer[:result - 2]
+                self._message = msg_buffer.value
                 return
 
             if GetLastError() != 0x7A:  # ERROR_INSUFFICIENT_BUFFER
                 break
+
+            size += 256
 
         self._message = 'Unknown Error'
 
@@ -1279,6 +1495,3 @@ _QueryFullProcessImageNameW          = windll.kernel32.QueryFullProcessImageName
 _QueryFullProcessImageNameW.argtypes = [HANDLE, DWORD, LPWSTR, PDWORD]
 _QueryFullProcessImageNameW.restype  = BOOL
 # endregion
-
-
-

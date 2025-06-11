@@ -141,7 +141,7 @@ class Hook:
         """
         return f"{self._name}-Hook(Source=0x{self._src_address:08X}, Target=0x{self._dst_address:08X}, Storage=" \
                f"0x{self._buffer.get_address():08X}, Hook='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
-               f"='{bytes(self._buffer.original_opcode).hex(' ').upper()}', Process={self._process.get_process_id()})"
+               f"='{bytes(self._buffer.original_opcode).hex(' ').upper()}', Process={self._process.process_id})"
 
     def __repr__(self):
         """

@@ -191,12 +191,12 @@ class Thread:
 
     def __eq__(self, other: Thread) -> bool:
         same_id: bool         = self._threadId == other.get_id()
-        same_process_id: bool = self._process.get_process_id() == other._process.get_process_id()
+        same_process_id: bool = self._process.process_id == other._process.process_id
 
         return same_id and same_process_id
 
     def __repr__(self) -> str:
-        return f"Thread(id={self.get_id()}, process='{self._process.get_process_id()}')"
+        return f"Thread(id={self.get_id()}, process='{self._process.process_id}')"
 
 
 
