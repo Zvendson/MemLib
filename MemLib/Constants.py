@@ -1,9 +1,3 @@
-"""
-:platform: Windows
-"""
-
-# in case you don't want 3rd party dependency
-
 MAX_PATH: int = 260
 """
 The maximum length for a path string.

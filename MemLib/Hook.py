@@ -1,6 +1,4 @@
 """
-:platform: Windows
-
 Contains structures and classes to manage runtime code hooks in external processes.
 
 - HookBuffer: Structure for storing hook information in remote memory.

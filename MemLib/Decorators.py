@@ -1,6 +1,4 @@
 """
-:platform: Windows
-
 Decorator utilities and platform enforcement helpers.
 
 This module provides decorators for timing, privilege checking, bitness checks,

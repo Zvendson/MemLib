@@ -1,6 +1,4 @@
 """
-:platform: Windows
-
 Custom exceptions for platform and privilege requirements.
 """
 

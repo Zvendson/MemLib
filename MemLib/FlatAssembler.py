@@ -1,6 +1,4 @@
 """
-:platform: Windows
-
 FASM assembler wrapper for runtime assembly code compilation via FASM.dll.
 Provides high-level compile and error handling utilities.
 """

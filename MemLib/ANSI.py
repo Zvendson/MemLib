@@ -1,6 +1,4 @@
 """
-:platform: Windows
-
 Simple RGB to ANSI converter and ANSI terminal utility.
 
 Provides helpers to generate ANSI escape codes for colors, cursor control, and common formatting.
