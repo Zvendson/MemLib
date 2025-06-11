@@ -1,104 +1,99 @@
 """
-:platform: Windows
+Enhanced ctypes.Structure base class with colorized debug output.
+
+This module provides a custom `Struct` class that enables human-friendly and colorized string representations for
+debugging, and supplies some helpers.
+
+Features:
+    * Single-line and multiline colorized summaries
+    * Utility methods
+    * Visual Debugging
+
+Example:
+    class MyStruct(Struct):
+        _fields_ = [
+            ("foo", INT),
+            ("bar", LPWSTR)
+        ]
+
+    s = MyStruct(42, "1337")
+    print(s.prettify())
+    print(s.prettify(colorized=True))
+
+Prettify output:
+MyStruct(Address=0x35C51C0, Size=0x8/8):
+35C51C0:    |0000|  DWORD    foo = 42
+35C51C4:    |0004|  WCHAR*   bar = 1337
+
+References:
+    https://docs.python.org/3/library/ctypes.html
+    https://docs.python.org/3/reference/datamodel.html#class.__annotations__
 """
 
 from ctypes import (
-    Array, Structure, addressof, c_byte,
-    c_char, c_char_p, c_double, c_float,
-    c_int, c_long, c_longlong, c_size_t, c_ubyte,
-    c_uint, c_ulong, c_ulonglong, c_ushort,
-    c_void_p, c_wchar, c_wchar_p, create_string_buffer, memmove,
-    sizeof,
+    Array, Structure, addressof, c_byte, c_char, c_char_p, c_double, c_float, c_int, c_long, c_longlong,
+    c_size_t, c_ubyte, c_uint, c_ulong, c_ulonglong, c_ushort, c_void_p, c_wchar, c_wchar_p, sizeof,
 )
-from typing import Any, Union
+from typing import Any
 
 # noinspection PyProtectedMember
-from _ctypes import _Pointer, _SimpleCData
+from _ctypes import _Pointer
 
 from MemLib.ANSI import (
     BRINK_PINK, ELECTRIC_BLUE, END, FLAMENCO,
     GRANNY_SMITH_APPLE, GREY, HELIOTROPE, JADE,
     LIGHT_GREEN, STRAW, WHITE,
 )
-from MemLib.Decorators import deprecated
 
 
-# Credits: https://github.com/dfint/peclasses/blob/main/peclasses/annotated_structure.py
-class AnnotatedStructMetaclass(type(Structure)):
-    def __new__(cls, name, bases, namespace, **kwargs):
-        _annotations: Any = namespace.get("__annotations__")
-        if _annotations:
-            fields: list[tuple] = list()
-            for name, declared_type in _annotations.items():
-                if name in ["IDENTIFIER", "ADDRESS_EX"]:
-                    continue
 
-                if isinstance(declared_type, str):
-                    raise TypeError("Struct got a non C Type typehint. You might have 'from __fututre__ import "
-                                    "annotations' imported. Recommended is moving it to a file without "
-                                    "annotations being imported, or simply remove the import.")
-
-                field: tuple = (name, declared_type)
-                fields.append(field)
-
-            namespace["_fields_"] = fields
-        return super().__new__(cls, name, bases, namespace, **kwargs)
-
-
-class Struct(Structure, metaclass=AnnotatedStructMetaclass):
+class Struct(Structure):
     """
-    A structure wrapper for the ctype library. it automatically adds _fields_ and fills it according to type
-    annotations from the class. It also adds some utils that allow for pretty debug printing other utils.
+    ctypes.Structure with automatic _fields_ population from type annotations.
+
+    Supports pretty-printing, byte conversion, and colorized debugging output.
+
+    Attributes:
+        IDENTIFIER (str | list[str] | tuple[str]): Optional field(s) used as identifiers for summaries.
+        ADDRESS_EX (int): Optional address override for display/debugging structs read from another process.
+
+    Example:
+        class MyStruct(Struct):
+            field1: ctypes.c_uint
+            field2: ctypes.c_float
+
+        s = MyStruct(42, 3.14)
+        print(s)          # Human-readable summary
+        print(s.prettify(colorized=True))  # Multiline, colored
+
+    Raises:
+        TypeError: If non-ctypes annotation is used.
     """
 
     IDENTIFIER: str | list[str] | tuple[str] = None
     ADDRESS_EX: int = 0x0
 
-    def __init__(self, *args: Any, **kw: Any):
+    def __init__(self, *args: Any, **kw: Any) -> None:
+        """Initializes the structure with given positional and keyword arguments.
+
+        Args:
+            *args: Positional arguments for the base Structure.
+            **kw: Keyword arguments for the base Structure.
+        """
         super(Struct, self).__init__(*args, **kw)
 
-    def __repr__(self):
-        return str(self)
-
-    def __str__(self):
-        return self.to_string()
-
-    @deprecated("Use ToBytes() instead.")
-    def __bytes__(self):
-        return self.to_bytes()
-
-    @classmethod
-    def from_bytes(cls, buffer: bytes) -> 'Struct':
-        struct: Struct = cls()
-        size:   int    = len(buffer)
-
-        if size > struct.get_size():
-            size = struct.get_size()
-
-        memmove(struct.get_address(), buffer, size)
-
-        return struct
-
-    @classmethod
-    def from_addr(cls, address: int) -> 'Struct':
-        return cls.from_address(address)
-
-    def to_bytes(self):
-        buffer: Array = create_string_buffer(self.get_size())
-
-        memmove(buffer, self.get_address(), self.get_size())
-
-        return buffer.raw
-
     def to_string(self, colorized: bool = False) -> str:
-        """
-        :param colorized: Determines if the output should be ANSI colored or not.
-        :returns: A single line string representation of the structure.
-        """
+        """Returns a single-line string summary of the structure.
 
-        out: str       = self.__class__.__name__
+        Args:
+            colorized (bool, optional): If True, output includes ANSI colors. Defaults to False.
+
+        Returns:
+            str: One-line string representation of the structure.
+        """
+        out: str = self.__class__.__name__
         addr_name: str = "Address"
-        address: int   = self.ADDRESS_EX
+        address: int = self.ADDRESS_EX
 
         if self.ADDRESS_EX:
             addr_name += "Ex"
@@ -107,7 +102,7 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
 
         if colorized:
             out = JADE + out + END + f"({FLAMENCO}{addr_name}{END}={BRINK_PINK}0" \
-                                                 f"x{address:X}{END}"
+                                     f"x{address:X}{END}"
         else:
             out += f'({addr_name}=0x{address:X}'
 
@@ -119,7 +114,7 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
                         if key != var_name:
                             continue
 
-                        value: Any     = getattr(self, key, 0)
+                        value: Any = getattr(self, key, 0)
                         value_str: str = _ctype_format_value(value, var_type, colorized)
 
                         if colorized:
@@ -133,7 +128,7 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
                         continue
 
                     value: Any = getattr(self, self.IDENTIFIER, 0)
-                    value      = _ctype_format_value(value, var_type, colorized)
+                    value = _ctype_format_value(value, var_type, colorized)
 
                     if colorized:
                         out += f', {FLAMENCO}{self.IDENTIFIER}{END}={value}'
@@ -151,13 +146,16 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
         return out
 
     def prettify(self, colorized: bool = False, indention: int = 0, start_offset: int = 0) -> str:
-        """
-        :param colorized: Determines if the output should be ANSI colored or not.
-        :param indention: The number of spaces to indent the output. *For Struct inside struct representation.*
-        :param start_offset: The offset to start the output at. *For Struct inside struct representation.*
-        :returns: A multi line string representation of the structure.
-        """
+        """Returns a pretty, multiline string of the structure and its fields.
 
+        Args:
+            colorized (bool, optional): If True, output includes ANSI colors. Defaults to False.
+            indention (int, optional): Number of spaces to indent (for nested structs). Defaults to 0.
+            start_offset (int, optional): Offset for nested struct display. Defaults to 0.
+
+        Returns:
+            str: Multi-line string representation of the structure.
+        """
         if self.ADDRESS_EX:
             address: int = self.ADDRESS_EX + start_offset
         else:
@@ -177,16 +175,16 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
         else:
             out: str = self.to_string(colorized) + ':\n'
 
-        offset: int       = start_offset
+        offset: int = start_offset
         local_offset: int = 0
-        is_first: bool    = True
+        is_first: bool = True
 
         for field in fields:
             var_name, var_type = field
             value: Any = getattr(self, var_name, 0)
 
             if issubclass(var_type, Struct):
-                value.ADDRESS_EX   = self.ADDRESS_EX + offset
+                value.ADDRESS_EX = self.ADDRESS_EX + offset
                 var_type_name: str = _ctype_get_name(var_type, colorized)
 
                 if colorized:
@@ -194,26 +192,26 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
 
                     out += f"{address + local_offset:X}:{' ' * indention}    {GREY}|{offset:04X}|{END}  " \
                            f"{var_type_name} " + " " * spaces + f"{WHITE}" \
-                           f"{var_name}{END}\n"
+                                                                f"{var_name}{END}\n"
 
                 else:
                     out += f"{address + local_offset:X}:{' ' * indention}    |{offset:04X}|  " \
                            f"{var_type_name:{var_type_len}s}   {var_name}\n"
 
-                out          += value.prettify(colorized, indention + 5, offset) + "\n"
-                offset       += sizeof(var_type)
+                out += value.prettify(colorized, indention + 5, offset) + "\n"
+                offset += sizeof(var_type)
                 local_offset += sizeof(var_type)
 
             else:
                 var_type_name: str = _ctype_get_name(var_type, colorized)
-                value: str         = _ctype_format_value(value, var_type, colorized)
+                value: str = _ctype_format_value(value, var_type, colorized)
 
                 if colorized:
                     spaces: int = var_type_len - len(_ctype_get_name(var_type)) + 2
 
                     out += f"{address + local_offset:X}:{' ' * indention}    {GREY}|{offset:04X}|{END}  " \
                            f"{var_type_name} " + " " * spaces + f"{WHITE}" \
-                           f"{var_name:{var_name_len}}{END} = {value}\n"
+                                                                f"{var_name:{var_name_len}}{END} = {value}\n"
 
                 else:
                     out += f"{address + local_offset:X}:{' ' * indention}    |{offset:04X}|  " \
@@ -226,7 +224,7 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
                     else:
                         out = out.rstrip('\n') + f" // Start: {self.to_string()}\n"
 
-                offset       += sizeof(var_type)
+                offset += sizeof(var_type)
                 local_offset += sizeof(var_type)
 
         if indention:
@@ -238,61 +236,110 @@ class Struct(Structure, metaclass=AnnotatedStructMetaclass):
         else:
             return out.rstrip('\n')
 
-    def get_fields(self) -> list:
-        """
-        :returns: The fields of the structure.
-        """
+    def get_fields(self) -> list[tuple[str, Any]]:
+        """Returns the fields of the structure.
 
+        Returns:
+            list[tuple[str, Any]]: List of (field_name, ctype) pairs for the structure.
+        """
         return self._fields_
 
     def get_size(self) -> int:
-        """
-        :returns: The size of the structure.
-        """
+        """Returns the size of the structure in bytes.
 
+        Returns:
+            int: Size of the structure.
+        """
         return sizeof(self)
 
     def get_address(self) -> int:
-        """
-        :returns: the address in Python's memory area..
-        """
+        """Returns the address of the structure in Python memory.
 
+        Returns:
+            int: Memory address of this structure.
+        """
         return addressof(self)
 
     def get_address_ex(self) -> int:
-        """
-        :returns: the address in Python's memory area..
-        """
+        """Returns the external address of the structure if set.
 
+        Returns:
+            int: Custom (external) address or 0 if not set.
+        """
         return self.ADDRESS_EX
 
+    def __repr__(self) -> str:
+        """Returns a human-readable full summary string for the structure.
 
-def _ctype_get_array_type(ctype: Any):
+        Returns:
+            str: The string representation of the structure.
+        """
+        return self.prettify()
+
+    def __str__(self) -> str:
+        """Returns a human-readable summary string for the structure.
+
+        Returns:
+            str: Human-readable summary.
+        """
+        return self.to_string()
+
+def _ctype_get_array_type(ctype: Any) -> Any:
+    """Returns the underlying type of a ctypes array.
+
+    Args:
+        ctype (Any): The ctypes array type.
+
+    Returns:
+        Any: The element type of the array.
+    """
     # noinspection PyProtectedMember
     return ctype._type_
 
-
 def _ctype_get_is_array(ctype) -> bool:
+    """Returns the base type of a ctypes array.
+
+    Args:
+        ctype (Any): The ctypes array type.
+
+    Returns:
+        Any: The element type of the array.
+    """
     return issubclass(ctype, Array)
 
-
 def _ctype_get_is_pointer(ctype) -> bool:
+    """Checks if the given ctypes type is a pointer.
+
+    Args:
+        ctype (Any): The ctypes type to check.
+
+    Returns:
+        bool: True if the type is a pointer, False otherwise.
+    """
     return issubclass(ctype, _Pointer) or ctype.__name__[0:2] == "LP"
 
-
 def _ctype_get_name(ctype, colorized: bool = False) -> str:
+    """Gets the display name for a ctypes type, optionally colorized.
+
+    Args:
+        ctype (Any): The ctypes type.
+        colorized (bool, optional): If True, include ANSI colors in output. Defaults to False.
+
+    Returns:
+        str: Readable (and optionally colorized) type name.
+    """
     if issubclass(ctype, Struct):
         if colorized:
             return LIGHT_GREEN + ctype.__name__ + END
         else:
             return ctype.__name__
 
-    extra: str     = ''
+    extra: str = ''
     is_array: bool = _ctype_get_is_array(ctype)
 
     if is_array:
         arr_size: int = sizeof(ctype)
-        ctype: Any    = _ctype_get_array_type(ctype)
+        ctype: Any = _ctype_get_array_type(ctype)
 
         if colorized:
             extra = f'[{ELECTRIC_BLUE}{int(arr_size / sizeof(ctype))}{END}]'
@@ -301,12 +348,12 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
 
     # isinstance or issubclass doesnt work well
     is_pointer: bool = _ctype_get_is_pointer(ctype)
-    cname: str       = ctype.__name__
-    color: str       = ""
-    endcolor: str    = ""
+    cname: str = ctype.__name__
+    color: str = ""
+    endcolor: str = ""
 
     if colorized:
-        color    = STRAW
+        color = STRAW
         endcolor = END
 
     if is_pointer:
@@ -357,10 +404,18 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
 
     return name + extra
 
-
 def _ctype_get_format(ctype, color: str = "") -> str:
+    """Returns the format string used to display a value of the given ctypes type.
+
+    Args:
+        ctype (Any): The ctypes type.
+        color (str, optional): ANSI color string prefix for formatting. Defaults to "".
+
+    Returns:
+        str: Format string for the type, e.g. '%d', '%X', '%f'.
+    """
     endcolor: str = ""
-    cname:    str = ctype.__name__
+    cname: str = ctype.__name__
 
     if color != "":
         endcolor = END
@@ -397,8 +452,15 @@ def _ctype_get_format(ctype, color: str = "") -> str:
 
     return color + f'%s' + endcolor
 
-
 def _ctype_get_color(ctype) -> str:
+    """Returns an ANSI color code for the given ctypes type.
+
+    Args:
+        ctype (Any): The ctypes type.
+
+    Returns:
+        str: ANSI color code as a string for pretty-printing.
+    """
     cname: str = ctype.__name__
 
     if _ctype_get_is_pointer(ctype):
@@ -433,16 +495,26 @@ def _ctype_get_color(ctype) -> str:
 
     return GRANNY_SMITH_APPLE
 
-
 def _ctype_format_value(cvalue: Any, ctype, colorized: bool = False) -> str:
+    """Formats a ctypes value as a string, handling arrays, pointers, and scalar values.
+
+    Args:
+        cvalue (Any): The value to format.
+        ctype (Any): The ctypes type of the value.
+        colorized (bool, optional): If True, output will include ANSI color codes. Defaults to False.
+
+    Returns:
+        str: The formatted string for the value.
+    """
+
     if colorized:
         color: str = _ctype_get_color(ctype)
     else:
         color: str = ""
 
     if _ctype_get_is_array(ctype):
-        _type:    Any = _ctype_get_array_type(ctype)
-        fmt:      str = _ctype_get_format(_type, color)
+        _type: Any = _ctype_get_array_type(ctype)
+        fmt: str = _ctype_get_format(_type, color)
         arr_type: Any = _ctype_get_array_type(ctype)
 
         if issubclass(arr_type, c_char) or issubclass(arr_type, c_wchar):
@@ -461,8 +533,18 @@ def _ctype_format_value(cvalue: Any, ctype, colorized: bool = False) -> str:
 
     fmt: str = _ctype_get_format(ctype, color)
 
+    if ctype == c_char_p:
+        if cvalue is None:
+            cvalue = b''
+        return fmt % cvalue
+
+    if ctype == c_wchar_p:
+        if cvalue is None:
+            cvalue = ""
+        return fmt % cvalue
+
     if _ctype_get_is_pointer(cvalue.__class__):
-        cvalue = addressof(cvalue)
+        cvalue = addressof(cvalue) if cvalue else 0
 
     if cvalue is None and ('%X' in fmt or '%f' in fmt):
         cvalue = 0

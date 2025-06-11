@@ -5,49 +5,44 @@ Supports querying, opening, suspending/resuming, terminating, memory reading/wri
 module/thread enumeration, and memory management in remote processes via the Win32 API.
 
 Note:
-    - Only 32-bit processes are supported.
+    - Only 32-bit processes are supported. (yet)
     - Requires sufficient permissions to access the target process.
 
 Raises:
     ValueError: If a process does not exist or parameters are invalid.
-    Kernel32.Win32Exception: If a Windows API call fails.
+    windows.Win32Exception: If a Windows API call fails.
 """
-
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Literal, Type, TypeVar
+from ctypes import Array, byref, create_unicode_buffer, pointer, sizeof
+from ctypes.wintypes import BYTE, DWORD
+from pathlib import Path
+from typing import Callable, Literal, TYPE_CHECKING, Type, TypeVar
 
 import psutil
-from pathlib import Path
 
-from ctypes import Array, byref, create_unicode_buffer, pointer, sizeof
-from ctypes.wintypes import BYTE, DWORD, WCHAR
-
-from MemLib import Kernel32
+from MemLib import windows
 from MemLib.Constants import (
-    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE,
-    NORMAL_PRIORITY_CLASS, PAGE_EXECUTE_READWRITE,
-    PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ, PROCESS_VM_WRITE,
-    TH32CS_SNAPMODULE,
-    TH32CS_SNAPMODULE32, TH32CS_SNAPPROCESS,
-    TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
+    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS,
+    PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION,
+    PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32,
+    TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
 from MemLib.Decorators import require_32bit
+from MemLib.Module import Module
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
     IMAGE_NT_HEADERS32, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
-    ProcessBasicInformation, Struct,
-    THREADENTRY32,
+    PROCESS_BASIC_INFORMATION, Struct, THREADENTRY32,
 )
-from MemLib.Module import Module
 from MemLib.Thread import Thread
+
 
 
 if TYPE_CHECKING:
     T = TypeVar('T')
-    WaitCallback = Kernel32.WaitOrTimerCallback
-
+    WaitCallback = windows.WaitOrTimerCallback
 
 class Process:
     """
@@ -83,22 +78,22 @@ class Process:
 
         Raises:
             ValueError: If process_id is 0 or the process does not exist.
-            Kernel32.Win32Exception: If opening the process fails.
+            windows.Win32Exception: If opening the process fails.
         """
         if not process_id:
             raise ValueError("processId cannot be 0.")
 
-        self._process_id: int                      = process_id
-        self._handle: int                          = process_handle
-        self._access: int                          = access
-        self._inherit: bool                        = inherit
-        self._name: str | None                     = None
-        self._path: Path | None                    = None
-        self._callbacks: list                      = list()
-        self._wait: int                            = 0
-        self._wait_callback: WaitCallback          = Kernel32.CreateWaitOrTimerCallback(self.__on_process_terminate)
-        self._peb: PEB | None                      = None
-        self._mzheader: MZ_FILEHEADER | None       = None
+        self._process_id: int = process_id
+        self._handle: int = process_handle
+        self._access: int = access
+        self._inherit: bool = inherit
+        self._name: str | None = None
+        self._path: Path | None = None
+        self._callbacks: list = list()
+        self._wait: int = 0
+        self._wait_callback: WaitCallback = windows.CreateWaitOrTimerCallback(self.__on_process_terminate)
+        self._peb: PEB | None = None
+        self._mzheader: MZ_FILEHEADER | None = None
         self._imgheader: IMAGE_NT_HEADERS32 | None = None
 
         if not self._handle:
@@ -180,7 +175,7 @@ class Process:
             bool: True if the process was opened successfully, False otherwise.
 
         Raises:
-            Kernel32.Win32Exception: If the process could not be opened with the desired access rights.
+            windows.Win32Exception: If the process could not be opened with the desired access rights.
         """
         if self._handle != 0:
             self.close()
@@ -188,12 +183,12 @@ class Process:
         if process_id != 0:
             self._process_id = process_id
 
-        self._access  = access
+        self._access = access
         self._inherit = inherit
-        self._handle  = Kernel32.OpenProcess(self._process_id, self._inherit, self._access)
+        self._handle = windows.OpenProcess(self._access, self._inherit, self._process_id)
 
         if not self._handle:
-            raise Kernel32.Win32Exception()
+            raise windows.Win32Exception()
 
         return self._handle != 0
 
@@ -205,11 +200,11 @@ class Process:
             bool: True if the process was closed successfully, False otherwise.
 
         Raises:
-            Kernel32.Win32Exception: If the process handle could not be closed.
+            windows.Win32Exception: If the process handle could not be closed.
         """
         self._unregister_wait()
 
-        if Kernel32.CloseHandle(self._handle):
+        if windows.CloseHandle(self._handle):
             self._handle = 0
             return True
 
@@ -222,7 +217,7 @@ class Process:
         Returns:
             bool: True if the process was suspended successfully, False otherwise.
         """
-        return Kernel32.NtSuspendProcess(self._handle)
+        return windows.NtSuspendProcess(self._handle)
 
     def resume(self) -> bool:
         """
@@ -231,7 +226,7 @@ class Process:
         Returns:
             bool: True if the process was resumed successfully, False otherwise.
         """
-        return Kernel32.NtResumeProcess(self._handle)
+        return windows.NtResumeProcess(self._handle)
 
     def register_on_exit_callback(self, callback: Callable[[int, int], None]) -> bool:
         """
@@ -263,7 +258,7 @@ class Process:
         self._callbacks.remove(callback)
 
         if self._wait and len(self._callbacks) == 0:
-            success = Kernel32.UnregisterWait(self._wait)
+            success = windows.UnregisterWait(self._wait)
             self._wait = 0
             return success
 
@@ -285,10 +280,10 @@ class Process:
             Thread: The created Thread object.
 
         Raises:
-            Kernel32.Win32Exception: If thread creation fails.
+            windows.Win32Exception: If thread creation fails.
         """
         thread_id: DWORD = DWORD()
-        thread_handle: int = Kernel32.CreateRemoteThread(
+        thread_handle: int = windows.CreateRemoteThread(
             self._handle,
             thread_attributes,
             stack_size,
@@ -343,7 +338,7 @@ class Process:
 
         try:
             module: Module = self.get_main_module()
-        except Kernel32.Win32Exception as e:
+        except windows.Win32Exception as e:
             self._name = None
         else:
             self._name = module.name
@@ -363,9 +358,9 @@ class Process:
 
         name_buffer: Array = create_unicode_buffer(4096)
         size_buffer: DWORD = DWORD(4096)
-        path: str | None   = None
+        path: str | None = None
 
-        if Kernel32.QueryFullProcessImageNameW(self._handle, 0, name_buffer, pointer(size_buffer)):
+        if windows.QueryFullProcessImageNameW(self._handle, 0, name_buffer, pointer(size_buffer)):
             path = name_buffer.value
 
         if isinstance(path, str):
@@ -380,7 +375,7 @@ class Process:
         Returns:
             int: The current priority class of the process (see Windows API priority class constants).
         """
-        return Kernel32.GetPriorityClass(self._handle)
+        return windows.GetPriorityClass(self._handle)
 
     def set_priority_class(self, priority: int = NORMAL_PRIORITY_CLASS) -> bool:
         """
@@ -392,7 +387,7 @@ class Process:
         Returns:
             bool: True if the priority class was set successfully, False otherwise.
         """
-        return Kernel32.SetPriorityClass(self._handle, priority)
+        return windows.SetPriorityClass(self._handle, priority)
 
     def get_modules(self) -> list[Module]:
         """
@@ -402,28 +397,28 @@ class Process:
             list[Module]: List of Module objects. Empty if process is not opened.
 
         Raises:
-            Kernel32.Win32Exception: If the process is not opened or if the snapshot could not be created.
+            windows.Win32Exception: If the process is not opened or if the snapshot could not be created.
         """
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
         if not snapshot:
-            raise Kernel32.Win32Exception()
+            raise windows.Win32Exception()
 
         module_buffer: MODULEENTRY32 = MODULEENTRY32()
-        module_buffer.dwSize         = module_buffer.get_size()
+        module_buffer.dwSize = module_buffer.get_size()
 
-        if not Kernel32.Module32First(snapshot, byref(module_buffer)):
-            Kernel32.CloseHandle(snapshot)
-            raise Kernel32.Win32Exception()
+        if not windows.Module32First(snapshot, byref(module_buffer)):
+            windows.CloseHandle(snapshot)
+            raise windows.Win32Exception()
 
         module_list: list[Module] = list()
 
-        while Kernel32.Module32Next(snapshot, byref(module_buffer)):
+        while windows.Module32Next(snapshot, byref(module_buffer)):
             module: Module = Module(module_buffer, self)
 
             module_list.append(module)
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return module_list
 
     def get_main_module(self) -> Module:
@@ -434,7 +429,7 @@ class Process:
             Module: The main module object.
 
         Raises:
-            Kernel32.Win32Exception: If the process is not opened, if the snapshot could not be created,
+            windows.Win32Exception: If the process is not opened, if the snapshot could not be created,
                 or if the main module could not be found.
         """
         return self.get_module(None)
@@ -447,36 +442,36 @@ class Process:
             Module: The main module object.
 
         Raises:
-            Kernel32.Win32Exception: If the process is not opened, if the snapshot could not be created,
+            windows.Win32Exception: If the process is not opened, if the snapshot could not be created,
                 or if the main module could not be found.
         """
         module_buffer: MODULEENTRY32 = MODULEENTRY32()
-        module_buffer.dwSize         = module_buffer.get_size()
+        module_buffer.dwSize = module_buffer.get_size()
 
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
         if not snapshot:
-            raise Kernel32.Win32Exception()
+            raise windows.Win32Exception()
 
         if name is None:
-            if not Kernel32.Module32First(snapshot, byref(module_buffer)):
-                raise Kernel32.Win32Exception()
+            if not windows.Module32First(snapshot, byref(module_buffer)):
+                raise windows.Win32Exception()
 
             module: Module = Module(module_buffer, self)
 
-            Kernel32.CloseHandle(snapshot)
+            windows.CloseHandle(snapshot)
             return module
 
         name: bytes = name.encode('ascii').lower()
 
-        while Kernel32.Module32Next(snapshot, byref(module_buffer)):
+        while windows.Module32Next(snapshot, byref(module_buffer)):
             if module_buffer.szModule.lower() == name:
                 module: Module = Module(module_buffer, self)
 
-                Kernel32.CloseHandle(snapshot)
+                windows.CloseHandle(snapshot)
                 return module
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return None
 
     def get_threads(self) -> list[Thread]:
@@ -487,31 +482,31 @@ class Process:
             list[Thread]: List of Thread objects. Empty if process is not opened.
 
         Raises:
-            Kernel32.Win32Exception: If the process is not opened or if the snapshot could not be created.
+            windows.Win32Exception: If the process is not opened or if the snapshot could not be created.
         """
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
         if not snapshot:
-            raise Kernel32.Win32Exception()
+            raise windows.Win32Exception()
 
         thread_buffer: THREADENTRY32 = THREADENTRY32()
-        thread_buffer.dwSize         = thread_buffer.get_size()
+        thread_buffer.dwSize = thread_buffer.get_size()
 
-        if not Kernel32.Thread32First(snapshot, byref(thread_buffer)):
-            err = Kernel32.Win32Exception()
-            Kernel32.CloseHandle(snapshot)
+        if not windows.Thread32First(snapshot, byref(thread_buffer)):
+            err = windows.Win32Exception()
+            windows.CloseHandle(snapshot)
             raise err
 
         thread_list: list[Thread] = list()
-        thread_found: bool        = True
+        thread_found: bool = True
 
         while thread_found:
             if thread_buffer.th32OwnerProcessID == self._process_id:
                 thread: Thread = Thread(thread_buffer.th32ThreadID, self)
                 thread_list.append(thread)
 
-            thread_found = Kernel32.Thread32Next(snapshot, byref(thread_buffer))
+            thread_found = windows.Thread32Next(snapshot, byref(thread_buffer))
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return thread_list
 
     def get_main_thread(self) -> Thread | None:
@@ -522,20 +517,20 @@ class Process:
             Thread | None: The main Thread object, or None if not found.
 
         Raises:
-            Kernel32.Win32Exception: If the process is not opened, if the snapshot could not be created,
+            windows.Win32Exception: If the process is not opened, if the snapshot could not be created,
                 or if the main thread could not be found.
         """
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
         if not snapshot:
-            raise Kernel32.Win32Exception()
+            raise windows.Win32Exception()
 
         thread_buffer: THREADENTRY32 = THREADENTRY32()
-        thread_buffer.dwSize         = thread_buffer.get_size()
-        thread: Thread | None        = None
+        thread_buffer.dwSize = thread_buffer.get_size()
+        thread: Thread | None = None
 
-        if not Kernel32.Thread32First(snapshot, byref(thread_buffer)):
-            err = Kernel32.Win32Exception()
-            Kernel32.CloseHandle(snapshot)
+        if not windows.Thread32First(snapshot, byref(thread_buffer)):
+            err = windows.Win32Exception()
+            windows.CloseHandle(snapshot)
             raise err
 
         thread_found: bool = True
@@ -545,9 +540,9 @@ class Process:
                 thread = Thread(thread_buffer.th32ThreadID, self)
                 break
 
-            thread_found = Kernel32.Thread32Next(snapshot, byref(thread_buffer))
+            thread_found = windows.Thread32Next(snapshot, byref(thread_buffer))
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return thread
 
     @property
@@ -561,8 +556,8 @@ class Process:
         if self._peb is not None:
             return self._peb
 
-        process_info: ProcessBasicInformation = ProcessBasicInformation()
-        if not Kernel32.NtQueryInformationProcess(self._handle, 0, byref(process_info), process_info.get_size(), 0):
+        process_info: PROCESS_BASIC_INFORMATION = PROCESS_BASIC_INFORMATION()
+        if not windows.NtQueryInformationProcess(self._handle, 0, byref(process_info), process_info.get_size(), 0):
             return None
 
         self._peb = self.read_struct(process_info.PebBaseAddress, PEB)
@@ -579,7 +574,7 @@ class Process:
         if self._mzheader is not None:
             return self._mzheader
 
-        self._mzheader = self.read_struct(self.base(), MZ_FILEHEADER)
+        self._mzheader = self.read_struct(self.base, MZ_FILEHEADER)
 
         return self._mzheader
 
@@ -595,7 +590,7 @@ class Process:
             return self._imgheader
 
         mzheader: MZ_FILEHEADER = self.file_header
-        self._imgheader         = self.read_struct(self.base() + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
+        self._imgheader = self.read_struct(self.base + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
 
         return self._imgheader
 
@@ -635,8 +630,8 @@ class Process:
         Returns:
             list[IMAGE_SECTION_HEADER]: List of section headers, even if process was created in suspended mode.
         """
-        base: int              = self.base
-        mz: MZ_FILEHEADER      = self.file_header
+        base: int = self.base
+        mz: MZ_FILEHEADER = self.file_header
         pe: IMAGE_NT_HEADERS32 = self.image_header
 
         section_base: int = base + mz.PEHeaderOffset + pe.get_sections_offset()
@@ -738,7 +733,7 @@ class Process:
         Returns:
             bool: True if the process was terminated successfully, False otherwise.
         """
-        return Kernel32.TerminateProcess(self._handle, exit_code)
+        return windows.TerminateProcess(self._handle, exit_code)
 
     def read(self, address: int, length: int) -> bytes:
         """
@@ -754,8 +749,9 @@ class Process:
         if not self.exists:
             return b''
 
-        buffer: Array = (BYTE * length)()
-        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), length, None):
+        # noinspection PyCallingNonCallable
+        buffer: Array = (BYTE * length)()  # type: ignore
+        if windows.ReadProcessMemory(self._handle, address, byref(buffer), length, None):
             return bytes(buffer)
 
         return b''
@@ -776,7 +772,7 @@ class Process:
 
         buffer: T = struct_class()
 
-        if Kernel32.ReadProcessMemory(self._handle, address, byref(buffer), buffer.get_size(), None):
+        if windows.ReadProcessMemory(self._handle, address, byref(buffer), buffer.get_size(), None):
             buffer.ADDRESS_EX = address
             return buffer
 
@@ -893,10 +889,10 @@ class Process:
         if not self.exists:
             return False
 
-        size: int           = len(binary_data)
+        size: int = len(binary_data)
         old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
 
-        success: bool = Kernel32.WriteProcessMemory(self._handle, address, binary_data, size, None)
+        success: bool = windows.WriteProcessMemory(self._handle, address, binary_data, size, None)
 
         self.protect(address, size, old_protection)
 
@@ -916,9 +912,9 @@ class Process:
         if not self.exists:
             return False
 
-        size: int           = data.get_size()
+        size: int = data.get_size()
         old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool       = Kernel32.WriteProcessMemory(self._handle, address, byref(data), size, None)
+        success: bool = windows.WriteProcessMemory(self._handle, address, byref(data), size, None)
 
         self.protect(address, size, old_protection)
 
@@ -939,7 +935,7 @@ class Process:
             return False
 
         old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool       = self.write(address, b'\x00' * size)
+        success: bool = self.write(address, b'\x00' * size)
 
         self.protect(address, size, old_protection)
 
@@ -962,7 +958,7 @@ class Process:
         if not self.exists:
             return 0
 
-        return Kernel32.VirtualAllocEx(self._handle, address, size, allocation_type, protect)
+        return windows.VirtualAllocEx(self._handle, address, size, allocation_type, protect)
 
     def free(self, address: int, size: int = 0, free_type: int = MEM_RELEASE) -> bool:
         """
@@ -976,7 +972,7 @@ class Process:
         Returns:
             bool: True if successful, False otherwise.
         """
-        return Kernel32.VirtualFreeEx(self._handle, address, size, free_type)
+        return windows.VirtualFreeEx(self._handle, address, size, free_type)
 
     def protect(self, address, size, new_protection: int) -> int:
         """
@@ -991,7 +987,7 @@ class Process:
             int: The old protection type on success, 0 on failure.
         """
         old_protection: DWORD = DWORD()
-        if not Kernel32.VirtualProtectEx(int(self._handle), address, size, new_protection, old_protection):
+        if not windows.VirtualProtectEx(int(self._handle), address, size, new_protection, old_protection):
             return 0
 
         return old_protection.value
@@ -1009,15 +1005,15 @@ class Process:
         """
         process_list: list[Process] = list()
 
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
             return process_list
 
         process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
-        process_buffer.dwSize          = process_buffer.get_size()
+        process_buffer.dwSize = process_buffer.get_size()
 
-        if not Kernel32.Process32First(snapshot, byref(process_buffer)):
-            Kernel32.CloseHandle(snapshot)
+        if not windows.Process32First(snapshot, byref(process_buffer)):
+            windows.CloseHandle(snapshot)
             return process_list
 
         process_name: bytes = process_name.encode('ascii').lower()
@@ -1026,18 +1022,19 @@ class Process:
         process: Process
 
         while process_found:
-            if process_buffer.th32ProcessID and (process_name == b"" or process_buffer.szExeFile.lower() == process_name):
+            if process_buffer.th32ProcessID and (
+                    process_name == b"" or process_buffer.szExeFile.lower() == process_name):
                 try:
                     process = Process(process_buffer.th32ProcessID)
-                except Kernel32.Win32Exception:
+                except windows.Win32Exception:
                     process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
 
                 process._name = process_buffer.szExeFile.decode('ascii')
                 process_list.append(process)
 
-            process_found = Kernel32.Process32Next(snapshot, byref(process_buffer))
+            process_found = windows.Process32Next(snapshot, byref(process_buffer))
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return process_list
 
     @staticmethod
@@ -1051,34 +1048,35 @@ class Process:
         Returns:
             Process | None: The matching process, or None if not found.
         """
-        snapshot: int = Kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
             return None
 
         process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
-        process_buffer.dwSize          = process_buffer.get_size()
+        process_buffer.dwSize = process_buffer.get_size()
 
-        if not Kernel32.Process32First(snapshot, byref(process_buffer)):
-            Kernel32.CloseHandle(snapshot)
+        if not windows.Process32First(snapshot, byref(process_buffer)):
+            windows.CloseHandle(snapshot)
             return None
 
-        process_name:  bytes    = process_name.encode('ascii').lower()
+        process_name: bytes = process_name.encode('ascii').lower()
         process: Process | None = None
-        process_found: bool     = True
+        process_found: bool = True
 
         while process_found:
-            if process_buffer.th32ProcessID and (process_name == b"" or process_buffer.szExeFile.lower() == process_name):
+            if process_buffer.th32ProcessID and (
+                    process_name == b"" or process_buffer.szExeFile.lower() == process_name):
                 try:
                     process = Process(process_buffer.th32ProcessID)
-                except Kernel32.Win32Exception:
+                except windows.Win32Exception:
                     process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
 
-                process._name = process_buffer.szExeFile
+                process._name = process_buffer.szExeFile.decode('ascii')
                 break
 
-            process_found = Kernel32.Process32Next(snapshot, byref(process_buffer))
+            process_found = windows.Process32Next(snapshot, byref(process_buffer))
 
-        Kernel32.CloseHandle(snapshot)
+        windows.CloseHandle(snapshot)
         return process
 
     def _register_wait(self) -> bool:
@@ -1089,7 +1087,7 @@ class Process:
             bool: True if the wait was registered, False otherwise.
         """
         if not self._wait:
-            self._wait = Kernel32.RegisterWaitForSingleObject(
+            self._wait = windows.RegisterWaitForSingleObject(
                 self._handle,
                 self._wait_callback,
                 self._process_id,
@@ -1107,7 +1105,7 @@ class Process:
             bool: True if unregistered or not set, False otherwise.
         """
         if self._wait:
-            success: bool = Kernel32.UnregisterWait(self._wait)
+            success: bool = windows.UnregisterWait(self._wait)
             self._wait = 0
             return success
 

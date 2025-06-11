@@ -1,20 +1,110 @@
 """
-:platform: Windows
+Windows native structure definitions for process, thread, PE, and GUI data.
+
+This module provides Python ctypes-based structures that map to Windows native
+types used for process management, Portable Executable (PE) parsing, thread and
+module enumeration, and GUI programming.
+
+Features:
+    * Process/thread structures (PROCESS_INFORMATION, PROCESSENTRY32, THREADENTRY32)
+    * PE/COFF/NT/section/image headers for PE file parsing (IMAGE_DOS_HEADER, IMAGE_NT_HEADERS32, etc.)
+    * Windows message and GUI-related structures (MSG, WNDCLASS)
+    * Unicode and ANSI variants where appropriate
+    * Structs extend a common Struct base class for enhanced inspection
+
+Example:
+    dos = IMAGE_DOS_HEADER()
+    print(dos)
+
+References:
+    https://learn.microsoft.com/en-us/windows/win32/api/
+    https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
+    https://docs.python.org/3/library/ctypes.html
 """
 
 from ctypes import WINFUNCTYPE
 from ctypes.wintypes import (
-    BYTE, CHAR, DWORD, HANDLE,
-    HMODULE, HWND, INT, LONG,
-    LPARAM, LPCSTR, LPSTR, LPVOID,
-    LPWSTR, MAX_PATH, PBYTE, UINT, ULONG,
-    USHORT, WORD, WPARAM,
+    BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, LPWSTR,
+    MAX_PATH, PBYTE, UINT, ULONG, USHORT, WORD, WPARAM,
 )
+from typing import Any
+
+from _ctypes import Array
 
 from MemLib.Struct import Struct
 
 
-class StartupInfoW(Struct):
+
+class STARTUPINFOA(Struct):
+    """
+    Specifies window station, desktop, standard handles, and window appearance for a process at creation time (ANSI version).
+
+    This structure is used with process creation functions such as CreateProcessW to define various properties of the main window and standard I/O handles for the new process.
+
+    Fields:
+        cb              (DWORD): Size of this structure, in bytes.
+        lpReserved      (LPSTR): Reserved; must be NULL.
+        lpDesktop       (LPSTR): Name of the desktop (as a byte string) associated with the process.
+        lpTitle         (LPSTR): Title for the main window.
+        dwX             (DWORD): Initial X position of the window.
+        dwY             (DWORD): Initial Y position of the window.
+        dwXSize         (DWORD): Width of the window.
+        dwYSize         (DWORD): Height of the window.
+        dwXCountChars   (DWORD): Screen buffer width (in characters) for console applications.
+        dwYCountChars   (DWORD): Screen buffer height (in characters) for console applications.
+        dwFillAttribute (DWORD): Initial text and background colors for console applications.
+        dwFlags         (DWORD): Flags that control window appearance and handle usage.
+        wShowWindow     (WORD) : ShowWindow value for the process’s main window.
+        cbReserved2     (WORD) : Size of the lpReserved2 buffer.
+        lpReserved2     (PBYTE): Reserved; must be NULL.
+        hStdInput       (HANDLE): Standard input handle for the process.
+        hStdOutput      (HANDLE): Standard output handle for the process.
+        hStdError       (HANDLE): Standard error handle for the process.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfoa
+    """
+    cb: int
+    lpReserved: bytes | None
+    lpDesktop: bytes | None
+    lpTitle: bytes | None
+    dwX: int
+    dwY: int
+    dwXSize: int
+    dwYSize: int
+    dwXCountChars: int
+    dwYCountChars: int
+    dwFillAttribute: int
+    dwFlags: int
+    wShowWindow: int
+    cbReserved2: int
+    lpReserved2: PBYTE
+    hStdInput: int | None
+    hStdOutput: int | None
+    hStdError: int | None
+
+    _fields_ = [
+        ('cb', DWORD),
+        ('lpReserved', LPSTR),
+        ('lpDesktop', LPSTR),
+        ('lpTitle', LPSTR),
+        ('dwX', DWORD),
+        ('dwY', DWORD),
+        ('dwXSize', DWORD),
+        ('dwYSize', DWORD),
+        ('dwXCountChars', DWORD),
+        ('dwYCountChars', DWORD),
+        ('dwFillAttribute', DWORD),
+        ('dwFlags', DWORD),
+        ('wShowWindow', WORD),
+        ('cbReserved2', WORD),
+        ('lpReserved2', PBYTE),
+        ('hStdInput', HANDLE),
+        ('hStdOutput', HANDLE),
+        ('hStdError', HANDLE)
+    ]
+
+class STARTUPINFOW(Struct):
     """
     Specifies window station, desktop, standard handles, and window appearance for a process at creation time (Unicode version).
 
@@ -22,9 +112,9 @@ class StartupInfoW(Struct):
 
     Fields:
         cb              (DWORD): Size of this structure, in bytes.
-        lpReserved      (LPSTR): Reserved; must be NULL.
-        lpDesktop       (LPSTR): Name of the desktop (as a string) associated with the process.
-        lpTitle         (LPSTR): Title for the main window.
+        lpReserved      (LPWSTR): Reserved; must be NULL.
+        lpDesktop       (LPWSTR): Name of the desktop (as a string) associated with the process.
+        lpTitle         (LPWSTR): Title for the main window.
         dwX             (DWORD): Initial X position of the window.
         dwY             (DWORD): Initial Y position of the window.
         dwXSize         (DWORD): Width of the window.
@@ -43,27 +133,49 @@ class StartupInfoW(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-startupinfow
     """
-    cb:              DWORD
-    lpReserved:      LPSTR
-    lpDesktop:       LPSTR
-    lpTitle:         LPSTR
-    dwX:             DWORD
-    dwY:             DWORD
-    dwXSize:         DWORD
-    dwYSize:         DWORD
-    dwXCountChars:   DWORD
-    dwYCountChars:   DWORD
-    dwFillAttribute: DWORD
-    dwFlags:         DWORD
-    wShowWindow:     WORD
-    cbReserved2:     WORD
-    lpReserved2:     PBYTE
-    hStdInput:       HANDLE
-    hStdOutput:      HANDLE
-    hStdError:       HANDLE
+    cb: int
+    lpReserved: str | None
+    lpDesktop: str | None
+    lpTitle: str | None
+    dwX: int
+    dwY: int
+    dwXSize: int
+    dwYSize: int
+    dwXCountChars: int
+    dwYCountChars: int
+    dwFillAttribute: int
+    dwFlags: int
+    wShowWindow: int
+    cbReserved2: int
+    lpReserved2: PBYTE
+    hStdInput: int | None
+    hStdOutput: int | None
+    hStdError: int | None
 
+    _fields_ = [
+        ('cb', DWORD),
+        ('lpReserved', LPWSTR),
+        ('lpDesktop', LPWSTR),
+        ('lpTitle', LPWSTR),
+        ('dwX', DWORD),
+        ('dwY', DWORD),
+        ('dwXSize', DWORD),
+        ('dwYSize', DWORD),
+        ('dwXCountChars', DWORD),
+        ('dwYCountChars', DWORD),
+        ('dwFillAttribute', DWORD),
+        ('dwFlags', DWORD),
+        ('wShowWindow', WORD),
+        ('cbReserved2', WORD),
+        ('lpReserved2', PBYTE),
+        ('hStdInput', HANDLE),
+        ('hStdOutput', HANDLE),
+        ('hStdError', HANDLE)
+    ]
 
-class ProcessInfo(Struct):
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+class PROCESS_INFORMATION(Struct):
     """
     Contains information about a newly created process and its primary thread.
 
@@ -78,13 +190,21 @@ class ProcessInfo(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/ns-processthreadsapi-process_information
     """
-    hProcess:    HANDLE
-    hThread:     HANDLE
-    dwProcessId: DWORD
-    dwThreadId:  DWORD
+    hProcess: int | None
+    hThread: int | None
+    dwProcessId: int
+    dwThreadId: int
 
+    _fields_ = [
+        ('hProcess', HANDLE),
+        ('hThread', HANDLE),
+        ('dwProcessId', DWORD),
+        ('dwThreadId', DWORD)
+    ]
 
-class ProcessBasicInformation(Struct):
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+class PROCESS_BASIC_INFORMATION(Struct):
     """
     Holds basic information about a process, typically filled by the NtQueryInformationProcess API.
 
@@ -99,15 +219,24 @@ class ProcessBasicInformation(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess#process_basic_information
     """
-    ExitStatus:                   DWORD
-    PebBaseAddress:               LPVOID
-    AffinityMask:                 ULONG
-    BasePriority:                 DWORD
-    UniqueProcessId:              ULONG
-    InheritedFromUniqueProcessId: ULONG
+    ExitStatus: int
+    PebBaseAddress: int | None
+    AffinityMask: int
+    BasePriority: int
+    UniqueProcessId: int
+    InheritedFromUniqueProcessId: int
 
+    _fields_ = [
+        ('ExitStatus', DWORD),
+        ('PebBaseAddress', LPVOID),
+        ('AffinityMask', ULONG),
+        ('BasePriority', DWORD),
+        ('UniqueProcessId', ULONG),
+        ('InheritedFromUniqueProcessId', ULONG)
+    ]
 
-
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class UNICODE_STRING(Struct):
     """
     Represents a counted Unicode string used by Windows NT system structures.
@@ -120,11 +249,15 @@ class UNICODE_STRING(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/subauth/ns-subauth-unicode_string
     """
-    Length:        USHORT
-    MaximumLength: USHORT
-    Buffer:        LPWSTR
+    Length: int
+    MaximumLength: int
+    Buffer: str | None
 
-
+    _fields_ = [
+        ('Length', USHORT),
+        ('MaximumLength', USHORT),
+        ('Buffer', LPWSTR),
+    ]
 
 class PEB(Struct):
     """
@@ -142,84 +275,165 @@ class PEB(Struct):
         https://en.wikipedia.org/wiki/Process_Environment_Block
         https://learn.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-peb
     """
-    InheritedAddressSpace:              BYTE
-    ReadImageFileExecOptions:           BYTE
-    BeingDebugged:                      BYTE
-    BitField:                           BYTE
-    Mutant:                             LPVOID
-    ImageBaseAddress:                   LPVOID
-    Ldr:                                LPVOID
-    ProcessParameters:                  LPVOID
-    SubSystemData:                      LPVOID
-    ProcessHeap:                        LPVOID
-    FastPebLock:                        LPVOID
-    AtlThunkSListPtr:                   LPVOID
-    IFEOKey:                            LPVOID
-    CrossProcessFlags:                  DWORD
-    UserSharedInfoPtr:                  LPVOID
-    SystemReserved:                     DWORD
-    SpareUlong:                         DWORD
-    FreeList:                           LPVOID
-    TlsExpansionCounter:                DWORD
-    TlsBitmap:                          LPVOID
-    TlsBitmapBits:                      DWORD * 2
-    ReadOnlySharedMemoryBase:           LPVOID
-    HotpatchInformation:                LPVOID
-    ReadOnlyStaticServerData:           LPVOID
-    AnsiCodePageData:                   LPVOID
-    OemCodePageData:                    LPVOID
-    UnicodeCaseTableData:               LPVOID
-    NumberOfProcessors:                 DWORD
-    NtGlobalFlag:                       DWORD
-    CriticalSectionTimeout1:            DWORD
-    CriticalSectionTimeout2:            DWORD
-    HeapSegmentReserve:                 DWORD
-    HeapSegmentCommit:                  DWORD
-    HeapDeCommitTotalFreeThreshold:     DWORD
-    HeapDeCommitFreeBlockThreshold:     DWORD
-    NumberOfHeaps:                      DWORD
-    MaximumNumberOfHeaps:               DWORD
-    ProcessHeaps:                       LPVOID
-    GdiSharedHandleTable:               LPVOID
-    ProcessStarterHelper:               LPVOID
-    GdiDCAttributeList:                 LPVOID
-    LoaderLock:                         LPVOID
-    OSMajorVersion:                     DWORD
-    OSMinorVersion:                     DWORD
-    OSBuildNumber:                      WORD
-    OSCSDVersion:                       WORD
-    OSPlatformId:                       DWORD
-    ImageSubsystem:                     DWORD
-    ImageSubsystemMajorVersion:         DWORD
-    ImageSubsystemMinorVersion:         DWORD
-    ImageProcessAffinityMask:           DWORD
-    GdiHandleBuffer:                    DWORD * 34
-    PostProcessInitRoutine:             LPVOID
-    TlsExpansionBitmap:                 LPVOID
-    TlsExpansionBitmapBits:             DWORD * 32
-    SessionId:                          DWORD
-    AppCompatFlags1:                    DWORD
-    AppCompatFlags2:                    DWORD
-    AppCompatFlagsUser1:                DWORD
-    AppCompatFlagsUser2:                DWORD
-    pShimData:                          LPVOID
-    AppCompatInfo:                      LPVOID
-    CSDVersion:                         UNICODE_STRING
-    ActivationContextData:              LPVOID
-    ProcessAssemblyStorageMap:          LPVOID
-    SystemDefaultActivationContextData: LPVOID
-    SystemAssemblyStorageMap:           LPVOID
-    MinimumStackCommit:                 DWORD
-    FlsCallback:                        LPVOID
-    FlsListHeadNext:                    LPVOID
-    FlsListHeadFirst:                   LPVOID
-    FlsBitmap:                          LPVOID
-    FlsBitmapBits:                      DWORD * 4
-    FlsHighIndex:                       DWORD
-    WerRegistrationData:                LPVOID
-    WerShipAssertPtr:                   LPVOID
 
+    InheritedAddressSpace: int
+    ReadImageFileExecOptions: int
+    BeingDebugged: int
+    BitField: int
+    Mutant: int | None
+    ImageBaseAddress: int | None
+    Ldr: int | None
+    ProcessParameters: int | None
+    SubSystemData: int | None
+    ProcessHeap: int | None
+    FastPebLock: int | None
+    AtlThunkSListPtr: int | None
+    IFEOKey: int | None
+    CrossProcessFlags: int
+    UserSharedInfoPtr: int | None
+    SystemReserved: int
+    SpareUlong: int
+    FreeList: int | None
+    TlsExpansionCounter: int
+    TlsBitmap: int | None
+    TlsBitmapBits: Array
+    ReadOnlySharedMemoryBase: int | None
+    HotpatchInformation: int | None
+    ReadOnlyStaticServerData: int | None
+    AnsiCodePageData: int | None
+    OemCodePageData: int | None
+    UnicodeCaseTableData: int | None
+    NumberOfProcessors: int
+    NtGlobalFlag: int
+    CriticalSectionTimeout1: int
+    CriticalSectionTimeout2: int
+    HeapSegmentReserve: int
+    HeapSegmentCommit: int
+    HeapDeCommitTotalFreeThreshold: int
+    HeapDeCommitFreeBlockThreshold: int
+    NumberOfHeaps: int
+    MaximumNumberOfHeaps: int
+    ProcessHeaps: int | None
+    GdiSharedHandleTable: int | None
+    ProcessStarterHelper: int | None
+    GdiDCAttributeList: int | None
+    LoaderLock: int | None
+    OSMajorVersion: int
+    OSMinorVersion: int
+    OSBuildNumber: WORD
+    OSCSDVersion: WORD
+    OSPlatformId: int
+    ImageSubsystem: int
+    ImageSubsystemMajorVersion: int
+    ImageSubsystemMinorVersion: int
+    ImageProcessAffinityMask: int
+    GdiHandleBuffer: Array
+    PostProcessInitRoutine: int | None
+    TlsExpansionBitmap: int | None
+    TlsExpansionBitmapBits: Array
+    SessionId: int
+    AppCompatFlags1: int
+    AppCompatFlags2: int
+    AppCompatFlagsUser1: int
+    AppCompatFlagsUser2: int
+    pShimData: int | None
+    AppCompatInfo: int | None
+    CSDVersion: UNICODE_STRING
+    ActivationContextData: int | None
+    ProcessAssemblyStorageMap: int | None
+    SystemDefaultActivationContextData: int | None
+    SystemAssemblyStorageMap: int | None
+    MinimumStackCommit: int
+    FlsCallback: int | None
+    FlsListHeadNext: int | None
+    FlsListHeadFirst: int | None
+    FlsBitmap: int | None
+    FlsBitmapBits: Array
+    FlsHighIndex: int
+    WerRegistrationData: int | None
+    WerShipAssertPtr: int | None
 
+    _fields_ = [
+        ('InheritedAddressSpace', BYTE),
+        ('ReadImageFileExecOptions', BYTE),
+        ('BeingDebugged', BYTE),
+        ('BitField', BYTE),
+        ('Mutant', LPVOID),
+        ('ImageBaseAddress', LPVOID),
+        ('Ldr', LPVOID),
+        ('ProcessParameters', LPVOID),
+        ('SubSystemData', LPVOID),
+        ('ProcessHeap', LPVOID),
+        ('FastPebLock', LPVOID),
+        ('AtlThunkSListPtr', LPVOID),
+        ('IFEOKey', LPVOID),
+        ('CrossProcessFlags', DWORD),
+        ('UserSharedInfoPtr', LPVOID),
+        ('SystemReserved', DWORD),
+        ('SpareUlong', DWORD),
+        ('FreeList', LPVOID),
+        ('TlsExpansionCounter', DWORD),
+        ('TlsBitmap', LPVOID),
+        ('TlsBitmapBits', DWORD * 2),  # type: ignore
+        ('ReadOnlySharedMemoryBase', LPVOID),
+        ('HotpatchInformation', LPVOID),
+        ('ReadOnlyStaticServerData', LPVOID),
+        ('AnsiCodePageData', LPVOID),
+        ('OemCodePageData', LPVOID),
+        ('UnicodeCaseTableData', LPVOID),
+        ('NumberOfProcessors', DWORD),
+        ('NtGlobalFlag', DWORD),
+        ('CriticalSectionTimeout1', DWORD),
+        ('CriticalSectionTimeout2', DWORD),
+        ('HeapSegmentReserve', DWORD),
+        ('HeapSegmentCommit', DWORD),
+        ('HeapDeCommitTotalFreeThreshold', DWORD),
+        ('HeapDeCommitFreeBlockThreshold', DWORD),
+        ('NumberOfHeaps', DWORD),
+        ('MaximumNumberOfHeaps', DWORD),
+        ('ProcessHeaps', LPVOID),
+        ('GdiSharedHandleTable', LPVOID),
+        ('ProcessStarterHelper', LPVOID),
+        ('GdiDCAttributeList', LPVOID),
+        ('LoaderLock', LPVOID),
+        ('OSMajorVersion', DWORD),
+        ('OSMinorVersion', DWORD),
+        ('OSBuildNumber', WORD),
+        ('OSCSDVersion', WORD),
+        ('OSPlatformId', DWORD),
+        ('ImageSubsystem', DWORD),
+        ('ImageSubsystemMajorVersion', DWORD),
+        ('ImageSubsystemMinorVersion', DWORD),
+        ('ImageProcessAffinityMask', DWORD),
+        ('GdiHandleBuffer', DWORD * 34),  # type: ignore
+        ('PostProcessInitRoutine', LPVOID),
+        ('TlsExpansionBitmap', LPVOID),
+        ('TlsExpansionBitmapBits', DWORD * 32),  # type: ignore
+        ('SessionId', DWORD),
+        ('AppCompatFlags1', DWORD),
+        ('AppCompatFlags2', DWORD),
+        ('AppCompatFlagsUser1', DWORD),
+        ('AppCompatFlagsUser2', DWORD),
+        ('pShimData', LPVOID),
+        ('AppCompatInfo', LPVOID),
+        ('CSDVersion', UNICODE_STRING),
+        ('ActivationContextData', LPVOID),
+        ('ProcessAssemblyStorageMap', LPVOID),
+        ('SystemDefaultActivationContextData', LPVOID),
+        ('SystemAssemblyStorageMap', LPVOID),
+        ('MinimumStackCommit', DWORD),
+        ('FlsCallback', LPVOID),
+        ('FlsListHeadNext', LPVOID),
+        ('FlsListHeadFirst', LPVOID),
+        ('FlsBitmap', LPVOID),
+        ('FlsBitmapBits', DWORD * 4),  # type: ignore
+        ('FlsHighIndex', DWORD),
+        ('WerRegistrationData', LPVOID),
+        ('WerShipAssertPtr', LPVOID),
+    ]
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_DOS_HEADER(Struct):
     """
     Represents the MS-DOS (MZ) header at the start of all PE files.
@@ -250,27 +464,50 @@ class IMAGE_DOS_HEADER(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#ms-dos-stub-image-only
     """
-    e_magic:    WORD
-    e_cblp:     WORD
-    e_cp:       WORD
-    e_crlc:     WORD
-    e_cparhdr:  WORD
-    e_minalloc: WORD
-    e_maxalloc: WORD
-    e_ss:       WORD
-    e_sp:       WORD
-    e_csum:     WORD
-    e_ip:       WORD
-    e_cs:       WORD
-    e_lfarlc:   WORD
-    e_ovno:     WORD
-    e_res:      WORD * 4
-    e_oemid:    WORD
-    e_oeminfo:  WORD
-    e_res2:     WORD * 10
-    e_lfanew:   LONG
+    e_magic: int
+    e_cblp: int
+    e_cp: int
+    e_crlc: int
+    e_cparhdr: int
+    e_minalloc: int
+    e_maxalloc: int
+    e_ss: int
+    e_sp: int
+    e_csum: int
+    e_ip: int
+    e_cs: int
+    e_lfarlc: int
+    e_ovno: int
+    e_res: Array
+    e_oemid: int
+    e_oeminfo: int
+    e_res2: Array
+    e_lfanew: int
 
+    _fields_ = [
+        ('e_magic', WORD),
+        ('e_cblp', WORD),
+        ('e_cp', WORD),
+        ('e_crlc', WORD),
+        ('e_cparhdr', WORD),
+        ('e_minalloc', WORD),
+        ('e_maxalloc', WORD),
+        ('e_ss', WORD),
+        ('e_sp', WORD),
+        ('e_csum', WORD),
+        ('e_ip', WORD),
+        ('e_cs', WORD),
+        ('e_lfarlc', WORD),
+        ('e_ovno', WORD),
+        ('e_res', WORD * 4),  # type: ignore
+        ('e_oemid', WORD),
+        ('e_oeminfo', WORD),
+        ('e_res2', WORD * 10),  # type: ignore
+        ('e_lfanew', LONG)
+    ]
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_FILE_HEADER(Struct):
     """
     COFF file header found in PE files, sometimes called the PE "file header".
@@ -286,16 +523,29 @@ class IMAGE_FILE_HEADER(Struct):
 
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_file_header
+        https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#machine-types
+        https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#characteristics
     """
-    Machine:              WORD
-    NumberOfSections:     WORD
-    TimeDateStamp:        DWORD
-    PointerToSymbolTable: DWORD
-    NumberOfSymbols:      DWORD
-    SizeOfOptionalHeader: WORD
-    Characteristics:      WORD
+    Machine: int
+    NumberOfSections: int
+    TimeDateStamp: int
+    PointerToSymbolTable: int
+    NumberOfSymbols: int
+    SizeOfOptionalHeader: int
+    Characteristics: int
 
+    _fields_ = [
+        ('Machine', WORD),
+        ('NumberOfSections', WORD),
+        ('TimeDateStamp', DWORD),
+        ('PointerToSymbolTable', DWORD),
+        ('NumberOfSymbols', DWORD),
+        ('SizeOfOptionalHeader', WORD),
+        ('Characteristics', WORD),
+    ]
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_DATA_DIRECTORY(Struct):
     """
     Describes the location and size of a data directory (e.g., import table, export table) within the PE file.
@@ -307,10 +557,16 @@ class IMAGE_DATA_DIRECTORY(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#optional-header-data-directories-image-only
     """
-    VirtualAddress: DWORD
-    Size:           DWORD
+    VirtualAddress: int
+    Size: int
 
+    _fields_ = [
+        ('VirtualAddress', DWORD),
+        ('Size', DWORD)
+    ]
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_OPTIONAL_HEADER32(Struct):
     """
     Contains the optional header for a 32-bit PE file, which provides important information required for loading the program.
@@ -351,39 +607,74 @@ class IMAGE_OPTIONAL_HEADER32(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_optional_header32
     """
-    Magic:                       WORD
-    MajorLinkerVersion:          BYTE
-    MinorLinkerVersion:          BYTE
-    SizeOfCode:                  DWORD
-    SizeOfInitializedData:       DWORD
-    SizeOfUninitializedData:     DWORD
-    AddressOfEntryPoint:         DWORD
-    BaseOfCode:                  DWORD
-    BaseOfData:                  DWORD
-    ImageBase:                   DWORD
-    SectionAlignment:            DWORD
-    FileAlignment:               DWORD
-    MajorOperatingSystemVersion: WORD
-    MinorOperatingSystemVersion: WORD
-    MajorImageVersion:           WORD
-    MinorImageVersion:           WORD
-    MajorSubsystemVersion:       WORD
-    MinorSubsystemVersion:       WORD
-    Win32VersionValue:           DWORD
-    SizeOfImage:                 DWORD
-    SizeOfHeaders:               DWORD
-    CheckSum:                    DWORD
-    Subsystem:                   WORD
-    DllCharacteristics:          WORD
-    SizeOfStackReserve:          DWORD
-    SizeOfStackCommit:           DWORD
-    SizeOfHeapReserve:           DWORD
-    SizeOfHeapCommit:            DWORD
-    LoaderFlags:                 DWORD
-    NumberOfRvaAndSizes:         DWORD
-    DataDirectory:               IMAGE_DATA_DIRECTORY * 16
+    Magic: int
+    MajorLinkerVersion: int
+    MinorLinkerVersion: int
+    SizeOfCode: int
+    SizeOfInitializedData: int
+    SizeOfUninitializedData: int
+    AddressOfEntryPoint: int
+    BaseOfCode: int
+    BaseOfData: int
+    ImageBase: int
+    SectionAlignment: int
+    FileAlignment: int
+    MajorOperatingSystemVersion: int
+    MinorOperatingSystemVersion: int
+    MajorImageVersion: int
+    MinorImageVersion: int
+    MajorSubsystemVersion: int
+    MinorSubsystemVersion: int
+    Win32VersionValue: int
+    SizeOfImage: int
+    SizeOfHeaders: int
+    CheckSum: int
+    Subsystem: int
+    DllCharacteristics: int
+    SizeOfStackReserve: int
+    SizeOfStackCommit: int
+    SizeOfHeapReserve: int
+    SizeOfHeapCommit: int
+    LoaderFlags: int
+    NumberOfRvaAndSizes: int
+    DataDirectory: IMAGE_DATA_DIRECTORY * 16  # type: ignore
 
+    _fields_ = [
+        ('Magic', WORD),
+        ('MajorLinkerVersion', BYTE),
+        ('MinorLinkerVersion', BYTE),
+        ('SizeOfCode', DWORD),
+        ('SizeOfInitializedData', DWORD),
+        ('SizeOfUninitializedData', DWORD),
+        ('AddressOfEntryPoint', DWORD),
+        ('BaseOfCode', DWORD),
+        ('BaseOfData', DWORD),
+        ('ImageBase', DWORD),
+        ('SectionAlignment', DWORD),
+        ('FileAlignment', DWORD),
+        ('MajorOperatingSystemVersion', WORD),
+        ('MinorOperatingSystemVersion', WORD),
+        ('MajorImageVersion', WORD),
+        ('MinorImageVersion', WORD),
+        ('MajorSubsystemVersion', WORD),
+        ('MinorSubsystemVersion', WORD),
+        ('Win32VersionValue', DWORD),
+        ('SizeOfImage', DWORD),
+        ('SizeOfHeaders', DWORD),
+        ('CheckSum', DWORD),
+        ('Subsystem', WORD),
+        ('DllCharacteristics', WORD),
+        ('SizeOfStackReserve', DWORD),
+        ('SizeOfStackCommit', DWORD),
+        ('SizeOfHeapReserve', DWORD),
+        ('SizeOfHeapCommit', DWORD),
+        ('LoaderFlags', DWORD),
+        ('NumberOfRvaAndSizes', DWORD),
+        ('DataDirectory', IMAGE_DATA_DIRECTORY * 16),  # IMAGE_NUMBEROF_DIRECTORY_ENTRIES
+    ]
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_SECTION_HEADER(Struct):
     """
     Describes a section table entry in a PE file, also known as a section header.
@@ -403,18 +694,32 @@ class IMAGE_SECTION_HEADER(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_section_header
     """
-    Name:                 CHAR * 8
-    VirtualSize:          DWORD
-    VirtualAddress:       DWORD
-    SizeOfRawData:        DWORD
-    PointerToRawData:     DWORD
-    PointerToRelocations: DWORD
-    PointerToLinenumbers: DWORD
-    NumberOfRelocations:  WORD
-    NumberOfLinenumbers:  WORD
-    Characteristics:      DWORD
+    Name: bytes
+    VirtualSize: int
+    VirtualAddress: int
+    SizeOfRawData: int
+    PointerToRawData: int
+    PointerToRelocations: int
+    PointerToLinenumbers: int
+    NumberOfRelocations: int
+    NumberOfLinenumbers: int
+    Characteristics: int
 
+    _fields_ = [
+        ('Name', CHAR * 8),  # type: ignore
+        ('VirtualSize', DWORD),
+        ('VirtualAddress', DWORD),
+        ('SizeOfRawData', DWORD),
+        ('PointerToRawData', DWORD),
+        ('PointerToRelocations', DWORD),
+        ('PointerToLinenumbers', DWORD),
+        ('NumberOfRelocations', WORD),
+        ('NumberOfLinenumbers', WORD),
+        ('Characteristics', DWORD),
+    ]
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_NT_HEADERS32(Struct):
     """
     Represents the NT headers for a 32-bit Portable Executable (PE) file.
@@ -430,10 +735,15 @@ class IMAGE_NT_HEADERS32(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#pe-format
     """
-
-    Signature:      DWORD
-    FileHeader:     IMAGE_FILE_HEADER
+    Signature: int
+    FileHeader: IMAGE_FILE_HEADER
     OptionalHeader: IMAGE_OPTIONAL_HEADER32
+
+    _fields_ = [
+        ('Signature', DWORD),
+        ('FileHeader', IMAGE_FILE_HEADER),
+        ('OptionalHeader', IMAGE_OPTIONAL_HEADER32),
+    ]
 
     def get_sections_offset(self) -> int:
         """
@@ -444,7 +754,8 @@ class IMAGE_NT_HEADERS32(Struct):
         """
         return IMAGE_NT_HEADERS32.OptionalHeader.offset + self.FileHeader.SizeOfOptionalHeader
 
-
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class IMAGE_EXPORT_DIRECTORY(Struct):
     """
     Represents the export directory table of a PE (Portable Executable) file.
@@ -468,20 +779,34 @@ class IMAGE_EXPORT_DIRECTORY(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-export-directory-table
     """
+    Characteristics: int
+    TimeDateStamp: int
+    MajorVersion: int
+    MinorVersion: int
+    Name: int
+    Base: int
+    NumberOfFunctions: int
+    NumberOfNames: int
+    AddressOfFunctions: int
+    AddressOfNames: int
+    AddressOfNameOrdinals: int
 
-    Characteristics:       DWORD
-    TimeDateStamp:         DWORD
-    MajorVersion:          WORD
-    MinorVersion:          WORD
-    Name:                  DWORD
-    Base:                  DWORD
-    NumberOfFunctions:     DWORD
-    NumberOfNames:         DWORD
-    AddressOfFunctions:    DWORD
-    AddressOfNames:        DWORD
-    AddressOfNameOrdinals: DWORD
+    _fields_ = [
+        ('Characteristics', DWORD),
+        ('TimeDateStamp', DWORD),
+        ('MajorVersion', WORD),
+        ('MinorVersion', WORD),
+        ('Name', DWORD),
+        ('Base', DWORD),
+        ('NumberOfFunctions', DWORD),
+        ('NumberOfNames', DWORD),
+        ('AddressOfFunctions', DWORD),
+        ('AddressOfNames', DWORD),
+        ('AddressOfNameOrdinals', DWORD)
+    ]
 
-
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 class MZ_FILEHEADER(Struct):
     """
     Represents the header of a legacy MS-DOS executable (MZ format).
@@ -514,27 +839,49 @@ class MZ_FILEHEADER(Struct):
     See also:
         https://wiki.osdev.org/MZ
     """
-    Signature:       WORD
-    ExtraBytes:      WORD
-    Pages:           WORD
-    RelocationItems: WORD
-    HeaderSize:      WORD
-    MinAllow:        WORD
-    MaxAllow:        WORD
-    InitialSS:       WORD
-    InitialSP:       WORD
-    Checksum:        WORD
-    InitialIS:       WORD
-    InitialCS:       WORD
-    RelocationTable: WORD
-    Overlay:         WORD
-    OverlayInfo1:    DWORD
-    OverlayInfo2:    DWORD
-    OEMIdentifier:   WORD
-    OEMInfo:         WORD
-    Reserved:        BYTE * 20
-    PEHeaderOffset:  DWORD
+    Signature: int
+    ExtraBytes: int
+    Pages: int
+    RelocationItems: int
+    HeaderSize: int
+    MinAllow: int
+    MaxAllow: int
+    InitialSS: int
+    InitialSP: int
+    Checksum: int
+    InitialIS: int
+    InitialCS: int
+    RelocationTable: int
+    Overlay: int
+    OverlayInfo1: int
+    OverlayInfo2: int
+    OEMIdentifier: int
+    OEMInfo: int
+    Reserved: Array
+    PEHeaderOffset: int
 
+    _fields_ = [
+        ('Signature', WORD),
+        ('ExtraBytes', WORD),
+        ('Pages', WORD),
+        ('RelocationItems', WORD),
+        ('HeaderSize', WORD),
+        ('MinAllow', WORD),
+        ('MaxAllow', WORD),
+        ('InitialSS', WORD),
+        ('InitialSP', WORD),
+        ('Checksum', WORD),
+        ('InitialIS', WORD),
+        ('InitialCS', WORD),
+        ('RelocationTable', WORD),
+        ('Overlay', WORD),
+        ('OverlayInfo1', DWORD),
+        ('OverlayInfo2', DWORD),
+        ('OEMIdentifier', WORD),
+        ('OEMInfo', WORD),
+        ('Reserved', BYTE * 20),  # type: ignore
+        ('PEHeaderOffset', DWORD),
+    ]
 
 class PROCESSENTRY32(Struct):
     """
@@ -555,17 +902,34 @@ class PROCESSENTRY32(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-processentry32
     """
-    dwSize:              DWORD
-    cntUsage:            DWORD
-    th32ProcessID:       DWORD
-    th32DefaultHeapID:   ULONG
-    th32ModuleID:        DWORD
-    cntThreads:          DWORD
-    th32ParentProcessID: DWORD
-    pcPriClassBase:      LONG
-    dwFlags:             DWORD
-    szExeFile:           CHAR * MAX_PATH
+    dwSize: int
+    cntUsage: int
+    th32ProcessID: int
+    th32DefaultHeapID: int
+    th32ModuleID: int
+    cntThreads: int
+    th32ParentProcessID: int
+    pcPriClassBase: int
+    dwFlags: int
+    szExeFile: bytes
 
+    _fields_ = [
+        ('dwSize', DWORD),
+        ('cntUsage', DWORD),
+        ('th32ProcessID', DWORD),
+        ('th32DefaultHeapID', ULONG),
+        ('th32ModuleID', DWORD),
+        ('cntThreads', DWORD),
+        ('th32ParentProcessID', DWORD),
+        ('pcPriClassBase', LONG),
+        ('dwFlags', DWORD),
+        ('szExeFile', CHAR * MAX_PATH)  # type: ignore
+    ]
+
+    def __init__(self, *args: Any, **kw: Any):
+        super().__init__(*args, **kw)
+        if self.dwSize == 0:
+            self.dwSize = self.get_size()
 
 class MODULEENTRY32(Struct):
     """
@@ -586,17 +950,34 @@ class MODULEENTRY32(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-moduleentry32
     """
-    dwSize:        DWORD
-    th32ModuleID:  DWORD
-    th32ProcessID: DWORD
-    GlblcntUsage:  DWORD
-    ProccntUsage:  DWORD
-    modBaseAddr:   ULONG
-    modBaseSize:   DWORD
-    hModule:       HMODULE
-    szModule:      CHAR * 256
-    szExePath:     CHAR * MAX_PATH
+    dwSize: int
+    th32ModuleID: int
+    th32ProcessID: int
+    GlblcntUsage: int
+    ProccntUsage: int
+    modBaseAddr: int
+    modBaseSize: int
+    hModule: int | None
+    szModule: bytes
+    szExePath: bytes
 
+    _fields_ = [
+        ('dwSize', DWORD),
+        ('th32ModuleID', DWORD),
+        ('th32ProcessID', DWORD),
+        ('GlblcntUsage', DWORD),
+        ('ProccntUsage', DWORD),
+        ('modBaseAddr', ULONG),
+        ('modBaseSize', DWORD),
+        ('hModule', HMODULE),
+        ('szModule', CHAR * 256),  # type: ignore
+        ('szExePath', CHAR * MAX_PATH)  # type: ignore
+    ]
+
+    def __init__(self, *args: Any, **kw: Any):
+        super().__init__(*args, **kw)
+        if self.dwSize == 0:
+            self.dwSize = self.get_size()
 
 class THREADENTRY32(Struct):
     """
@@ -616,17 +997,30 @@ class THREADENTRY32(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-threadentry32
     """
-    dwSize:             DWORD
-    cntUsage:           DWORD
-    th32ThreadID:       DWORD
-    th32OwnerProcessID: DWORD
-    tpBasePri:          LONG
-    tpDeltaPri:         LONG
-    dwFlags:            DWORD
+    dwSize: int
+    cntUsage: int
+    th32ThreadID: int
+    th32OwnerProcessID: int
+    tpBasePri: int
+    tpDeltaPri: int
+    dwFlags: int
 
+    _fields_ = [
+        ('dwSize', DWORD),
+        ('cntUsage', DWORD),
+        ('th32ThreadID', DWORD),
+        ('th32OwnerProcessID', DWORD),
+        ('tpBasePri', LONG),
+        ('tpDeltaPri', LONG),
+        ('dwFlags', DWORD),
+    ]
+
+    def __init__(self, *args: Any, **kw: Any):
+        super().__init__(*args, **kw)
+        if self.dwSize == 0:
+            self.dwSize = self.get_size()
 
 WNDPROC = WINFUNCTYPE(LONG, HWND, UINT, LONG, DWORD)
-
 
 class WNDCLASS(Struct):
     """
@@ -652,40 +1046,65 @@ class WNDCLASS(Struct):
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-wndclassa
     """
-    style:         DWORD
-    lpfnWndProc:   WNDPROC
-    cbClsExtra:    INT
-    cbWndExtra:    INT
-    hInstance:     HANDLE
-    hIcon:         HANDLE
-    hCursor:       HANDLE
-    hbrBackground: HANDLE
-    lpszMenuName:  LPCSTR
-    lpszClassName: LPCSTR
+    style: int
+    lpfnWndProc: WNDPROC
+    cbClsExtra: int
+    cbWndExtra: int
+    hInstance: int | None
+    hIcon: int | None
+    hCursor: int | None
+    hbrBackground: int | None
+    lpszMenuName: bytes | None
+    lpszClassName: bytes | None
 
+    _fields_ = [
+        ('style', DWORD),
+        ('lpfnWndProc', WNDPROC),
+        ('cbClsExtra', INT),
+        ('cbWndExtra', INT),
+        ('hInstance', HANDLE),
+        ('hIcon', HANDLE),
+        ('hCursor', HANDLE),
+        ('hbrBackground', HANDLE),
+        ('lpszMenuName', LPCSTR),
+        ('lpszClassName', LPCSTR)
+    ]
 
 class MSG(Struct):
     """
-    Contains message information retrieved from a thread's message queue.
+    Represents a message retrieved from a thread's message queue.
 
-    This structure is filled by functions such as GetMessage and PeekMessage.
+    This structure corresponds to the Windows MSG struct and contains all information
+    about a message sent to a window or retrieved from a message queue. It is commonly
+    used for GUI event/message handling.
 
-    Fields:
-        hWnd     (HWND) : Handle to the window receiving the message.
-        message  (UINT) : Message identifier.
-        wParam   (WPARAM): Additional message information.
-        lParam   (LPARAM): Additional message information.
-        time     (DWORD): Time the message was posted.
-        pt       (HANDLE): Pointer to a POINT structure with the cursor position (typically should be POINT, not HANDLE).
-        lprivate (DWORD): Additional private data (may not be present in all Windows versions).
+    Attributes:
+        hWnd (HWND): Handle to the window receiving the message, or None.
+        message (UINT): The message identifier (e.g., WM_PAINT, WM_KEYDOWN).
+        wParam (WPARAM): Additional message information (message-specific).
+        lParam (LPARAM): Additional message information (message-specific).
+        time (DWORD): The time at which the message was posted (milliseconds since system start).
+        pt (HANDLE): Handle or pointer to additional information (e.g., mouse position), or None.
+        lprivate (DWORD): Additional private information.
 
-    See also:
+    See Also:
         https://learn.microsoft.com/en-us/windows/win32/api/winuser/ns-winuser-msg
     """
-    hWnd:     HWND
-    message:  UINT
-    wParam:   WPARAM
-    lParam:   LPARAM
-    time:     DWORD
-    pt:       HANDLE
-    lprivate: DWORD
+
+    hWnd: int | None
+    message: int
+    wParam: int
+    lParam: int
+    time: int
+    pt: int | None
+    lprivate: int
+
+    _fields_ = [
+        ('hWnd', HWND),
+        ('message', UINT),
+        ('wParam', WPARAM),
+        ('lParam', LPARAM),
+        ('time', DWORD),
+        ('pt', HANDLE),
+        ('lprivate', DWORD),
+    ]

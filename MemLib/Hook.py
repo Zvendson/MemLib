@@ -1,15 +1,29 @@
 """
-Contains structures and classes to manage runtime code hooks in external processes.
+Structure and class for managing runtime code hooks in remote processes.
 
-- HookBuffer: Structure for storing hook information in remote memory.
-- Hook:      Manages jump/call hooks, their state, and their persistence.
+This module provides tools for creating, enabling, disabling, and persisting inline code hooks
+(such as JMP or CALL) in external processes. Hooks are managed via a buffer structure in remote memory,
+supporting persistence and crash recovery.
+
+Features:
+    * HookBuffer: Structure for storing original bytes and metadata at the hook site.
+    * Hook:      Class for managing jump/call hooks in another process, with enable/disable/toggle/store.
+
+Example:
+    hook = Hook(name="MyHook", process=Process(pid), source=0x401000, destination=0x402000, enable_hook=True,
+    buffer=0x500000)
+
+References:
+    https://en.wikipedia.org/wiki/Hooking
 """
 
 import struct
+from _ctypes import Array
 from ctypes.wintypes import BYTE, DWORD
 
 from MemLib.Process import Process
 from MemLib.Structs import Struct
+
 
 
 class HookBuffer(Struct):
@@ -25,10 +39,16 @@ class HookBuffer(Struct):
         target_address  (DWORD):      Address where the jump/call redirects to.
     """
 
+    original_opcode: Array
+    source_address: int
+    target_address: int
+
     _pack_ = 1
-    original_opcode: BYTE * 5
-    source_address:  DWORD
-    target_address:  DWORD
+    _fields_ = [
+        ("original_opcode", BYTE * 5),  # type: ignore
+        ("source_address", DWORD),
+        ("target_address", DWORD),
+    ]
 
     def has_contents(self) -> bool:
         """
@@ -49,7 +69,6 @@ class HookBuffer(Struct):
             return True
 
         return False
-
 
 class Hook:
     """
@@ -83,23 +102,23 @@ class Hook:
             enable_hook (bool):Enable the hook immediately.
             buffer (int):      Remote address to store buffer struct (for crash recovery).
         """
-        self._name: str                 = name
-        self._process: Process          = process
-        self._src_address: int          = source
-        self._dst_address: int          = destination
-        self._opcode: bytes             = struct.pack('=Bi', 0xE9, destination - source - 0x0005)
-        self._enabled: bool             = False
-        self._buffer_address: int       = buffer
+        self._name: str = name
+        self._process: Process = process
+        self._src_address: int = source
+        self._dst_address: int = destination
+        self._opcode: bytes = struct.pack('=Bi', 0xE9, destination - source - 0x0005)
+        self._enabled: bool = False
+        self._buffer_address: int = buffer
         self._buffer: HookBuffer | None = None
 
         original_opcode: bytes = self._process.read(source, 5)
-        buffer_content:  bytes = struct.pack('=5BII', *original_opcode, source, destination)
+        buffer_content: bytes = struct.pack('=5BII', *original_opcode, source, destination)
 
         if buffer:
             self._buffer = self._process.read_struct(buffer, HookBuffer)
 
         if self._buffer is None or self._buffer.source_address == 0:
-            self._buffer            = HookBuffer.from_buffer_copy(buffer_content)
+            self._buffer = HookBuffer.from_buffer_copy(buffer_content)
             self._buffer.ADDRESS_EX = buffer
 
         if original_opcode == self._opcode:

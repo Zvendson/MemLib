@@ -1,6 +1,14 @@
 """
-Custom exceptions for platform and privilege requirements.
+Custom exceptions for platform bitness and privilege enforcement.
+
+Defines exceptions to indicate missing requirements for Windows Python projects:
+    * Not32BitException: Raised when 32-bit Python is required but not present.
+    * Not64BitException: Raised when 64-bit Python is required but not present.
+    * NoAdminPrivileges: Raised when administrator privileges are required but not present.
+
+Intended for use with decorators or API calls that depend on interpreter bitness or administrative rights.
 """
+
 
 class Not32BitException(Exception):
     """

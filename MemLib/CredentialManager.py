@@ -1,8 +1,35 @@
+"""
+Credential management for KeePass databases.
+
+This module provides tools to store, retrieve, and manage account credentials
+using a KeePass database file (`.kdbx`). It defines a Credentials dataclass and
+a CredentialManager for interacting with account information securely.
+
+Features:
+    * Read and write credentials to a KeePass database.
+    * Auto-creates the database if it does not exist.
+    * Supports groups and extra argument fields.
+    * Integrates with `pykeepass` for all operations.
+
+Example:
+    from CredentialManager import CredentialManager, Credentials
+
+    manager = CredentialManager('vault.kdbx', password='secret')
+    creds = Credentials(name='MyAccount', e_mail='me@mail.com', password='pw123')
+    manager.add_credentials('Social', creds)
+    loaded = manager.get_credentials('Social', 'MyAccount')
+
+References:
+    https://github.com/libkeepass/pykeepass
+    https://keepass.info/help/base/index.html
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 
 from pykeepass import PyKeePass, create_database
 from pykeepass.exceptions import CredentialsError
+
 
 
 @dataclass(kw_only=True)
@@ -21,10 +48,10 @@ class Credentials:
         The 'args' field can be a single string or a list of strings. Lists will be joined with spaces.
     """
 
-    name: str             = ""
-    e_mail: str           = ""
-    password: str         = ""
-    url: str              = ""
+    name: str = ""
+    e_mail: str = ""
+    password: str = ""
+    url: str = ""
     args: str | list[str] = ""
 
     def __setattr__(self, name, value):
@@ -42,7 +69,6 @@ class Credentials:
             super().__setattr__(name, value)
         else:
             super().__setattr__(name, '')
-
 
 class CredentialManager:
     """

@@ -1,3 +1,19 @@
+"""
+Constants for Windows process, thread, memory, and file management.
+
+This module provides a collection of symbolic constants used for interacting with the Windows API,
+including process creation flags, thread and process access rights, memory page protection, file mapping,
+wait and status codes, and standard handle values. All constants are defined with descriptive docstrings.
+
+These values are suitable for use with `ctypes`, `ctypes.wintypes`, or other low-level Windows API bindings.
+
+References:
+    https://learn.microsoft.com/en-us/windows/win32/api/winnt/
+    https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/
+    https://learn.microsoft.com/en-us/windows/win32/memory/memory-protection-constants
+    https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createfilemappinga
+"""
+
 MAX_PATH: int = 260
 """
 The maximum length for a path string.
@@ -225,7 +241,6 @@ STILL_ACTIVE: int = STATUS_PENDING
 The operation that was requested is pending completion.
 """
 
-
 DEBUG_PROCESS: int = 0x00000001
 """
 The calling thread starts and debugs the new process and all child processes created by the new process. It can receive
@@ -356,7 +371,6 @@ application is not set. This flag is ignored if the application is not a console
 either CREATE_NEW_CONSOLE or DETACHED_PROCESS.
 """
 
-
 DELETE: int = 0x00010000
 """
 The right to delete the object.
@@ -393,7 +407,6 @@ STANDARD_RIGHTS_ALL: int = 0x001F0000
 """
 Combines DELETE, READ_CONTROL, WRITE_DAC, WRITE_OWNER, and SYNCHRONIZE access.
 """
-
 
 PROCESS_TERMINATE: int = 0x0001
 """
@@ -476,8 +489,6 @@ this flag fails with ERROR_ACCESS_DENIED. To avoid this problem, specify the min
 the operation. If PROCESS_ALL_ACCESS must be used, set _WIN32_WINNT to the minimum operating system targeted by your 
 application (for example, #define _WIN32_WINNT _WIN32_WINNT_WINXP). For more information, see Using the Windows Headers.
 """
-
-
 
 PAGE_NOACCESS: int = 0x00000001
 """
@@ -585,7 +596,6 @@ like PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE and PAGE_EXECUTE_WR
 VirtualProtect protection change to executable is to mark all locations as valid call targets for CFG.
 """
 
-
 MEM_COALESCE_PLACEHOLDERS: int = 0x00000001
 """
 To coalesce two adjacent placeholders, specify MEM_RELEASE | MEM_COALESCE_PLACEHOLDERS. When you coalesce placeholders,
@@ -680,7 +690,6 @@ The size and alignment must be a multiple of the large-page minimum. To obtain t
 function. If you specify this value, you must also specify MEM_RESERVE and MEM_COMMIT.
 """
 
-
 TH32CS_SNAPHEAPLIST: int = 0x00000001
 """
 Includes all heaps of the process specified in th32ProcessID in the snapshot. To enumerate the heaps, see Heap32ListFirst.
@@ -728,7 +737,6 @@ TH32CS_INHERIT: int = 0x80000000
 Indicates that the snapshot handle is to be inheritable.
 """
 
-
 FILE_MAP_COPY: int = 0x00000001
 """
 A copy-on-write view of the file is mapped. The file mapping object must have been created with PAGE_READONLY, 
@@ -771,7 +779,6 @@ PAGE_EXECUTE_READWRITE protection. When used with the MapViewOfFile function, FI
 FILE_MAP_WRITE.
 """
 
-
 # https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwmapviewofsection
 SECTION_INHERIT_VIEW_SHARE: int = 1
 """
@@ -785,7 +792,6 @@ The view will not be mapped into child processes.
 Drivers should typically specify ViewUnmap for this parameter.
 """
 
-
 DUPLICATE_CLOSE_SOURCE: int = 0x00000001
 """
 Closes the source handle. This occurs regardless of any error status returned.
@@ -795,7 +801,6 @@ DUPLICATE_SAME_ACCESS: int = 0x00000002
 """
 Ignores the dwDesiredAccess parameter. The duplicate handle has the same access as the source handle.
 """
-
 
 STD_INPUT_HANDLE: int = -10
 """
@@ -811,8 +816,6 @@ STD_ERROR_HANDLE: int = -12
 """
 The standard error device. Initially, this is the active console screen buffer, CONOUT$.
 """
-
-
 
 THREAD_TERMINATE: int = 0x0001
 """
@@ -871,7 +874,6 @@ THREAD_QUERY_LIMITED_INFORMATION: int = 0x0800
 Required to read certain information from the thread objects (see GetProcessIdOfThread). A handle that has the
 THREAD_QUERY_INFORMATION access right is automatically granted THREAD_QUERY_LIMITED_INFORMATION.
 """
-
 
 THREAD_ALL_ACCESS: int = STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFFF
 """

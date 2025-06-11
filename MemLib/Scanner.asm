@@ -3,8 +3,8 @@ use32
 
 
 ScanProc: ; (Pattern, Buffer)
-    push        ebp                             ; start of building a stack fram
-    mov         ebp, esp                        ; storing the stack fram in ebp
+    push        ebp                             ; start of building a stack frame
+    mov         ebp, esp                        ; storing the stack frame in ebp
     sub         esp, 0x0008                     ; Adding space for local variables (8 bytes)
     push        ebx ecx edx esi edi             ; store the registers on the stack
 
@@ -81,5 +81,3 @@ ScanProc: ; (Pattern, Buffer)
     leave                                       ; leaves the stack frame
     ret         0x8                             ; returns to the calling address. 0x8 cleans up 8 bytes on the stack
                                                 ; because we passed 2 parameters which are 2 pushes == 0x8 Bytes
-
-

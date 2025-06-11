@@ -1,18 +1,42 @@
+"""
+Represents a loaded module (DLL or EXE) in a remote process.
+
+This module defines the `Module` class, which wraps Windows module information and provides
+methods to access headers, exported functions (by name or ordinal), and metadata for a module
+loaded in another process. Intended to be used via methods in the `Process` class.
+
+Features:
+    * Query module base address, size, path, and handle
+    * Read DOS, NT, and optional headers, and data directories
+    * Retrieve export addresses by name or ordinal
+    * Compare module instances for equality (handle and process)
+
+Example:
+    mod = process.GetMainModule()
+    print(f"Main module base address: 0x{mod.base:X}")
+    address = mod.get_export_by_name("SomeExportedFunc")
+
+References:
+    https://docs.microsoft.com/en-us/windows/win32/api/tlhelp32/ns-tlhelp32-moduleentry32
+    https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
+    https://docs.microsoft.com/en-us/windows/win32/debug/pe-format
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
-from MemLib.Kernel32 import GetProcAddress, Win32Exception
 from MemLib.Structs import (
     IMAGE_DATA_DIRECTORY, IMAGE_DOS_HEADER, IMAGE_EXPORT_DIRECTORY, IMAGE_NT_HEADERS32, IMAGE_OPTIONAL_HEADER32,
     MODULEENTRY32,
 )
+from MemLib.windows import GetProcAddress, Win32Exception
+
 
 
 if TYPE_CHECKING:
     from MemLib.Process import Process
-
 
 class Module:
     """
@@ -35,13 +59,13 @@ class Module:
         :param module: The MODULEENTRY32 struct containing module info.
         :param process: The parent :py:class:`~process.Process` object.
         """
-        self._handle:  int                    = module.hModule
-        self._process: Process                = process
-        self._name: str                    = module.szModule.decode('ascii')
-        self._path: str                    = module.szExePath.decode('ascii')
-        self._base: int                    = module.modBaseAddr
-        self._size: int                    = module.modBaseSize
-        self._dos: Optional[IMAGE_DOS_HEADER]          = None
+        self._handle: int = module.hModule
+        self._process: Process = process
+        self._name: str = module.szModule.decode('ascii')
+        self._path: str = module.szExePath.decode('ascii')
+        self._base: int = module.modBaseAddr
+        self._size: int = module.modBaseSize
+        self._dos: Optional[IMAGE_DOS_HEADER] = None
         self._nt_headers: Optional[IMAGE_NT_HEADERS32] = None
         self._expo_dir: Optional[IMAGE_EXPORT_DIRECTORY] = None
 
@@ -168,7 +192,6 @@ class Module:
 
         return self._expo_dir
 
-
     def get_proc_address(self, name: str) -> int:
         """
         Retrieves the address of an exported function or variable by name.
@@ -235,16 +258,16 @@ class Module:
         assert name_addr > 0, "ExportDirectory has no name address"
 
         name_enc: bytes = name.encode("ascii")
-        name_len: int   = len(name_enc) + 1
+        name_len: int = len(name_enc) + 1
 
         for i in range(name_count):
-            name_rva: int    = self._process.read_dword(self._base + name_addr + i * 0x0004)
+            name_rva: int = self._process.read_dword(self._base + name_addr + i * 0x0004)
             func_name: bytes = self._process.read_string(self._base + name_rva, name_len)
             if func_name != name_enc:
                 continue
 
             ordinal_index_addr: int = self._base + export_dir.AddressOfNameOrdinals + i * 0x0002
-            ordinal_index: int      = self._process.read_word(ordinal_index_addr)
+            ordinal_index: int = self._process.read_word(ordinal_index_addr)
 
             func_rva_addr = self._base + export_dir.AddressOfFunctions + ordinal_index * 0x0004
             func_rva = self._process.read_dword(func_rva_addr)
@@ -262,7 +285,7 @@ class Module:
         :param other: Module to compare.
         :return: True if both modules have the same handle and parent process, else False.
         """
-        same_handle: bool     = self._handle == other.handle
+        same_handle: bool = self._handle == other.handle
         same_process_id: bool = self._process.process_id == other._process.process_id
 
         return same_handle and same_process_id
@@ -282,6 +305,3 @@ class Module:
         :return: String representation.
         """
         return str(self)
-
-
-

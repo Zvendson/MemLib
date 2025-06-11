@@ -1,25 +1,48 @@
 """
-Decorator utilities and platform enforcement helpers.
+Decorator utilities for timing, privilege enforcement, os architecture, and deprecation (Windows only).
 
-This module provides decorators for timing, privilege checking, bitness checks,
-and function deprecation with warnings, tailored for Windows Python projects.
+This module provides reusable Python decorators for:
+    * Timing function execution and reporting via callback
+    * Requiring admin privileges
+    * Restricting functions to 32-bit or 64-bit Python interpreters
+    * Marking functions or classes as deprecated, with warnings
+
+The decorators are tailored for use in Windows-centric projects and integrate with custom exceptions from `MemLib.Exceptions`.
+
+Example:
+    from Decorators import func_timer, require_admin, deprecated
+
+    @func_timer(print)
+    def slow_func():
+        ...
+
+    @require_admin
+    def restricted():
+        ...
+
+    @deprecated("This method will be removed in v2.0")
+    def old_method():
+        ...
+
+References:
+    https://docs.python.org/3/library/functools.html#functools.wraps
+    https://stackoverflow.com/a/40301488 (deprecation decorator)
 """
 
 import inspect
 import warnings
-
 from ctypes import windll
-from struct import calcsize
 from functools import wraps
+from struct import calcsize
 from time import time
 from typing import Any, Callable
 
 from MemLib.Exceptions import NoAdminPrivileges, Not32BitException, Not64BitException
 
 
+
 _STRING_TYPES: tuple[type, type] = (str, bytes)
 """Tuple of recognized string types for decorator argument detection."""
-
 
 def func_timer(out: Callable[[str], Any]) -> Callable:
     """
@@ -40,10 +63,10 @@ def func_timer(out: Callable[[str], Any]) -> Callable:
     def decorator(function: Callable[[str], Any]) -> Callable:
         @wraps(function)
         def wrap(*args, **kwargs):
-            arg_str: str   = ", ".join(["%r" % a for a in args]) if args else ""
+            arg_str: str = ", ".join(["%r" % a for a in args]) if args else ""
             kwarg_str: str = ", ".join(["%s=%r" % (k, v) for k, v in kwargs.items()]) if kwargs else ""
-            comma: str     = ", " if (arg_str and kwarg_str) else ""
-            fn_args: str   = "%s(%s%s%s)" % (function.__name__, arg_str, comma, kwarg_str)
+            comma: str = ", " if (arg_str and kwarg_str) else ""
+            fn_args: str = "%s(%s%s%s)" % (function.__name__, arg_str, comma, kwarg_str)
 
             ts: float = time()
             result: Any = function(*args, **kwargs)
@@ -55,7 +78,6 @@ def func_timer(out: Callable[[str], Any]) -> Callable:
         return wrap
 
     return decorator
-
 
 def require_32bit(function: Callable[..., Any]) -> Callable[..., Any]:
     """
@@ -75,6 +97,7 @@ def require_32bit(function: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator: Raises Not32BitException if running in anything other than a 32-bit python process.
     """
+
     @wraps(function)
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 32:
@@ -82,7 +105,6 @@ def require_32bit(function: Callable[..., Any]) -> Callable[..., Any]:
         return function(*args, **kwargs)
 
     return wrapper
-
 
 def require_64bit(function: Callable) -> Callable:
     """
@@ -94,6 +116,7 @@ def require_64bit(function: Callable) -> Callable:
     Returns:
         Callable: The wrapped function.
     """
+
     @wraps(function)
     def wrapper(*args, **kwargs):
         if calcsize("P") * 8 != 64:
@@ -101,7 +124,6 @@ def require_64bit(function: Callable) -> Callable:
         return function(*args, **kwargs)
 
     return wrapper
-
 
 def require_admin(function: Callable) -> Callable:
     """
@@ -113,6 +135,7 @@ def require_admin(function: Callable) -> Callable:
     Returns:
         Callable: The wrapped function.
     """
+
     @wraps(function)
     def wrapper(*args, **kwargs):
         if windll.shell32.IsUserAnAdmin() == 0:
@@ -120,7 +143,6 @@ def require_admin(function: Callable) -> Callable:
         return function(*args, **kwargs)
 
     return wrapper
-
 
 def deprecated(reason: Callable | str) -> Callable:
     """

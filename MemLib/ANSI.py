@@ -1,7 +1,15 @@
 """
-Simple RGB to ANSI converter and ANSI terminal utility.
+A comprehensive ANSI escape code utility and RGB-to-ANSI converter.
 
-Provides helpers to generate ANSI escape codes for colors, cursor control, and common formatting.
+Provides helpers for generating ANSI escape codes for RGB foreground/background colors,
+ASCII/ANSI control codes, terminal cursor manipulation, and a wide range of predefined color constants.
+
+Example:
+    print(f"{BOLD}{RED}Hello, world!{END}")
+
+References:
+    https://en.wikipedia.org/wiki/ANSI_escape_code
+    https://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 """
 
 #######################
@@ -11,22 +19,22 @@ Provides helpers to generate ANSI escape codes for colors, cursor control, and c
 BEL: str = "\x07"
 """ASCII Bell (BEL), triggers a beep in the terminal."""
 
-BS:  str = "\x08"
+BS: str = "\x08"
 """ASCII Backspace (BS), moves the cursor one position left."""
 
-HT:  str = "\x09"
+HT: str = "\x09"
 """ASCII Horizontal Tab (HT), moves the cursor to the next tab stop."""
 
-LF:  str = "\x0A"
+LF: str = "\x0A"
 """ASCII Line Feed (LF), moves the cursor to the next line."""
 
-VT:  str = "\x0B"
+VT: str = "\x0B"
 """ASCII Vertical Tab (VT), moves the cursor down a line (rarely used)."""
 
-FF:  str = "\x0C"
+FF: str = "\x0C"
 """ASCII Form Feed (FF), advances to the next page (rarely used)."""
 
-CR:  str = "\x0D"
+CR: str = "\x0D"
 """ASCII Carriage Return (CR), moves the cursor to the beginning of the line."""
 
 ESC: str = "\x1B"
@@ -34,7 +42,6 @@ ESC: str = "\x1B"
 
 DEL: str = "\x7F"
 """ASCII Delete (DEL), deletes the character at the cursor position."""
-
 
 ####################
 # helper functions #
@@ -54,7 +61,6 @@ def fore_rgb(red: int, green: int, blue: int) -> str:
     """
     return f"\033[38;2;{red};{green};{blue}m"
 
-
 def back_rgb(red: int, green: int, blue: int) -> str:
     """
     Return ANSI escape sequence for setting the background color via RGB.
@@ -68,7 +74,6 @@ def back_rgb(red: int, green: int, blue: int) -> str:
         str: ANSI escape code for the specified RGB background color.
     """
     return f"\033[48;2;{red};{green};{blue}m"
-
 
 def cursor_pos(line: int, column: int) -> str:
     """
@@ -86,7 +91,6 @@ def cursor_pos(line: int, column: int) -> str:
 
     return f"{ESC}[{line};{column}H"
 
-
 def cursor_col(column: int) -> str:
     """
     Return ANSI escape sequence to move the cursor to a specific column in the current line.
@@ -100,7 +104,6 @@ def cursor_col(column: int) -> str:
     if not column:
         return ""
     return f"{ESC}[{column}G"
-
 
 def cursor_up(lines: int) -> str:
     """
@@ -117,7 +120,6 @@ def cursor_up(lines: int) -> str:
 
     return f"{ESC}[{lines}A"
 
-
 def cursor_down(lines: int) -> str:
     """
     Return ANSI escape sequence to move the cursor down by a given number of lines.
@@ -132,7 +134,6 @@ def cursor_down(lines: int) -> str:
         return ""
 
     return f"{ESC}[{lines}B"
-
 
 def cursor_right(columns: int) -> str:
     """
@@ -149,7 +150,6 @@ def cursor_right(columns: int) -> str:
 
     return f"{ESC}[{columns}C"
 
-
 def cursor_left(columns: int) -> str:
     """
     Return ANSI escape sequence to move the cursor left by a given number of columns.
@@ -164,7 +164,6 @@ def cursor_left(columns: int) -> str:
         return ""
 
     return f"{ESC}[{columns}D"
-
 
 def cursor_next_line(lines: int) -> str:
     """
@@ -181,7 +180,6 @@ def cursor_next_line(lines: int) -> str:
 
     return f"{ESC}[{lines}E"
 
-
 def cursor_prev_line(lines: int) -> str:
     """
     Return ANSI escape sequence to move the cursor up by a number of lines and to the first column.
@@ -197,7 +195,6 @@ def cursor_prev_line(lines: int) -> str:
 
     return f"{ESC}[{lines}F"
 
-
 def cursor_save_dec() -> str:
     """
     Return ANSI escape sequence to save the current cursor position (DEC private mode, deprecated).
@@ -206,7 +203,6 @@ def cursor_save_dec() -> str:
         str: ANSI escape code to save cursor position.
     """
     return f"{ESC} 7"
-
 
 def cursor_save_sec() -> str:
     """
@@ -217,7 +213,6 @@ def cursor_save_sec() -> str:
     """
     return f"{ESC}[s"
 
-
 def cursor_restore_dec() -> str:
     """
     Return ANSI escape sequence to restore the cursor position (CSI standard, modern).
@@ -226,7 +221,6 @@ def cursor_restore_dec() -> str:
         str: ANSI escape code to restore cursor position.
     """
     return f"{ESC} 8"
-
 
 def cursor_restore_sec() -> str:
     return f"{ESC}[u"
@@ -566,7 +560,7 @@ MEDIUM_SEA_GREEN: str = fore_rgb(60, 179, 113)
 MEDIUM_SLATE_BLUE: str = fore_rgb(123, 104, 238)
 """ANSI escape code for Medium Slate Blue (RGB: 123, 104, 238)."""
 
-MEDIUM_SPRING_GREEN= fore_rgb(0, 250, 154)
+MEDIUM_SPRING_GREEN = fore_rgb(0, 250, 154)
 """ANSI escape code for Medium Spring Green (RGB: 0, 250, 154)."""
 
 MEDIUM_TURQUOISE: str = fore_rgb(72, 209, 204)

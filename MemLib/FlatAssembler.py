@@ -1,6 +1,21 @@
 """
-FASM assembler wrapper for runtime assembly code compilation via FASM.dll.
-Provides high-level compile and error handling utilities.
+FASM assembler wrapper for runtime x86/x64 assembly compilation using FASM.dll.
+
+This module provides high-level Python bindings to the FASM assembler via a DLL,
+allowing you to compile assembly source code at runtime, query the FASM version,
+and handle compilation errors with detailed diagnostics.
+
+Features:
+    * Compile assembly source to machine code with Python (using FASM.dll)
+    * Retrieve FASM library version
+    * Raise and display detailed error messages, including error context and faulty assembly lines
+
+Typical usage example:
+    machine_code = compile_asm("mov eax, 1", max_memory_size=4096)
+    print(machine_code)
+
+References:
+    https://flatassembler.net/
 """
 
 from ctypes import Array, CDLL, WinDLL, addressof, create_string_buffer
@@ -10,10 +25,10 @@ from struct import unpack_from
 from typing import Any
 
 
-_FASM_DIRECTORY: str  = path.dirname(__file__)
-_FASM_PATH: str       = path.join(_FASM_DIRECTORY, 'FASM.dll')
-_FASM: CDLL           = WinDLL(_FASM_PATH)
 
+_FASM_DIRECTORY: str = path.dirname(__file__)
+_FASM_PATH: str = path.join(_FASM_DIRECTORY, 'FASM.dll')
+_FASM: CDLL = WinDLL(_FASM_PATH)
 
 def get_version() -> str:
     """
@@ -24,11 +39,10 @@ def get_version() -> str:
     """
 
     fasm_version: int = _FASM.fasm_GetVersion()
-    major:        str = str(fasm_version & 0xFFFF)
-    minor:        str = str(fasm_version >> 16)
+    major: str = str(fasm_version & 0xFFFF)
+    minor: str = str(fasm_version >> 16)
 
     return f'FASM v{major}.{minor}'
-
 
 def compile_asm(source_code: str, max_memory_size: int = 0x5E8000, max_iterations: int = 100) -> bytes:
     """
@@ -47,19 +61,18 @@ def compile_asm(source_code: str, max_memory_size: int = 0x5E8000, max_iteration
     """
 
     assembly_source: LPSTR = LPSTR(source_code.encode('ascii'))
-    output_buffer: Array   = create_string_buffer(max_memory_size)
-    error_code: int        = _FASM.fasm_Assemble(assembly_source, output_buffer, max_memory_size, max_iterations, 0)
+    output_buffer: Array = create_string_buffer(max_memory_size)
+    error_code: int = _FASM.fasm_Assemble(assembly_source, output_buffer, max_memory_size, max_iterations, 0)
 
     if error_code:
         raise FasmError(output_buffer, source_code)
 
     unpack: tuple[Any, ...] = unpack_from('II', output_buffer, 4)
-    size: int               = unpack[0]
-    address: int            = unpack[1]
-    offset: int             = address - addressof(output_buffer)
+    size: int = unpack[0]
+    address: int = unpack[1]
+    offset: int = address - addressof(output_buffer)
 
     return bytes(output_buffer)[offset:offset + size]
-
 
 class FasmError(Exception):
     """
@@ -103,7 +116,7 @@ class FasmError(Exception):
         "ADDRESS_SIZES_DO_NOT_AGREE", "INVALID_ADDRESS_SIZE", "OPERAND_SIZES_DO_NOT_MATCH",
         "OPERAND_SIZE_NOT_SPECIFIED", "INVALID_OPERAND_SIZE", "INVALID_OPERAND",
         "ILLEGAL_INSTRUCTION", "INVALID_ARGUMENT", "UNEXPECTED_CHARACTERS",
-        "INCOMPLETE_MACRO",  "INVALID_MACRO_ARGUMENTS", "INVALID_FILE_FORMAT",
+        "INCOMPLETE_MACRO", "INVALID_MACRO_ARGUMENTS", "INVALID_FILE_FORMAT",
         "ERROR_READING_FILE", "FILE_NOT_FOUND"
     )
 
@@ -122,15 +135,15 @@ class FasmError(Exception):
         """
 
         self._fasm_buffer: Array = fasm_buffer
-        self._source_code: str   = source_code
-        self._error_code: int    = unpack_from('I', fasm_buffer)[0]
+        self._source_code: str = source_code
+        self._error_code: int = unpack_from('I', fasm_buffer)[0]
 
         if -9 <= self._error_code <= 2:
             self._error_name: str = "%s(%d)" % (FasmError.CODE_NAMES[self._error_code + 9], self._error_code)
-            self._error_msg: str  = self.get_message()
+            self._error_msg: str = self.get_message()
         else:
             self._error_name: str = "UNKNOWN ERROR(%d)" % self._error_code
-            self._error_msg: str  = ""
+            self._error_msg: str = ""
 
         super().__init__(self._error_name, self._error_msg)
 
@@ -154,19 +167,19 @@ class FasmError(Exception):
             return ""
 
         buffer_info: tuple[Any, ...] = unpack_from('iI', self._fasm_buffer, 4)
-        error: int                   = buffer_info[0]
-        info_ptr: int                = buffer_info[1]
-        error_buffer: Array          = (INT * 4).from_address(info_ptr)
+        error: int = buffer_info[0]
+        info_ptr: int = buffer_info[1]
+        error_buffer: Array = (INT * 4).from_address(info_ptr)  # type: ignore
 
         if -141 <= error <= -101:
             error_info: tuple[Any, ...] = unpack_from('iiii', error_buffer)
-            out_string: str             = FasmError.ERROR_NAMES[error + 141]
-            line: int                   = error_info[1] - 1
-            lines: list[str]            = self._source_code.splitlines()
+            out_string: str = FasmError.ERROR_NAMES[error + 141]
+            line: int = error_info[1] - 1
+            lines: list[str] = self._source_code.splitlines()
 
             if 0 < line <= len(lines):
                 out_string += f"\n    -> Line: {line}"
-                out_string +=  "\n    -> ASM:"
+                out_string += "\n    -> ASM:"
 
                 for i in range(line - 10, line + 11):
                     if i < 0 or i >= len(lines):
