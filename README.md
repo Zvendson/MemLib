@@ -1,11 +1,11 @@
-# **MemLib v1.6.1**
+# **MemLib v1.7.0**
 
-This package allows you to easily interact with any 32 Bit process and to manipulate them. 
+This package allows you to easily interact with any process and to manipulate them. 
 It also provieds nice support for Structs and Assembly.
 
 ## Requirements:
 
-- Python 3.12+ (32 Bit)
+- Python 3.12+
 - Windows Platform
 
 ## Installation:
