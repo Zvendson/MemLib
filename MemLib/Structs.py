@@ -1124,7 +1124,6 @@ class PROCESSENTRY32(Struct):
         super().__init__(*args, **kw)
         if self.dwSize == 0:
             self.dwSize = self.get_size()
-            print("Size set:", self.dwSize)
 
 class MODULEENTRY32(Struct):
     """
