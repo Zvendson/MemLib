@@ -1,2 +1,3 @@
-include MemLib/FASM.dll
+include MemLib/fasm32.dll
+include MemLib/fasm64.dll
 include MemLib/Scanner.asm

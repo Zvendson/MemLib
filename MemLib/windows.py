@@ -34,8 +34,9 @@ from __future__ import annotations
 from ctypes import Array, POINTER, WINFUNCTYPE, byref, create_unicode_buffer, windll
 from ctypes.wintypes import (
     ATOM, BOOL, BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPHANDLE, LPSTR,
-    LPVOID, LPWSTR, PDWORD, PLARGE_INTEGER, PULONG, UINT, ULONG, WCHAR, WPARAM,
+    LPVOID, LPWSTR, PDWORD, PLARGE_INTEGER, PULONG, PUSHORT, UINT, ULONG, USHORT, WCHAR, WPARAM,
 )
+from struct import calcsize
 from typing import Callable, Type
 
 from MemLib.Constants import STATUS_SUCCESS
@@ -44,6 +45,13 @@ from MemLib.Structs import MSG, WNDCLASS
 
 
 WaitOrTimerCallback = WINFUNCTYPE(None, LPVOID, BOOL)
+
+
+def is_64bit() -> bool:
+    return calcsize("P") * 8 == 64
+
+def is_32bit() -> bool:
+    return calcsize("P") * 8 == 32
 
 def is_wide_str(text: str | bytes | Array) -> bool:
     """
@@ -757,9 +765,12 @@ def GetProcAddress(module_handle: int, symbol_name: str | bytes) -> int:
     See Also:
         https://learn.microsoft.com/en-us/windows/win32/api/libloaderapi/nf-libloaderapi-getprocaddress
     """
-    assert symbol_name is None, "process_name must be a string like type"
+    assert symbol_name is not None, "process_name must be a string like type"
+
     if isinstance(symbol_name, str):
-        symbol_name: bytes = symbol_name.encode('ascii')
+        symbol_name: bytes = symbol_name.encode('utf-8')
+
+    print(f"call GetProcAddress({module_handle}, {symbol_name})")
     return _GetProcAddress(module_handle, symbol_name)
 
 # noinspection PyPep8Naming
@@ -1281,6 +1292,16 @@ def Thread32First(snapshot_handle: int, lpte: object) -> bool:
         https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-thread32first
     """
     return _Thread32First(snapshot_handle, lpte)
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+def IsWow64Process2(process_handle: int) -> tuple[int, int]:
+    machine: USHORT = USHORT()
+    native_machine: USHORT = USHORT()
+    if not _IsWow64Process2(process_handle, byref(machine), byref(native_machine)):
+        raise Win32Exception()
+
+    return machine.value, native_machine.value
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1872,6 +1893,10 @@ _Thread32Next.restype = BOOL
 _Thread32First = windll.kernel32.Thread32First
 _Thread32First.argtypes = [HANDLE, LPVOID]
 _Thread32First.restype = BOOL
+
+_IsWow64Process2 = windll.kernel32.IsWow64Process2
+_IsWow64Process2.argtypes = [HANDLE, PUSHORT, PUSHORT]
+_IsWow64Process2.restype = BOOL
 
 _GetStdHandle = windll.kernel32.GetStdHandle
 _GetStdHandle.argtypes = [DWORD]

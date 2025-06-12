@@ -24,15 +24,15 @@ References:
 
 from ctypes import WINFUNCTYPE
 from ctypes.wintypes import (
-    BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, LPWSTR,
-    MAX_PATH, PBYTE, UINT, ULONG, USHORT, WORD, WPARAM,
+    BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, LPWSTR, PBYTE, PULONG, UINT,
+    ULARGE_INTEGER, ULONG, USHORT, WORD, WPARAM,
 )
 from typing import Any
 
-from _ctypes import Array
+from _ctypes import Array, POINTER
 
+from MemLib.Constants import IMAGE_NUMBEROF_DIRECTORY_ENTRIES, MAX_PATH, MAX_MODULE_NAME32
 from MemLib.Struct import Struct
-
 
 
 class STARTUPINFOA(Struct):
@@ -432,13 +432,61 @@ class PEB(Struct):
         ('WerShipAssertPtr', LPVOID),
     ]
 
+class LIST_ENTRY(Struct):
+
+    _fields_ = [
+        ("Flink", LPVOID),
+        ("Blink", LPVOID),
+    ]
+
+class PEB_LDR_DATA(Struct):
+
+    _fields_ = [
+        ("Reserved1", BYTE * 8),# type: ignore
+        ("Reserved2", LPVOID * 3),# type: ignore
+        ("InMemoryOrderModuleList", LIST_ENTRY),
+    ]
+
+class RTL_USER_PROCESS_PARAMETERS(Struct):
+
+    _fields_ = [
+        ("Reserved1", BYTE * 16),# type: ignore
+        ("Reserved2", LPVOID * 10),# type: ignore
+        ("ImagePathName", UNICODE_STRING),
+        ("CommandLine", UNICODE_STRING),
+    ]
+
+class PEB64(Struct):
+
+    _fields_ = [
+        ("Reserved1", BYTE * 2), # type: ignore
+        ("BeingDebugged", BYTE),
+        ("Reserved2", BYTE),
+        ("Reserved3", LPVOID * 2), # type: ignore
+        ("Ldr", POINTER(PEB_LDR_DATA)),
+        ("Reserved4", LPVOID * 3), # type: ignore
+        ("AtlThunkSListPtr", LPVOID),
+        ("Reserved5", LPVOID),
+        ("Reserved6", ULONG),
+        ("Reserved7", LPVOID),
+        ("Reserved8", ULONG),
+        ("AtlThunkSListPtr32", ULONG),
+        ("Reserved9", LPVOID * 45), # type: ignore
+        ("Reserved10", BYTE * 96), # type: ignore
+        ("PostProcessInitRoutine", LPVOID),
+        ("Reserved11", BYTE * 128), # type: ignore
+        ("Reserved12", LPVOID),
+        ("SessionId", LPVOID),
+    ]
+
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
 class IMAGE_DOS_HEADER(Struct):
     """
     Represents the MS-DOS (MZ) header at the start of all PE files.
 
-    This structure is found at the very beginning of any Portable Executable (PE) and contains information for legacy DOS execution, as well as a pointer to the PE header.
+    This structure is found at the very beginning of any Portable Executable (PE) and contains information for legacy
+    DOS execution, as well as a pointer to the PE header.
 
     Fields:
         e_magic     (WORD)      : Magic number ("MZ").
@@ -670,7 +718,115 @@ class IMAGE_OPTIONAL_HEADER32(Struct):
         ('SizeOfHeapCommit', DWORD),
         ('LoaderFlags', DWORD),
         ('NumberOfRvaAndSizes', DWORD),
-        ('DataDirectory', IMAGE_DATA_DIRECTORY * 16),  # IMAGE_NUMBEROF_DIRECTORY_ENTRIES
+        ('DataDirectory', IMAGE_DATA_DIRECTORY * IMAGE_NUMBEROF_DIRECTORY_ENTRIES),
+    ]
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+class IMAGE_OPTIONAL_HEADER64(Struct):
+    """
+    Contains the optional header for a 64-bit PE file, which provides important information required for loading the
+    program.
+
+    Fields:
+        Magic                        (WORD): Identifies the type of image (PE32).
+        MajorLinkerVersion           (BYTE): Major version number of the linker.
+        MinorLinkerVersion           (BYTE): Minor version number of the linker.
+        SizeOfCode                   (DWORD): Size of the code section.
+        SizeOfInitializedData        (DWORD): Size of the initialized data section.
+        SizeOfUninitializedData      (DWORD): Size of the uninitialized data section.
+        AddressOfEntryPoint          (DWORD): RVA of the entry point.
+        BaseOfCode                   (DWORD): RVA of the code section.
+        BaseOfData                   (DWORD): RVA of the data section.
+        ImageBase                    (DWORD): Preferred address to load the image.
+        SectionAlignment             (DWORD): Section alignment in memory.
+        FileAlignment                (DWORD): File alignment on disk.
+        MajorOperatingSystemVersion  (WORD): Major OS version required.
+        MinorOperatingSystemVersion  (WORD): Minor OS version required.
+        MajorImageVersion            (WORD): Major image version.
+        MinorImageVersion            (WORD): Minor image version.
+        MajorSubsystemVersion        (WORD): Major subsystem version.
+        MinorSubsystemVersion        (WORD): Minor subsystem version.
+        Win32VersionValue            (DWORD): Reserved.
+        SizeOfImage                  (DWORD): Size of the image, including all headers.
+        SizeOfHeaders                (DWORD): Combined size of MS-DOS stub, PE header, and section headers.
+        CheckSum                     (DWORD): Image checksum.
+        Subsystem                    (WORD): Subsystem required to run this image.
+        DllCharacteristics           (WORD): DLL characteristics flags.
+        SizeOfStackReserve           (DWORD): Size of stack to reserve.
+        SizeOfStackCommit            (DWORD): Size of stack to commit.
+        SizeOfHeapReserve            (DWORD): Size of heap to reserve.
+        SizeOfHeapCommit             (DWORD): Size of heap to commit.
+        LoaderFlags                  (DWORD): Loader flags.
+        NumberOfRvaAndSizes          (DWORD): Number of data-directory entries.
+        DataDirectory                (IMAGE_DATA_DIRECTORY * IMAGE_NUMBEROF_DIRECTORY_ENTRIES): Array of data directories.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-image_optional_header32
+    """
+    Magic: int
+    MajorLinkerVersion: int
+    MinorLinkerVersion: int
+    SizeOfCode: int
+    SizeOfInitializedData: int
+    SizeOfUninitializedData: int
+    AddressOfEntryPoint: int
+    BaseOfCode: int
+    BaseOfData: int
+    ImageBase: int
+    SectionAlignment: int
+    FileAlignment: int
+    MajorOperatingSystemVersion: int
+    MinorOperatingSystemVersion: int
+    MajorImageVersion: int
+    MinorImageVersion: int
+    MajorSubsystemVersion: int
+    MinorSubsystemVersion: int
+    Win32VersionValue: int
+    SizeOfImage: int
+    SizeOfHeaders: int
+    CheckSum: int
+    Subsystem: int
+    DllCharacteristics: int
+    SizeOfStackReserve: int
+    SizeOfStackCommit: int
+    SizeOfHeapReserve: int
+    SizeOfHeapCommit: int
+    LoaderFlags: int
+    NumberOfRvaAndSizes: int
+    DataDirectory: IMAGE_DATA_DIRECTORY * 16  # type: ignore
+
+    _fields_ = [
+        ('Magic', WORD),
+        ('MajorLinkerVersion', BYTE),
+        ('MinorLinkerVersion', BYTE),
+        ('SizeOfCode', DWORD),
+        ('SizeOfInitializedData', DWORD),
+        ('SizeOfUninitializedData', DWORD),
+        ('AddressOfEntryPoint', DWORD),
+        ('BaseOfCode', DWORD),
+        ('ImageBase', ULARGE_INTEGER),
+        ('SectionAlignment', DWORD),
+        ('FileAlignment', DWORD),
+        ('MajorOperatingSystemVersion', WORD),
+        ('MinorOperatingSystemVersion', WORD),
+        ('MajorImageVersion', WORD),
+        ('MinorImageVersion', WORD),
+        ('MajorSubsystemVersion', WORD),
+        ('MinorSubsystemVersion', WORD),
+        ('Win32VersionValue', DWORD),
+        ('SizeOfImage', DWORD),
+        ('SizeOfHeaders', DWORD),
+        ('CheckSum', DWORD),
+        ('Subsystem', WORD),
+        ('DllCharacteristics', WORD),
+        ('SizeOfStackReserve', ULARGE_INTEGER),
+        ('SizeOfStackCommit', ULARGE_INTEGER),
+        ('SizeOfHeapReserve', ULARGE_INTEGER),
+        ('SizeOfHeapCommit', ULARGE_INTEGER),
+        ('LoaderFlags', DWORD),
+        ('NumberOfRvaAndSizes', DWORD),
+        ('DataDirectory', IMAGE_DATA_DIRECTORY * IMAGE_NUMBEROF_DIRECTORY_ENTRIES),  #
     ]
 
 # noinspection PyPep8Naming
@@ -754,6 +910,43 @@ class IMAGE_NT_HEADERS32(Struct):
         """
         return IMAGE_NT_HEADERS32.OptionalHeader.offset + self.FileHeader.SizeOfOptionalHeader
 
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+class IMAGE_NT_HEADERS64(Struct):
+    """
+    Represents the NT headers for a 64-bit Portable Executable (PE) file.
+
+    This structure combines the PE signature, file header, and optional header, and forms the starting point
+    for parsing the rest of the PE file structure after the DOS header.
+
+    Fields:
+        Signature       (DWORD)                  : PE file signature ('PE\0\0' as 0x00004550).
+        FileHeader      (IMAGE_FILE_HEADER)      : Standard COFF file header.
+        OptionalHeader  (IMAGE_OPTIONAL_HEADER64): Optional header with detailed information for loading.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#pe-format
+    """
+    Signature: int
+    FileHeader: IMAGE_FILE_HEADER
+    OptionalHeader: IMAGE_OPTIONAL_HEADER64
+
+    _fields_ = [
+        ('Signature', DWORD),
+        ('FileHeader', IMAGE_FILE_HEADER),
+        ('OptionalHeader', IMAGE_OPTIONAL_HEADER64),
+    ]
+
+    def get_sections_offset(self) -> int:
+        """
+        Returns the file offset to the first section header in the PE file.
+
+        Returns:
+            int: Offset (in bytes) to the start of the section headers.
+        """
+        return IMAGE_NT_HEADERS32.OptionalHeader.offset + self.FileHeader.SizeOfOptionalHeader
+
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
 class IMAGE_EXPORT_DIRECTORY(Struct):
@@ -778,6 +971,7 @@ class IMAGE_EXPORT_DIRECTORY(Struct):
 
     See also:
         https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-export-directory-table
+        https://dev.to/wireless90/exploring-the-export-table-windows-pe-internals-4l47
     """
     Characteristics: int
     TimeDateStamp: int
@@ -891,7 +1085,7 @@ class PROCESSENTRY32(Struct):
         dwSize              (DWORD): Size of the structure, in bytes.
         cntUsage            (DWORD): Number of references to the process.
         th32ProcessID       (DWORD): Process identifier.
-        th32DefaultHeapID   (ULONG): Default heap identifier.
+        th32DefaultHeapID   (PULONG): Default heap identifier.
         th32ModuleID        (DWORD): Module identifier.
         cntThreads          (DWORD): Number of execution threads started by the process.
         th32ParentProcessID (DWORD): Process identifier of the parent process.
@@ -905,7 +1099,7 @@ class PROCESSENTRY32(Struct):
     dwSize: int
     cntUsage: int
     th32ProcessID: int
-    th32DefaultHeapID: int
+    th32DefaultHeapID: PULONG
     th32ModuleID: int
     cntThreads: int
     th32ParentProcessID: int
@@ -917,7 +1111,7 @@ class PROCESSENTRY32(Struct):
         ('dwSize', DWORD),
         ('cntUsage', DWORD),
         ('th32ProcessID', DWORD),
-        ('th32DefaultHeapID', ULONG),
+        ('th32DefaultHeapID', PULONG),
         ('th32ModuleID', DWORD),
         ('cntThreads', DWORD),
         ('th32ParentProcessID', DWORD),
@@ -930,6 +1124,7 @@ class PROCESSENTRY32(Struct):
         super().__init__(*args, **kw)
         if self.dwSize == 0:
             self.dwSize = self.get_size()
+            print("Size set:", self.dwSize)
 
 class MODULEENTRY32(Struct):
     """
@@ -941,7 +1136,7 @@ class MODULEENTRY32(Struct):
         th32ProcessID (DWORD): Identifier of the process containing the module.
         GlblcntUsage  (DWORD): Global usage count.
         ProccntUsage  (DWORD): Process usage count.
-        modBaseAddr   (ULONG): Base address of the module.
+        modBaseAddr   (LPVOID): Base address of the module.
         modBaseSize   (DWORD): Size of the module, in bytes.
         hModule       (HMODULE): Handle to the module.
         szModule      (CHAR * 256): Module name.
@@ -955,7 +1150,7 @@ class MODULEENTRY32(Struct):
     th32ProcessID: int
     GlblcntUsage: int
     ProccntUsage: int
-    modBaseAddr: int
+    modBaseAddr: LPVOID
     modBaseSize: int
     hModule: int | None
     szModule: bytes
@@ -967,10 +1162,10 @@ class MODULEENTRY32(Struct):
         ('th32ProcessID', DWORD),
         ('GlblcntUsage', DWORD),
         ('ProccntUsage', DWORD),
-        ('modBaseAddr', ULONG),
+        ('modBaseAddr', LPVOID),
         ('modBaseSize', DWORD),
         ('hModule', HMODULE),
-        ('szModule', CHAR * 256),  # type: ignore
+        ('szModule', CHAR * (MAX_MODULE_NAME32 + 1)),  # type: ignore
         ('szExePath', CHAR * MAX_PATH)  # type: ignore
     ]
 

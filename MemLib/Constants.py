@@ -14,6 +14,11 @@ References:
     https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-createfilemappinga
 """
 
+MAX_MODULE_NAME32: int = 255
+"""
+The maximum length for a module names
+"""
+
 MAX_PATH: int = 260
 """
 The maximum length for a path string.
@@ -921,3 +926,249 @@ Callback functions will use the current access token, whether it is a process or
 not specified, callback functions execute only with the process token.
 Windows XP:  This flag is not supported until Windows XP with SP2 and Windows Server 2003.
 """
+
+IMAGE_FILE_MACHINE_UNKNOWN: int = 0x0000
+"""
+The contents of this field are assumed to be applicable to any machine type.
+"""
+
+IMAGE_FILE_MACHINE_TARGET_HOST: int = 0x0001
+"""
+Useful for indicating we want to interact with the host and not a WoW (Windows-on-Windows) guest.
+"""
+
+IMAGE_FILE_MACHINE_I386: int = 0x014c
+"""
+Intel 386 or later processors and compatible processors.
+"""
+
+IMAGE_FILE_MACHINE_R3000: int = 0x0162
+"""
+MIPS little-endian, 0x160 big-endian.
+"""
+
+IMAGE_FILE_MACHINE_R4000: int = 0x0166
+"""
+MIPS little-endian.
+"""
+
+IMAGE_FILE_MACHINE_R10000: int = 0x0168
+"""
+MIPS little-endian.
+"""
+
+IMAGE_FILE_MACHINE_WCEMIPSV2: int = 0x0169
+"""
+MIPS little-endian Windows CE v2.
+"""
+
+IMAGE_FILE_MACHINE_ALPHA: int = 0x0184
+"""
+Alpha_AXP.
+"""
+
+IMAGE_FILE_MACHINE_SH3: int = 0x01a2
+"""
+SH3 little-endian.
+"""
+
+IMAGE_FILE_MACHINE_SH3DSP: int = 0x01a3
+"""
+SH3DSP.
+"""
+
+IMAGE_FILE_MACHINE_SH3E: int = 0x01a4
+"""
+SH3E little-endian.
+"""
+
+IMAGE_FILE_MACHINE_SH4: int = 0x01a6
+"""
+SH4 little-endian.
+"""
+
+IMAGE_FILE_MACHINE_SH5: int = 0x01a8
+"""
+SH5.
+"""
+
+IMAGE_FILE_MACHINE_ARM: int = 0x01c0
+"""
+ARM little-endian.
+"""
+
+IMAGE_FILE_MACHINE_THUMB: int = 0x01c2
+"""
+ARM Thumb/Thumb-2 little-endian.
+"""
+
+IMAGE_FILE_MACHINE_ARMNT: int = 0x01c4
+"""
+ARM Thumb-2 little-endian.
+"""
+
+IMAGE_FILE_MACHINE_AM33: int = 0x01d3
+"""
+Matsushita AM33.
+"""
+
+IMAGE_FILE_MACHINE_POWERPC: int = 0x01F0
+"""
+IBM PowerPC little-endian.
+"""
+
+IMAGE_FILE_MACHINE_POWERPCFP: int = 0x01f1
+"""
+IBM PowerPC with floating point support.
+"""
+
+IMAGE_FILE_MACHINE_IA64: int = 0x0200
+"""
+Intel Itanium processor family.
+"""
+
+IMAGE_FILE_MACHINE_MIPS16: int = 0x0266
+"""
+MIPS16.
+"""
+
+IMAGE_FILE_MACHINE_ALPHA64: int = 0x0284
+"""
+ALPHA64.
+"""
+
+IMAGE_FILE_MACHINE_MIPSFPU: int = 0x0366
+"""
+MIPS with FPU.
+"""
+
+IMAGE_FILE_MACHINE_MIPSFPU16: int = 0x0466
+"""
+MIPS16 with FPU.
+"""
+
+IMAGE_FILE_MACHINE_AXP64: int = 0x0284
+"""
+Alias for IMAGE_FILE_MACHINE_ALPHA64.
+"""
+
+IMAGE_FILE_MACHINE_TRICORE: int = 0x0520
+"""
+Infineon TriCore processor family.
+"""
+
+IMAGE_FILE_MACHINE_CEF: int = 0x0CEF
+"""
+CEF.
+"""
+
+IMAGE_FILE_MACHINE_EBC: int = 0x0EBC
+"""
+EFI byte code.
+"""
+
+IMAGE_FILE_MACHINE_AMD64: int = 0x8664
+"""
+x64 (AMD or Intel).
+"""
+
+IMAGE_FILE_MACHINE_M32R: int = 0x9041
+"""
+Mitsubishi M32R little-endian.
+"""
+
+IMAGE_FILE_MACHINE_ARM64: int = 0xAA64
+"""
+ARM64 little-endian.
+"""
+
+IMAGE_FILE_MACHINE_CEE: int = 0xC0EE
+"""
+CEE.
+"""
+
+IMAGE_NUMBEROF_DIRECTORY_ENTRIES: int = 16
+"""
+Number of max directives in IMAGE_OPTIONAL_HEADER32 struct.
+"""
+
+IMAGE_DIRECTORY_ENTRY_EXPORT: int = 0
+"""
+Export Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_IMPORT: int = 1
+"""
+Import Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_RESOURCE: int = 2
+"""
+Resource Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_EXCEPTION: int = 3
+"""
+Exception Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_SECURITY: int = 4
+"""
+Security Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_BASERELOC: int = 5
+"""
+Base Relocation Table
+"""
+
+IMAGE_DIRECTORY_ENTRY_DEBUG: int = 6
+"""
+Debug Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_COPYRIGHT: int = 7
+"""
+X86 usage
+"""
+
+IMAGE_DIRECTORY_ENTRY_ARCHITECTURE: int = 7
+"""
+Architecture Specific Data
+"""
+
+IMAGE_DIRECTORY_ENTRY_GLOBALPTR: int = 8
+"""
+RVA of GP
+"""
+
+IMAGE_DIRECTORY_ENTRY_TLS: int = 9
+"""
+TLS Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG: int = 10
+"""
+Load Configuration Directory
+"""
+
+IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT: int = 11
+"""
+Bound Import Directory in headers
+"""
+
+IMAGE_DIRECTORY_ENTRY_IAT: int = 12
+"""
+Import Address Table
+"""
+
+IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT: int = 13
+"""
+Delay Load Import Descriptors
+"""
+
+IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR: int = 14
+"""
+COM Runtime descriptor
+"""
+

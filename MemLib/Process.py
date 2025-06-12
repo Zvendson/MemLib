@@ -24,12 +24,15 @@ import psutil
 
 from MemLib import windows
 from MemLib.Constants import (
-    CREATE_SUSPENDED, INFINITE, MEM_COMMIT, MEM_RELEASE, NORMAL_PRIORITY_CLASS,
+    CREATE_SUSPENDED, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM, IMAGE_FILE_MACHINE_ARM64,
+    IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_IA64, INFINITE, MEM_COMMIT,
+    MEM_RELEASE,
+    NORMAL_PRIORITY_CLASS,
     PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION,
     PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32,
     TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
-from MemLib.Decorators import require_32bit
+from MemLib.FlatAssembler import compile_asm
 from MemLib.Module import Module
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
@@ -37,6 +40,7 @@ from MemLib.Structs import (
     PROCESS_BASIC_INFORMATION, Struct, THREADENTRY32,
 )
 from MemLib.Thread import Thread
+from MemLib.windows import IsWow64Process2, Win32Exception
 
 
 
@@ -64,7 +68,6 @@ class Process:
         ...
     """
 
-    @require_32bit
     def __init__(self, process_id: int, process_handle: int = 0, access: int = PROCESS_ALL_ACCESS,
                  inherit: bool = False):
         """
@@ -95,6 +98,7 @@ class Process:
         self._peb: PEB | None = None
         self._mzheader: MZ_FILEHEADER | None = None
         self._imgheader: IMAGE_NT_HEADERS32 | None = None
+        self._is64bit: bool | None = None
 
         if not self._handle:
             self.open(access, self._inherit, self._process_id)
@@ -122,7 +126,7 @@ class Process:
         Returns:
             str: A string summarizing the process name and PID.
         """
-        return f"Process(Name={self.name}, PID={self.process_id})"
+        return f"Process(Name={self.name}, PID={self.process_id}, 64Bit={self.is_64bit})"
 
     def __repr__(self) -> str:
         """
@@ -151,6 +155,29 @@ class Process:
             return self == other
 
         return self._process_id == other
+
+    @property
+    def is_32bit(self) -> bool:
+        return not self.is_64bit
+
+    @property
+    def is_64bit(self) -> bool:
+        if self._is64bit is None:
+            machine, native_machine = self.is_wow64()
+
+            # If process is native (machine==0), use native_machine
+            effective_machine = machine if machine != 0 else native_machine
+
+            # All 64-bit architectures
+            if effective_machine in (IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_IA64, IMAGE_FILE_MACHINE_ARM64):
+                self._is64bit = True
+            # All 32-bit architectures
+            elif effective_machine in (IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_ARM):
+                self._is64bit = False
+            else:
+                raise Win32Exception()
+
+        return self._is64bit
 
     @property
     def exists(self) -> bool:
@@ -672,6 +699,22 @@ class Process:
 
         return None
 
+    def is_wow64(self) -> tuple[int, int]:
+        """
+        Determines the architecture of the process using IsWow64Process2.
+
+        Returns:
+            tuple[int, int]: A tuple containing (process_machine, native_machine) values.
+                - process_machine: The architecture the process is running under (IMAGE_FILE_MACHINE_*).
+                - native_machine: The native architecture of the host system (IMAGE_FILE_MACHINE_*).
+
+        Note:
+            - If process_machine is 0, the process is running natively (not under WOW64).
+            - Use the returned codes to distinguish between 32-bit (WOW64) and 64-bit (native) processes.
+            - Requires Windows 10 or later.
+        """
+        return IsWow64Process2(self._handle)
+
     def get_scanner(self, section_name: str = None) -> BinaryScanner | None:
         """
         Returns a BinaryScanner for a section of the process core module.
@@ -993,12 +1036,13 @@ class Process:
         return old_protection.value
 
     @staticmethod
-    def get_process_list(process_name: str = "") -> list[Process]:
+    def get_process_list(process_name: str = "", exclude_32bit: bool = False) -> list[Process]:
         """
         Gets a list of all running processes (optionally filtered by name).
 
         Args:
             process_name (str, optional): Filter for process executable name (ASCII, case-insensitive).
+            exclude_32bit (bool, optional): If True, excludes 32 bit processes from the ouput.
 
         Returns:
             list[Process]: List of Process objects matching the filter.
@@ -1007,10 +1051,10 @@ class Process:
 
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if not snapshot:
-            return process_list
+            raise Win32Exception()
 
         process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
-        process_buffer.dwSize = process_buffer.get_size()
+        assert process_buffer.dwSize > 0
 
         if not windows.Process32First(snapshot, byref(process_buffer)):
             windows.CloseHandle(snapshot)
@@ -1030,7 +1074,11 @@ class Process:
                     process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
 
                 process._name = process_buffer.szExeFile.decode('ascii')
-                process_list.append(process)
+
+                if process.is_64bit:
+                    process_list.append(process)
+                elif not exclude_32bit:
+                    process_list.append(process)
 
             process_found = windows.Process32Next(snapshot, byref(process_buffer))
 
