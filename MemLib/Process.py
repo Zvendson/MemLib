@@ -32,7 +32,6 @@ from MemLib.Constants import (
     PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32,
     TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
 )
-from MemLib.FlatAssembler import compile_asm
 from MemLib.Module import Module
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
