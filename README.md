@@ -1,4 +1,4 @@
-# **MemLib v1.7.0**
+# **MemLib v1.7.1**
 
 This package allows you to easily interact with any process and to manipulate them. 
 It also provieds nice support for Structs and Assembly.
