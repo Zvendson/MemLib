@@ -915,7 +915,7 @@ class Process:
             if termination != -1:
                 result = result[:termination + 1]
 
-        return result.decode(encoding="utf-16")
+        return result.decode(encoding="utf-16", errors="ignore")
 
     def write(self, address: int, binary_data: bytes) -> bool:
         """
