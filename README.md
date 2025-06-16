@@ -1,32 +1,56 @@
-# **MemLib v1.7.1**
+# MemLib
 
-This package allows you to easily interact with any process and to manipulate them. 
-It also provieds nice support for Structs and Assembly.
+**MemLib** is a Windows-only Python library for low-level memory manipulation, remote process introspection, and binary pattern scanning with native FASM-powered assembly code.
 
-## Requirements:
+> ⚠️ Requires a 32-bit or 64-bit Windows OS with permissions to interact with other processes.
 
-- Python 3.12+
-- Windows Platform
+## Features
 
-## Installation:
+* 🧠 **Process Manipulation**
 
+  * Open, suspend, resume, terminate processes
+  * Read/write remote memory (raw, strings, structures)
+  * Enumerate modules and threads
+  * Remote thread injection
 
-### <ins>**Including via `requirements.txt`:**</ins>
-If not already done, create the `requirements.txt` in your root folder and add following line:
-```
-git+https://github.com/Zvendson/MemLib
-```
+* 🔍 **Pattern Scanning**
 
-### <ins>**Include globally:**</ins>
-Make sure setuptools is up to date:
-```
-python -m pip install --upgrade setuptools
-```
+  * Written in assembly
+  * High-speed binary scan using native x86/x64 routines
+  * Wildcard mask support (`55 EC ?? ?? 90 90`)
+  * Architecture-aware payload selection
 
-Open the terminal an locate the MemLib folder. Now run following command to install the package:
-```
-python setup.py install
-```
+* 🪝 **Inline Hooking**
 
+  * JMP/CALL code hook installation
+  * Buffer-persisted recovery support
+  * Toggle, enable, disable hooks at runtime
 
+* 🧩 **Flat Assembler Integration**
 
+  * Compile raw x86/x64 assembly from Python at runtime
+  * Structured FASM error reporting with source context
+
+* 📦 **Struct Utilities**
+
+  * Colorized, pretty-printing `ctypes.Structure` base class wrapper
+  * Automatic identifier detection and layout display
+
+---
+
+## Installation
+
+WIP
+
+---
+
+## Requirements
+
+* Windows (32-bit or 64-bit)
+* Python 3.10+
+
+---
+
+## License
+
+MIT License. See [LICENSE](LICENSE) for details.
