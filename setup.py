@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='MemLib',
-    version='1.7.4',
+    version='1.7.3',
     packages=find_packages(),
     include_package_data=True,
     url='https://github.com/Zvendson/MemLib',

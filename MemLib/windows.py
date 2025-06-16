@@ -1339,6 +1339,50 @@ def QueryFullProcessImageNameW(process_handle: int, flags: int, exe_name: object
     """
     return _QueryFullProcessImageNameW(process_handle, flags, exe_name, ptr_size)
 
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+def CreateMutexW(lp_mutex_attributes: int, initial_owner: bool, name: str) -> HANDLE:
+    """
+    Creates or opens a named or unnamed mutex object.
+
+    This function wraps the Windows API `CreateMutexW` to create a mutex that can be used
+    for synchronization between threads or processes. If the specified name matches an existing
+    mutex, the function opens a handle to the existing object.
+
+    Args:
+        lp_mutex_attributes (int): A pointer to a SECURITY_ATTRIBUTES structure or 0 for default security.
+        initial_owner (bool): If True, the calling thread owns the mutex on return.
+        name (str): The name of the mutex object. Use "Global\\..." for cross-session access.
+
+    Returns:
+        HANDLE: A handle to the created or opened mutex object.
+
+    Raises:
+        OSError: If the mutex could not be created or opened.
+    """
+    return _CreateMutexW(lp_mutex_attributes, initial_owner, name)
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+def ReleaseMutex(mutex_handle) -> bool:
+    """
+    Releases ownership of the specified mutex object.
+
+    This function wraps the Windows API `ReleaseMutex` and should be called after a thread
+    has finished using a mutex it owns. Releasing a mutex allows other waiting threads or
+    processes to acquire ownership.
+
+    Args:
+        mutex_handle: A handle to the mutex object. The calling thread must own the mutex.
+
+    Returns:
+        bool: True if the function succeeds, False otherwise.
+
+    Raises:
+        OSError: If the mutex handle is invalid or the calling thread does not own the mutex.
+    """
+    return bool(_ReleaseMutex(mutex_handle))
+
 class Win32Exception(RuntimeError):
     """
     Exception class representing a Windows API error.
@@ -1903,6 +1947,14 @@ _GetStdHandle.restype = HANDLE
 _QueryFullProcessImageNameW = windll.kernel32.QueryFullProcessImageNameW
 _QueryFullProcessImageNameW.argtypes = [HANDLE, DWORD, LPWSTR, PDWORD]
 _QueryFullProcessImageNameW.restype = BOOL
+
+_CreateMutexW = windll.kernel32.CreateMutexW
+_CreateMutexW.argtypes = [LPVOID, BOOL, LPWSTR]
+_CreateMutexW.restype = HANDLE
+
+_ReleaseMutex = windll.kernel32.ReleaseMutex
+_ReleaseMutex.argtypes = [HANDLE]
+_ReleaseMutex.restype = BOOL
 
 _CreateWindowExA = windll.user32.CreateWindowExA
 _CreateWindowExA.argtypes = [DWORD, LPSTR, LPSTR, DWORD, INT, INT, INT, INT, HWND, INT, INT, INT]
