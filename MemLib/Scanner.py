@@ -1,8 +1,8 @@
 """
-Binary pattern scanner with masked matching using embedded 32-bit assembly.
+Binary pattern scanner with masked matching using embedded 32-bit and 64-bit assembly.
 
 This module provides tools for fast, masked binary scanning of memory buffers using an injected
-FASM-compiled 32-bit assembly routine. Supports custom pattern definitions, efficient memory management,
+FASM-compiled assembly routine. Supports custom pattern definitions, efficient memory management,
 and compatibility with Windows process memory (VirtualAlloc/VirtualFree).
 
 Features:
@@ -17,17 +17,16 @@ Example:
     print(f"Pattern found at virtual address: 0x{addr:X}")
 """
 
-from ctypes import CFUNCTYPE, POINTER, byref, create_string_buffer
+from ctypes import CFUNCTYPE, POINTER, byref, c_uint32, c_uint64, create_string_buffer
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
-from typing import Callable
+from typing import Callable, Literal
 
 from _ctypes import Array
 
 from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
-from MemLib.Decorators import require_32bit
 from MemLib.FlatAssembler import compile_asm
 from MemLib.Structs import Struct
-from MemLib.windows import VirtualAlloc, VirtualFree, Win32Exception
+from MemLib.windows import VirtualAlloc, VirtualFree, Win32Exception, is_32bit
 
 
 
@@ -43,12 +42,15 @@ def generate_assembly_payload(file_path: str) -> str:
 
     Returns:
         str: Prettified opcode bytes as a Python-formatted string.
+
     Raises:
         FileNotFoundError: If the file does not exist.
         Win32Exception: If FASM compilation fails.
     """
     with open(file_path) as asm:
-        binary: bytes = compile_asm(asm.read())
+        text = asm.read()
+        binary: bytes = compile_asm(text)
+
         opcode: str = binary.hex().upper()
         out: str = ""
 
@@ -70,10 +72,17 @@ class Pattern(Struct):
         Pattern("55 8B EC ?? 33 C0")
     """
 
-    length: DWORD
-    binary: BYTE * 256  # type: ignore
-    mask: BYTE * 256  # type: ignore
-    offset: DWORD
+    length: int
+    binary: bytes
+    mask: bytes
+    offset: int
+
+    _fields_ = [
+        ("length", DWORD),
+        ("binary", BYTE * 256),
+        ("mask", BYTE * 256),
+        ("offset", DWORD),
+    ]
 
     def __init__(self, combo_pattern: str, offset: int = 0):
         """
@@ -86,6 +95,8 @@ class Pattern(Struct):
         Raises:
             ValueError: If the pattern string has invalid length or unsupported format.
         """
+        combo_pattern = combo_pattern.replace(" ", "")
+
         if len(combo_pattern) % 2 != 0:
             raise ValueError("Pattern has an invalid length!")
 
@@ -120,26 +131,39 @@ class Pattern(Struct):
 
 class BinaryScanner:
     """
-    Binary scanner using a 32-bit assembly routine and masked pattern matching.
+    Binary scanner using embedded 32-bit or 64-bit assembly for masked pattern matching.
 
     Can scan a provided byte buffer for binary patterns with wildcard masks.
+    Automatically selects the appropriate routine based on architecture.
     """
 
-    __PAYLOAD = bytes.fromhex(
+    __PAYLOAD32 = bytes.fromhex(
         '55 89 E5 83 EC 08 53 51 52 56 57 8B 55 08 8B 02 85 C0 74 51 48 8B 9A 04 02 00 00 89 5D FC 8D 72 04 8D BA 04 01'
         '00 00 8B 55 0C 8B 1A 8B 4A 04 89 5D F8 29 C1 8A 14 06 39 CB 73 28 38 14 03 75 20 50 48 80 3C 07 78 75 08 8A 34'
         '06 38 34 03 75 04 85 C0 75 ED 58 75 09 89 D8 8B 5D F8 29 D8 EB 05 43 EB D4 31 C0 85 C0 74 03 03 45 FC 5F 5E 5A'
         '59 5B 83 C4 08 C9 C2 08 00'
     )
 
-    class _Buffer(Struct):
-        base: LPVOID
-        end: LPVOID
+    __PAYLOAD64 = bytes.fromhex(
+        '55 48 89 E5 48 83 EC 10 53 56 57 48 31 C0 48 31 DB 8B 01 48 85 C0 74 63 48 FF C8 8B 99 04 02 00 00 48 89 5D F8'
+        '48 8D 71 04 48 8D B9 04 01 00 00 48 8B 1A 48 8B 4A 04 48 89 5D F0 48 29 C1 48 0F B6 14 06 48 39 CB 73 30 38 14'
+        '03 75 26 50 48 FF C8 80 3C 07 78 75 08 8A 34 06 38 34 03 75 05 48 85 C0 75 EA 58 75 0C 48 89 D8 48 8B 5D F0 48'
+        '29 D8 EB 08 48 FF C3 EB CB 48 31 C0 48 85 C0 74 04 48 03 45 F8 5F 5E 5B 48 89 EC 5D C3'
+    )
 
-    @require_32bit
-    def __init__(self, buffer: bytes | None = None, base: int = 0):
+    class _Buffer(Struct):
+
+        base: int
+        end: int
+
+        _fields_ = [
+            ("base", LPVOID),
+            ("end", LPVOID),
+        ]
+
+    def __init__(self, buffer: bytes | None = None, base: int = 0, arch: Literal["32", "64"] = None):
         """
-        Initializes the 32 bit BinaryScanner, allocating memory for the scan routine and buffer.
+        Initializes the BinaryScanner, allocating memory for the scan routine and buffer.
 
         Args:
             buffer (bytes, optional): Buffer to scan.
@@ -148,12 +172,19 @@ class BinaryScanner:
         Raises:
             Win32Exception: On memory allocation failure.
         """
+        if arch is None:
+            arch = "32" if is_32bit() else "64"
 
         self._buffer: BinaryScanner._Buffer = BinaryScanner._Buffer(0, 0)
         self._base: int = base
 
         # Writing payload to py memory
-        payload: bytes = BinaryScanner.__PAYLOAD
+        if arch == "32":
+            payload: bytes = BinaryScanner.__PAYLOAD32
+            functype: CFUNCTYPE = CFUNCTYPE(c_uint32, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
+        else:
+            payload: bytes = BinaryScanner.__PAYLOAD64
+            functype: CFUNCTYPE = CFUNCTYPE(c_uint64, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
 
         self._handler_address: int = VirtualAlloc(0, len(payload), MEM_COMMIT, PAGE_EXECUTE_READWRITE)
         if not self._handler_address:
@@ -162,14 +193,14 @@ class BinaryScanner:
         binary: Array = (CHAR * len(payload)).from_address(self._handler_address)  # type: ignore
         binary.value = payload
 
-        # Transform py written payload to a callable function
-        functype: CFUNCTYPE = CFUNCTYPE(DWORD, POINTER(Pattern), POINTER(BinaryScanner._Buffer))
-
         self._handler: Callable[[str, str], int] = functype(self._handler_address)
 
         # Writing buffer to py memory
         if buffer is not None:
             self.set_buffer(buffer, base)
+
+    def __del__(self):
+        self.close()
 
     @property
     def base(self) -> int:
@@ -185,10 +216,9 @@ class BinaryScanner:
         """
         Frees all allocated memory for the scanner.
         """
-        if not VirtualFree(self._handler_address, 0, MEM_RELEASE):
-            raise Win32Exception()
-
-        self._handler_address = 0
+        if self._handler_address:
+            VirtualFree(self._handler_address, 0, MEM_RELEASE)
+            self._handler_address = 0
 
     def set_buffer(self, new_buffer: bytes, base: int = 0) -> None:
         """
@@ -204,7 +234,6 @@ class BinaryScanner:
         size: int = len(new_buffer)
 
         if self._buffer.base:
-            print("freed old buffer")
             VirtualFree(self._buffer.base, 0, MEM_RELEASE)
 
         self._base = base
@@ -212,7 +241,7 @@ class BinaryScanner:
         if not self._buffer.base:
             raise Win32Exception()
 
-        buffer: Array = create_string_buffer(size).from_address(self._buffer.base)  # type: ignore
+        buffer: Array = (CHAR * size).from_address(self._buffer.base)  # type: ignore
         buffer.value = new_buffer
 
         self._buffer.end = self._buffer.base + size  # type: ignore
@@ -256,5 +285,8 @@ class BinaryScanner:
         return self._base + rva
 
 if __name__ == '__main__':
-    scanner_opcode: str = generate_assembly_payload("Scanner.asm")
+    if is_32bit():
+        scanner_opcode: str = generate_assembly_payload("Scanner32.asm")
+    else:
+        scanner_opcode: str = generate_assembly_payload("Scanner64.asm")
     print(scanner_opcode)

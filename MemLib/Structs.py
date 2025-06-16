@@ -22,7 +22,7 @@ References:
     https://docs.python.org/3/library/ctypes.html
 """
 
-from ctypes import WINFUNCTYPE
+from ctypes import WINFUNCTYPE, c_size_t
 from ctypes.wintypes import (
     BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, LPWSTR, PBYTE, PULONG, UINT,
     ULARGE_INTEGER, ULONG, USHORT, WORD, WPARAM,
@@ -209,12 +209,12 @@ class PROCESS_BASIC_INFORMATION(Struct):
     Holds basic information about a process, typically filled by the NtQueryInformationProcess API.
 
     Fields:
-        ExitStatus                   (DWORD): Process exit code.
+        ExitStatus                   (LONG): Process exit code.
         PebBaseAddress               (LPVOID): Address of the process environment block (PEB).
         AffinityMask                 (ULONG): Process affinity mask.
-        BasePriority                 (DWORD): Base priority level.
-        UniqueProcessId              (ULONG): Unique process identifier.
-        InheritedFromUniqueProcessId (ULONG): Parent process identifier.
+        BasePriority                 (LONG): Base priority level.
+        UniqueProcessId              (HANDLE): Unique process identifier.
+        InheritedFromUniqueProcessId (HANDLE): Parent process identifier.
 
     See also:
         https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationprocess#process_basic_information
@@ -229,10 +229,10 @@ class PROCESS_BASIC_INFORMATION(Struct):
     _fields_ = [
         ('ExitStatus', DWORD),
         ('PebBaseAddress', LPVOID),
-        ('AffinityMask', ULONG),
+        ('AffinityMask', c_size_t),
         ('BasePriority', DWORD),
-        ('UniqueProcessId', ULONG),
-        ('InheritedFromUniqueProcessId', ULONG)
+        ('UniqueProcessId', c_size_t),
+        ('InheritedFromUniqueProcessId', c_size_t)
     ]
 
 # noinspection PyPep8Naming
@@ -945,7 +945,7 @@ class IMAGE_NT_HEADERS64(Struct):
         Returns:
             int: Offset (in bytes) to the start of the section headers.
         """
-        return IMAGE_NT_HEADERS32.OptionalHeader.offset + self.FileHeader.SizeOfOptionalHeader
+        return IMAGE_NT_HEADERS64.OptionalHeader.offset + self.FileHeader.SizeOfOptionalHeader
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name

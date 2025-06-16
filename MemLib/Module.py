@@ -27,11 +27,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from MemLib.Constants import IMAGE_DIRECTORY_ENTRY_EXPORT, MAX_MODULE_NAME32
+from ctypes import sizeof
+
+from MemLib.Constants import IMAGE_DIRECTORY_ENTRY_EXPORT
 from MemLib.Structs import (
     IMAGE_DATA_DIRECTORY, IMAGE_DOS_HEADER, IMAGE_EXPORT_DIRECTORY, IMAGE_NT_HEADERS32, IMAGE_NT_HEADERS64,
     IMAGE_OPTIONAL_HEADER32,
-    IMAGE_OPTIONAL_HEADER64, MODULEENTRY32,
+    IMAGE_OPTIONAL_HEADER64, IMAGE_SECTION_HEADER, MODULEENTRY32,
 )
 from MemLib.windows import GetProcAddress, Win32Exception
 
@@ -453,6 +455,57 @@ class Module:
         assert len(self._exports) == total_count
 
         return self._exports
+
+    def get_sections(self) -> list[IMAGE_SECTION_HEADER]:
+        """
+        Returns a list of IMAGE_SECTION_HEADER structures representing the sections in the module.
+
+        Returns:
+            list[IMAGE_SECTION_HEADER]: A list of section headers.
+        """
+        nt = self.nt_headers
+        section_count = nt.FileHeader.NumberOfSections
+
+        # The section headers come immediately after the NT headers
+        if self._process.is_64bit:
+            section_start = self._base + self.dos_header.e_lfanew + sizeof(IMAGE_NT_HEADERS64)
+        else:
+            section_start = self._base + self.dos_header.e_lfanew + sizeof(IMAGE_NT_HEADERS32)
+
+        section_size = sizeof(IMAGE_SECTION_HEADER)
+        sections: list[IMAGE_SECTION_HEADER] = []
+
+        for i in range(section_count):
+            offset = section_start + i * section_size
+            section: IMAGE_SECTION_HEADER = self._process.read_struct(offset, IMAGE_SECTION_HEADER)
+
+            alignment: int = self.nt_headers.OptionalHeader.SectionAlignment
+            rest_size: int = section.VirtualSize % alignment
+            if rest_size:
+                section.VirtualSize += alignment - rest_size
+            sections.append(section)
+
+        return sections
+
+    def get_section(self, section_name: str) -> IMAGE_SECTION_HEADER:
+        """
+        Retrieves a section by name from the module.
+
+        Args:
+            section_name (str): The name of the section to retrieve (e.g., ".text").
+
+        Returns:
+            IMAGE_SECTION_HEADER: The matching section header.
+
+        Raises:
+            ValueError: If the section with the given name is not found.
+        """
+        name: bytes = section_name.encode("ascii")
+        for section in self.get_sections():
+            if name == section.Name:
+                return section
+
+        raise ValueError(f"Section '{section_name}' not found in module '{self.name}'")
 
     def __eq__(self, other: Module) -> bool:
         """

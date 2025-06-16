@@ -35,11 +35,11 @@ from MemLib.Constants import (
 from MemLib.Module import Module
 from MemLib.Scanner import BinaryScanner
 from MemLib.Structs import (
-    IMAGE_NT_HEADERS32, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
+    IMAGE_NT_HEADERS32, IMAGE_NT_HEADERS64, IMAGE_SECTION_HEADER, MODULEENTRY32, MZ_FILEHEADER, PEB, PROCESSENTRY32,
     PROCESS_BASIC_INFORMATION, Struct, THREADENTRY32,
 )
 from MemLib.Thread import Thread
-from MemLib.windows import IsWow64Process2, Win32Exception
+from MemLib.windows import IsWow64Process2, Win32Exception, is_32bit
 
 
 
@@ -95,8 +95,7 @@ class Process:
         self._wait: int = 0
         self._wait_callback: WaitCallback = windows.CreateWaitOrTimerCallback(self.__on_process_terminate)
         self._peb: PEB | None = None
-        self._mzheader: MZ_FILEHEADER | None = None
-        self._imgheader: IMAGE_NT_HEADERS32 | None = None
+        self._main_module: Module = None
         self._is64bit: bool | None = None
 
         if not self._handle:
@@ -458,7 +457,10 @@ class Process:
             windows.Win32Exception: If the process is not opened, if the snapshot could not be created,
                 or if the main module could not be found.
         """
-        return self.get_module(None)
+        if self._main_module is None:
+            self._main_module = self.get_module(None)
+        return self._main_module
+
 
     def get_module(self, name: str | None) -> Module | None:
         """
@@ -583,42 +585,11 @@ class Process:
             return self._peb
 
         process_info: PROCESS_BASIC_INFORMATION = PROCESS_BASIC_INFORMATION()
-        if not windows.NtQueryInformationProcess(self._handle, 0, byref(process_info), process_info.get_size(), 0):
+        if not windows.NtQueryInformationProcess(self._handle, 0, byref(process_info), process_info.get_size()):
             return None
 
         self._peb = self.read_struct(process_info.PebBaseAddress, PEB)
         return self._peb
-
-    @property
-    def file_header(self) -> MZ_FILEHEADER | None:
-        """
-        Retrieves the MZ file header of the process executable.
-
-        Returns:
-            MZ_FILEHEADER | None: The file header struct, or None if not available.
-        """
-        if self._mzheader is not None:
-            return self._mzheader
-
-        self._mzheader = self.read_struct(self.base, MZ_FILEHEADER)
-
-        return self._mzheader
-
-    @property
-    def image_header(self) -> IMAGE_NT_HEADERS32 | None:
-        """
-        Retrieves the PE image header (NT headers) of the process executable.
-
-        Returns:
-            IMAGE_NT_HEADERS32 | None: The image header struct, or None if not available.
-        """
-        if self._imgheader is not None:
-            return self._imgheader
-
-        mzheader: MZ_FILEHEADER = self.file_header
-        self._imgheader = self.read_struct(self.base + mzheader.PEHeaderOffset, IMAGE_NT_HEADERS32)
-
-        return self._imgheader
 
     @property
     def base(self) -> int:
@@ -643,60 +614,11 @@ class Process:
         Returns:
             int: The module size in bytes, or 0 if not available.
         """
-        img: IMAGE_NT_HEADERS32 = self.image_header
+        img: IMAGE_NT_HEADERS32 | IMAGE_NT_HEADERS64 = self.get_main_module().nt_headers
         if img is None:
             return 0
 
         return img.SizeOfImage
-
-    def get_sections(self) -> list[IMAGE_SECTION_HEADER]:
-        """
-        Retrieves all section headers of the process core module.
-
-        Returns:
-            list[IMAGE_SECTION_HEADER]: List of section headers, even if process was created in suspended mode.
-        """
-        base: int = self.base
-        mz: MZ_FILEHEADER = self.file_header
-        pe: IMAGE_NT_HEADERS32 = self.image_header
-
-        section_base: int = base + mz.PEHeaderOffset + pe.get_sections_offset()
-        section_size: int = pe.FileHeader.NumberOfSections
-
-        sections: list[IMAGE_SECTION_HEADER] = list()
-
-        for i in range(section_size):
-            section: IMAGE_SECTION_HEADER = self.read_struct(section_base, IMAGE_SECTION_HEADER)
-
-            section.VirtualAddress += base
-
-            rest_size = section.VirtualSize % pe.OptionalHeader.SectionAlignment
-            if rest_size:
-                section.VirtualSize += pe.OptionalHeader.SectionAlignment - rest_size
-
-            sections.append(section)
-            section_base += sizeof(IMAGE_SECTION_HEADER)
-
-        return sections
-
-    def get_section(self, name: str) -> IMAGE_SECTION_HEADER | None:
-        """
-        Gets a section header by name from the process core module.
-
-        Args:
-            name (str): The name of the section (as a string).
-
-        Returns:
-            IMAGE_SECTION_HEADER | None: The section header if found, otherwise None.
-        """
-        b_name: bytes = name.encode()
-
-        sections: list[IMAGE_SECTION_HEADER] = self.get_sections()
-        for section in sections:
-            if section.Name == b_name:
-                return section
-
-        return None
 
     def is_wow64(self) -> tuple[int, int]:
         """
@@ -731,19 +653,17 @@ class Process:
             raise RuntimeError(f"Invalid access rights. PROCESS_VM_READ required, got: 0x{self._access:X}")
 
         if section_name is None:
-            sections = self.get_sections()
-            if not len(sections):
-                return None
-            wanted_section: IMAGE_SECTION_HEADER = sections[0]
+            base: int = self.base
+            size: int = self.size
         else:
-            wanted_section: IMAGE_SECTION_HEADER = self.get_section(section_name)
+            wanted_section: IMAGE_SECTION_HEADER = self.get_main_module().get_section(section_name)
 
-        if wanted_section is None:
-            return None
+            base: int = self.base + wanted_section.VirtualAddress
+            size: int = wanted_section.VirtualSize
 
-        buffer: bytes = self.read(wanted_section.VirtualAddress, wanted_section.VirtualSize)
+        buffer: bytes = self.read(base, size)
         if len(buffer):
-            return BinaryScanner(buffer, wanted_section.VirtualAddress)
+            return BinaryScanner(buffer, base)
 
         return None
 

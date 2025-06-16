@@ -17,6 +17,7 @@ ScanProc: ; (Pattern, Buffer)
     dec         eax                             ; i = i - 1
     mov         ebx, DWORD [edx + 0x0204]
     mov         DWORD [ebp - 0x0004], ebx
+
     lea         esi, [edx + 0x0004]             ; char* Binary = AddressOf(Pattern.Binary)
     lea         edi, [edx + 0x0104]             ; char* Mask   = AddressOf(Pattern.Mask)
 
@@ -43,7 +44,7 @@ ScanProc: ; (Pattern, Buffer)
 
 .patternLoop:
     dec         eax                             ; n = n - 1
-    cmp         BYTE [edi + eax], 0x78          ; if (Mask[n] != 'x')
+    cmp         BYTE [edi + eax], 'x'           ; if (Mask[n] != 'x')
     jne         .checkLoopDone                  ;     GoTo .checkLoopDone
 
     mov         dh, BYTE [esi + eax]            ; dh = Binary[n]
@@ -73,7 +74,7 @@ ScanProc: ; (Pattern, Buffer)
 .exit:
     test        eax, eax                        ; checks if returnValue == 0
     jz          .skipOffset                     ; if it is zero, goto .skipOffset
-    add         eax, DWORD [ebp - 0x0004]       ; if it is not zero add or subtract the offset of the pattern
+    add         eax, DWORD [ebp - 0x0004]       ; add or subtract the offset of the pattern
 
 .skipOffset:
     pop         edi esi edx ecx ebx             ; restore the registers to the values before the function got called

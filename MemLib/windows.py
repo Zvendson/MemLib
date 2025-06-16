@@ -770,7 +770,6 @@ def GetProcAddress(module_handle: int, symbol_name: str | bytes) -> int:
     if isinstance(symbol_name, str):
         symbol_name: bytes = symbol_name.encode('utf-8')
 
-    print(f"call GetProcAddress({module_handle}, {symbol_name})")
     return _GetProcAddress(module_handle, symbol_name)
 
 # noinspection PyPep8Naming
@@ -1104,8 +1103,7 @@ def NtQueryInformationProcess(
         process_handle: int,
         process_information_class: object,
         process_information: object,
-        process_information_length: int,
-        return_length: int) -> bool:
+        process_information_length: int) -> bool:
     """
     Retrieves information about a specified process.
 
@@ -1127,7 +1125,7 @@ def NtQueryInformationProcess(
         process_information_class,
         process_information,
         process_information_length,
-        return_length
+        0
     )
     return nt_status == STATUS_SUCCESS
 
