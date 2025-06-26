@@ -95,7 +95,7 @@ class Process:
         self._wait: int = 0
         self._wait_callback: WaitCallback = windows.CreateWaitOrTimerCallback(self.__on_process_terminate)
         self._peb: PEB | None = None
-        self._main_module: Module = None
+        self._main_module: Module | None = None
         self._is64bit: bool | None = None
 
         if not self._handle:
@@ -935,6 +935,89 @@ class Process:
             bool: True if successful, False otherwise.
         """
         return windows.VirtualFreeEx(self._handle, address, size, free_type)
+
+    def load_library(self, lib_path: Path, timeout: int = INFINITE) -> Module | None:
+        """
+        Loads a DLL into the remote process using LoadLibraryW.
+
+        This method allocates memory in the remote process, writes the full
+        DLL path (as a UTF-16LE encoded string), and creates a remote thread
+        that calls LoadLibraryW to load the specified library.
+
+        Args:
+            lib_path (Path): Path to the DLL to be injected into the target process.
+            timeout (int, optional): Maximum time in milliseconds to wait for the remote thread to finish.
+                                     Defaults to INFINITE.
+
+        Returns:
+            Module | None: A Module object representing the loaded DLL if successful, or None otherwise.
+
+        Raises:
+            ValueError: If the specified DLL path does not exist.
+            RuntimeError: If memory allocation or writing fails.
+        """
+        if not lib_path.exists() or not lib_path.is_file():
+            raise ValueError("Lib does not exist.")
+
+        full_path: str = str(lib_path.resolve())
+
+        kernel32: int = windows.GetModuleHandle("kernel32.dll")
+        load_library: int = windows.GetProcAddress(kernel32, "LoadLibraryW")
+        mem_lib_path: int = self.allocate(4096)
+        if mem_lib_path == 0:
+            raise RuntimeError("Could not allocate memory in process.")
+
+        if not self.write(mem_lib_path, full_path.encode("utf-16-le")):
+            self.free(mem_lib_path)
+            raise RuntimeError("Could not write path to process.")
+
+        thread: Thread = self.create_thread(load_library, mem_lib_path, 0)
+        thread.join(timeout)
+        thread.close()
+        self.free(mem_lib_path)
+
+        return self.get_module(lib_path.name)
+
+    def free_library(self, lib: str | Module, timeout: int = INFINITE) -> bool:
+        """
+        Unloads a DLL from the remote process using FreeLibrary.
+
+        This method creates a remote thread in the target process that calls
+        FreeLibrary on the specified module handle. The module can be provided
+        as either a string (DLL name) or a Module object.
+
+        Args:
+            lib (str | Module): The name of the DLL to unload, or a Module instance returned by `get_module()`.
+            timeout (int, optional): Maximum time in milliseconds to wait for the remote thread to finish.
+                                     Defaults to INFINITE.
+
+        Returns:
+            bool: True if the library was successfully unloaded or handle changed; False otherwise.
+
+        Raises:
+            ValueError: If the module cannot be found or is None.
+        """
+        if isinstance(lib, str):
+            name: str = lib
+            lib: Module = self.get_module(lib)
+        else:
+            name: str = lib.name
+
+        if lib is None:
+            raise ValueError("module cannot be None.")
+
+        kernel32: int = windows.GetModuleHandle("kernel32.dll")
+        free_library: int = windows.GetProcAddress(kernel32, "FreeLibrary")
+        handle: int = lib.handle
+        thread: Thread = self.create_thread(free_library, handle, 0)
+        thread.join(timeout)
+        thread.close()
+
+        found: Module = self.get_module(name)
+        if found is None:
+            return True
+
+        return found.handle != handle
 
     def protect(self, address, size, new_protection: int) -> int:
         """
