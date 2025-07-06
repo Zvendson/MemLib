@@ -43,20 +43,29 @@ class SharedMemoryBuffer(Struct):
     Structure representing the state of a shared memory region between two processes.
 
     Fields:
-        handle (HANDLE): File mapping handle in the current process.
-        handle_ex (HANDLE): File mapping handle in the target process.
-        base_address (LPVOID): Address of the mapped memory in the current process.
-        base_address_ex (LPVOID): Address of the mapped memory in the target process.
-        size_high (DWORD): High-order DWORD of the mapping size.
-        size_low (DWORD): Low-order DWORD of the mapping size.
+        handle (int): File mapping handle in the current process.
+        handle_ex (int): File mapping handle in the target process.
+        base_address (int): Address of the mapped memory in the current process.
+        base_address_ex (int): Address of the mapped memory in the target process.
+        size_high (int): High-order DWORD of the mapping size.
+        size_low (int): Low-order DWORD of the mapping size.
     """
 
-    handle: HANDLE
-    handle_ex: HANDLE
-    base_address: LPVOID
-    base_address_ex: LPVOID
-    size_high: DWORD
-    size_low: DWORD
+    handle: int
+    handle_ex: int
+    base_address: int
+    base_address_ex: int
+    size_high: int
+    size_low: int
+
+    _fields_ = [
+        ('handle', HANDLE),
+        ('handle_ex', HANDLE),
+        ('base_address', LPVOID),
+        ('base_address_ex', LPVOID),
+        ('size_high', DWORD),
+        ('size_low', DWORD)
+    ]
 
     def is_valid(self):
         """
