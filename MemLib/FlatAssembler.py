@@ -265,8 +265,12 @@ class FASMError(Exception):
         longest_length: int = max(len(l) for l in lines[start:end])
 
         out_error: str  = f" <<< {error.name} (Code: {error.value})"
-        out_string: str = f"Line | {"Assembly":{longest_length}} | {"Error":{len(out_error)}}"
-        out_string   += f"\n-----|-{"-" * longest_length}-|-{"-"*len(out_error)}"
+        header_assembly: str = "Assembly".ljust(longest_length)
+        header_error: str = "Error".ljust(len(out_error))
+        out_string: str = f"Line | {header_assembly} | {header_error}"
+        dash_asm: str = "-" * longest_length
+        dash_err: str = "-" * len(out_error)
+        out_string   += f"\n-----|-{dash_asm}-|-{dash_err}"
 
         for i in range(start, end):
             if i == line:
