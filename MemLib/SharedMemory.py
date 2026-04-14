@@ -127,6 +127,22 @@ class SharedMemory:
         self._process: Process = process
         self._memory_buffer: SharedMemoryBuffer | None = None
         self._buffer_address: int = 0
+        self._owns_remote_resources: bool = False
+
+    def _require_buffer(self) -> SharedMemoryBuffer:
+        """
+        Returns the active shared memory buffer or raises if the instance is not connected.
+
+        Returns:
+            SharedMemoryBuffer: The current buffer.
+
+        Raises:
+            RuntimeError: If no shared memory is currently attached.
+        """
+        if self._memory_buffer is None:
+            raise RuntimeError('Shared memory is not initialized.')
+
+        return self._memory_buffer
 
     def can_reconnect(self, address: int) -> bool:
         """
@@ -138,7 +154,9 @@ class SharedMemory:
         Returns:
             bool: True if a valid buffer is present and reconnectable, False otherwise.
         """
-        mapping: SharedMemoryBuffer = self._process.read_struct(address, SharedMemoryBuffer)
+        mapping: SharedMemoryBuffer | None = self._process.read_struct(address, SharedMemoryBuffer)
+        if mapping is None:
+            return False
 
         return mapping.is_valid()
 
@@ -153,7 +171,7 @@ class SharedMemory:
             ValueError: If size is less than zero.
             Win32Exception: If allocation or mapping fails.
         """
-        if size < 0:
+        if size <= 0:
             raise ValueError(f"invalid size: 0x{size:X}")
 
         mapping: SharedMemoryBuffer = SharedMemoryBuffer()
@@ -193,7 +211,7 @@ class SharedMemory:
         proc_handle: int = self._process.handle
         address_buffer: LPVOID = LPVOID(0)
 
-        NtMapViewOfSection(
+        mapped: bool = NtMapViewOfSection(
             mapping.handle,
             proc_handle,
             byref(address_buffer),
@@ -206,7 +224,7 @@ class SharedMemory:
             PAGE_EXECUTE_READWRITE
         )
 
-        if not address_buffer.value:
+        if not mapped or not address_buffer.value:
             error: Win32Exception = Win32Exception()
 
             UnmapViewOfFile(mapping.base_address)
@@ -238,6 +256,8 @@ class SharedMemory:
 
         mapping.handle_ex = handle_ex
         self._memory_buffer = mapping
+        self._owns_remote_resources = True
+        self._buffer_address = 0
 
     def destroy(self) -> None:
         """
@@ -247,20 +267,23 @@ class SharedMemory:
             Exception: Aggregated Win32Exception(s) if cleanup fails.
         """
         errors: List[Win32Exception] = list()
+        if not self._owns_remote_resources:
+            raise RuntimeError('Cannot destroy shared memory that this instance did not create.')
 
         proc_handle: int = self._process.handle
-        handle: int = self._memory_buffer.handle
-        handle_ex: int = self._memory_buffer.handle_ex
-        base_addr: int = self._memory_buffer.base_address
-        base_addr_ex: int = self._memory_buffer.base_address_ex
+        mapping: SharedMemoryBuffer = self._require_buffer()
+        handle: int = mapping.handle
+        handle_ex: int = mapping.handle_ex
+        base_addr: int = mapping.base_address
+        base_addr_ex: int = mapping.base_address_ex
 
-        if base_addr and not UnmapViewOfFile(self._memory_buffer.base_address):
+        if base_addr and not UnmapViewOfFile(mapping.base_address):
             errors.append(Win32Exception())
 
-        if handle and not CloseHandle(self._memory_buffer.handle):
+        if handle and not CloseHandle(mapping.handle):
             errors.append(Win32Exception())
 
-        if base_addr_ex and self._memory_buffer.base_address_ex and not NtUnmapViewOfSection(proc_handle, base_addr_ex):
+        if base_addr_ex and not NtUnmapViewOfSection(proc_handle, base_addr_ex):
             errors.append(Win32Exception())
 
         closed: bool = DuplicateHandle(proc_handle, handle_ex, -1, None, 0, False, DUPLICATE_CLOSE_SOURCE)
@@ -271,10 +294,12 @@ class SharedMemory:
             fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
             raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
 
-        self._memory_buffer.handle = HANDLE(0)
-        self._memory_buffer.handle_ex = HANDLE(0)
-        self._memory_buffer.base_address = LPVOID(0)
-        self._memory_buffer.base_address_ex = LPVOID(0)
+        mapping.handle = HANDLE(0)
+        mapping.handle_ex = HANDLE(0)
+        mapping.base_address = LPVOID(0)
+        mapping.base_address_ex = LPVOID(0)
+        self._owns_remote_resources = False
+        self._buffer_address = 0
 
     def connect(self, mem_handle: int, mem_address: int) -> None:
         """
@@ -288,10 +313,15 @@ class SharedMemory:
             ValueError: If the buffer at the address is invalid.
             Win32Exception: On failure to duplicate or map handles.
         """
+        if mem_handle <= 0 or mem_address <= 0:
+            raise ValueError('mem_handle and mem_address must be non-zero.')
+
         # Create buffer
         mapping: SharedMemoryBuffer = SharedMemoryBuffer()
         mapping.handle_ex = HANDLE(mem_handle)
         mapping.base_address_ex = LPVOID(mem_address)
+        mapping.size_high = DWORD(0)
+        mapping.size_low = DWORD(0)
 
         # Handle
         handle: HANDLE = HANDLE()
@@ -329,6 +359,7 @@ class SharedMemory:
         mapping.base_address = LPVOID(base)
         self._memory_buffer = mapping
         self._buffer_address = 0
+        self._owns_remote_resources = False
 
     def connect_from_buffer(self, buffer_address: int) -> None:
         """
@@ -342,8 +373,8 @@ class SharedMemory:
             Win32Exception: On failure to duplicate handle or map view.
         """
         # Read buffer
-        mapping: SharedMemoryBuffer = self._process.read_struct(buffer_address, SharedMemoryBuffer)
-        if not mapping.is_valid():
+        mapping: SharedMemoryBuffer | None = self._process.read_struct(buffer_address, SharedMemoryBuffer)
+        if mapping is None or not mapping.is_valid():
             raise ValueError(f"Invalid SharedMemory stored at address 0x{buffer_address:X}.")
 
         # Handle
@@ -382,6 +413,7 @@ class SharedMemory:
         mapping.base_address = LPVOID(base)
         self._memory_buffer = mapping
         self._buffer_address = buffer_address
+        self._owns_remote_resources = False
 
     def disconnect(self) -> None:
         """
@@ -390,10 +422,11 @@ class SharedMemory:
         Raises:
             Exception: Aggregated Win32Exception(s) if cleanup fails.
         """
-        close_shared_memory_connection(self._memory_buffer.handle, self._memory_buffer.base_address)
+        mapping: SharedMemoryBuffer = self._require_buffer()
+        close_shared_memory_connection(mapping.handle, mapping.base_address)
 
-        self._memory_buffer.handle = HANDLE(0)
-        self._memory_buffer.base_address = LPVOID(0)
+        mapping.handle = HANDLE(0)
+        mapping.base_address = LPVOID(0)
 
     def store(self, address: int) -> bool:
         """
@@ -405,6 +438,9 @@ class SharedMemory:
         Returns:
             bool: True if the buffer was successfully written, False otherwise.
         """
+        if address <= 0:
+            raise ValueError('address must be non-zero.')
+
         if self._process.write_struct(address, self.buffer):
             self._buffer_address = address
             return True
@@ -418,7 +454,11 @@ class SharedMemory:
         Returns:
             bool: True if memory was zeroed successfully, False otherwise.
         """
-        return self._process.zero_memory(self._buffer_address, self._memory_buffer.get_size())
+        mapping: SharedMemoryBuffer = self._require_buffer()
+        if self._buffer_address <= 0:
+            return False
+
+        return self._process.zero_memory(self._buffer_address, mapping.get_size())
 
     @property
     def handle(self) -> int:
@@ -428,7 +468,7 @@ class SharedMemory:
         Returns:
             int: Handle to the shared memory in the Python process.
         """
-        return self._memory_buffer.handle
+        return self._require_buffer().handle
 
     @property
     def handle_ex(self) -> int:
@@ -438,7 +478,7 @@ class SharedMemory:
         Returns:
             int: Handle to the shared memory as seen by the target process.
         """
-        return self._memory_buffer.handle_ex
+        return self._require_buffer().handle_ex
 
     @property
     def base_address(self) -> int:
@@ -448,7 +488,7 @@ class SharedMemory:
         Returns:
             int: Base address of the shared memory in the Python process.
         """
-        return self._memory_buffer.base_address
+        return self._require_buffer().base_address
 
     @property
     def base_address_ex(self) -> int:
@@ -458,7 +498,7 @@ class SharedMemory:
         Returns:
             int: Base address of the shared memory in the target process.
         """
-        return self._memory_buffer.base_address_ex
+        return self._require_buffer().base_address_ex
 
     @property
     def size_high(self) -> int:
@@ -468,7 +508,7 @@ class SharedMemory:
         Returns:
             int: High 32 bits of the mapping size.
         """
-        return self._memory_buffer.size_high
+        return self._require_buffer().size_high
 
     @property
     def size_low(self) -> int:
@@ -478,7 +518,7 @@ class SharedMemory:
         Returns:
             int: Low 32 bits of the mapping size.
         """
-        return self._memory_buffer.size_low
+        return self._require_buffer().size_low
 
     @property
     def buffer(self) -> SharedMemoryBuffer:
@@ -488,7 +528,7 @@ class SharedMemory:
         Returns:
             SharedMemoryBuffer: The buffer struct with handles and addresses.
         """
-        return self._memory_buffer
+        return self._require_buffer()
 
     @property
     def process(self) -> Process:
@@ -507,6 +547,9 @@ class SharedMemory:
         Returns:
             str: Human-readable description.
         """
+        if self._memory_buffer is None:
+            return f'SharedMemory(Process={self.process.process_id}, disconnected)'
+
         return (f'SharedMemory(Address=0x{self.base_address:X} Process={self.process.process_id} at '
                 f'0x{self.base_address_ex:X})')
 
@@ -517,5 +560,8 @@ class SharedMemory:
         Returns:
             str: Full state including process IDs, addresses, and handles.
         """
+        if self._memory_buffer is None:
+            return f'SharedMemory(PyProc={os.getpid()}, Proc={self.process.process_id}, disconnected)'
+
         return (f'SharedMemory(PyProc={os.getpid()}, PyAddr=0x{self.base_address:X}, PyHandle=0x{self.handle}, Proc='
                 f'{self.process.process_id}, ProcAddr=0x{self.base_address_ex:X}, ProcHandle=0x{self.handle_ex:X})')
