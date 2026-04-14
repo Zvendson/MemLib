@@ -502,7 +502,7 @@ class Module:
         """
         name: bytes = section_name.encode("ascii")
         for section in self.get_sections():
-            if name == section.Name:
+            if name == section.Name.rstrip(b"\x00"):
                 return section
 
         raise ValueError(f"Section '{section_name}' not found in module '{self.name}'")

@@ -22,14 +22,14 @@ References:
     https://docs.python.org/3/library/ctypes.html
 """
 
-from ctypes import WINFUNCTYPE, c_size_t
+from ctypes import POINTER, WINFUNCTYPE, c_size_t
 from ctypes.wintypes import (
     BYTE, CHAR, DWORD, HANDLE, HMODULE, HWND, INT, LONG, LPARAM, LPCSTR, LPSTR, LPVOID, LPWSTR, PBYTE, PULONG, UINT,
     ULARGE_INTEGER, ULONG, USHORT, WORD, WPARAM,
 )
 from typing import Any
 
-from _ctypes import Array, POINTER
+from _ctypes import Array
 
 from MemLib.Constants import IMAGE_NUMBEROF_DIRECTORY_ENTRIES, MAX_PATH, MAX_MODULE_NAME32
 from MemLib.Struct import Struct

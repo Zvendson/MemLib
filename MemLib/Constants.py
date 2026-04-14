@@ -52,6 +52,16 @@ WAIT_FAILED: int = 0xFFFFFFFF
 The function has failed. To get extended error information, call GetLastError.
 """
 
+INVALID_HANDLE_VALUE: int = -1
+"""
+Invalid handle sentinel value returned by some Win32 APIs.
+"""
+
+THREAD_PRIORITY_ERROR_RETURN: int = 0x7FFFFFFF
+"""
+Error return value for GetThreadPriority.
+"""
+
 STATUS_SUCCESS: int = 0
 """
 The operation completed successfully.

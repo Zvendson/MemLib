@@ -25,7 +25,7 @@ import psutil
 from MemLib import windows
 from MemLib.Constants import (
     CREATE_SUSPENDED, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM, IMAGE_FILE_MACHINE_ARM64,
-    IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_IA64, INFINITE, MEM_COMMIT,
+    IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_IA64, INFINITE, INVALID_HANDLE_VALUE, MEM_COMMIT,
     MEM_RELEASE,
     NORMAL_PRIORITY_CLASS,
     PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -150,7 +150,7 @@ class Process:
             return False
 
         if isinstance(other, Process):
-            return self == other
+            return self._process_id == other.process_id
 
         return self._process_id == other
 
@@ -233,7 +233,7 @@ class Process:
             self._handle = 0
             return True
 
-        raise False
+        raise windows.Win32Exception()
 
     def suspend(self) -> bool:
         """
@@ -426,7 +426,7 @@ class Process:
         """
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             raise windows.Win32Exception()
 
         module_buffer: MODULEENTRY32 = MODULEENTRY32()
@@ -436,7 +436,7 @@ class Process:
             windows.CloseHandle(snapshot)
             raise windows.Win32Exception()
 
-        module_list: list[Module] = list()
+        module_list: list[Module] = [Module(module_buffer, self)]
 
         while windows.Module32Next(snapshot, byref(module_buffer)):
             module: Module = Module(module_buffer, self)
@@ -478,26 +478,30 @@ class Process:
 
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, self._process_id)
 
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             raise windows.Win32Exception()
 
-        if name is None:
-            if not windows.Module32First(snapshot, byref(module_buffer)):
-                raise windows.Win32Exception()
+        if not windows.Module32First(snapshot, byref(module_buffer)):
+            err: windows.Win32Exception = windows.Win32Exception()
+            windows.CloseHandle(snapshot)
+            raise err
 
+        if name is None:
             module: Module = Module(module_buffer, self)
 
             windows.CloseHandle(snapshot)
             return module
 
         name: bytes = name.encode('ascii').lower()
+        module_found: bool = True
 
-        while windows.Module32Next(snapshot, byref(module_buffer)):
+        while module_found:
             if module_buffer.szModule.lower() == name:
                 module: Module = Module(module_buffer, self)
 
                 windows.CloseHandle(snapshot)
                 return module
+            module_found = windows.Module32Next(snapshot, byref(module_buffer))
 
         windows.CloseHandle(snapshot)
         return None
@@ -513,7 +517,7 @@ class Process:
             windows.Win32Exception: If the process is not opened or if the snapshot could not be created.
         """
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             raise windows.Win32Exception()
 
         thread_buffer: THREADENTRY32 = THREADENTRY32()
@@ -549,7 +553,7 @@ class Process:
                 or if the main thread could not be found.
         """
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, self._process_id)
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             raise windows.Win32Exception()
 
         thread_buffer: THREADENTRY32 = THREADENTRY32()
@@ -831,9 +835,10 @@ class Process:
 
         result: bytes = self.read(address, length * 2)
         if strip:
-            termination = result.find(b'\x00\x00')
-            if termination != -1:
-                result = result[:termination + 1]
+            for i in range(0, len(result) - 1, 2):
+                if result[i:i + 2] == b'\x00\x00':
+                    result = result[:i]
+                    break
 
         return result.decode(encoding="utf-16", errors="ignore")
 
@@ -1032,7 +1037,7 @@ class Process:
             int: The old protection type on success, 0 on failure.
         """
         old_protection: DWORD = DWORD()
-        if not windows.VirtualProtectEx(int(self._handle), address, size, new_protection, old_protection):
+        if not windows.VirtualProtectEx(int(self._handle), address, size, new_protection, byref(old_protection)):
             return 0
 
         return old_protection.value
@@ -1052,7 +1057,7 @@ class Process:
         process_list: list[Process] = list()
 
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             raise Win32Exception()
 
         process_buffer: PROCESSENTRY32 = PROCESSENTRY32()
@@ -1099,7 +1104,7 @@ class Process:
             Process | None: The matching process, or None if not found.
         """
         snapshot: int = windows.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-        if not snapshot:
+        if snapshot in (0, INVALID_HANDLE_VALUE):
             return None
 
         process_buffer: PROCESSENTRY32 = PROCESSENTRY32()

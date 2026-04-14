@@ -27,7 +27,9 @@ from ctypes.wintypes import LONG
 from enum import IntEnum
 from typing import TYPE_CHECKING
 
-from MemLib.Constants import INFINITE, THREAD_ALL_ACCESS, WAIT_FAILED, WAIT_OBJECT_0
+from MemLib.Constants import (
+    INFINITE, THREAD_ALL_ACCESS, THREAD_PRIORITY_ERROR_RETURN, WAIT_FAILED, WAIT_OBJECT_0,
+)
 from MemLib.windows import (
     CloseHandle, GetExitCodeThread, GetThreadPriority, OpenThread, ResumeThread, SetThreadPriority, SuspendThread,
     TerminateThread, WaitForSingleObject, Win32Exception,
@@ -150,7 +152,7 @@ class Thread:
             Win32Exception: If querying the priority fails.
         """
         level = GetThreadPriority(self.handle)
-        if level == 0x7FFFFFFF:
+        if level == THREAD_PRIORITY_ERROR_RETURN:
             raise Win32Exception()
 
         return Priority(LONG(level).value)
@@ -199,7 +201,7 @@ class Thread:
             self._handle = 0
             return True
 
-        raise False
+        raise Win32Exception()
 
     def suspend(self) -> bool:
         """
@@ -208,9 +210,9 @@ class Thread:
         Returns:
             bool: True if suspended successfully, False otherwise.
         """
-        return SuspendThread(self.handle) != 0
+        return SuspendThread(self.handle) != WAIT_FAILED
 
-    def resume(self, max_depth=50) -> bool:
+    def resume(self, max_depth: int = 50) -> bool:
         """
         Resumes the thread if it is suspended.
 
@@ -221,12 +223,16 @@ class Thread:
             bool: True if resumed successfully, False otherwise.
         """
         depth: int = 0
-        while ResumeThread(self.handle) != 0:
+        while True:
+            result: int = ResumeThread(self.handle)
+            if result == WAIT_FAILED:
+                return False
+            if result == 0:
+                return True
+
             depth += 1
             if depth >= max_depth:
                 return False
-
-        return True
 
     def join(self, timeout: int = INFINITE) -> int:
         """
