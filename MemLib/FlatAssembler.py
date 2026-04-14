@@ -123,7 +123,6 @@ def compile_asm(source_code: str, max_memory_size: int = 0x5E8000, max_iteration
     memmove(src, src_bytes, len(src_bytes))
 
     error_code: int = _FASM.fasm_Assemble(src, dst, max_memory_size, max_iterations, 0)
-    print(error_code)
     if error_code:
         error = FASMError(dst, source_code)
         VirtualFree(src, 0, MEM_RELEASE)

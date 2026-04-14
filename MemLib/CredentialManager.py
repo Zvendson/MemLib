@@ -12,7 +12,7 @@ Features:
     * Integrates with `pykeepass` for all operations.
 
 Example:
-    from CredentialManager import CredentialManager, Credentials
+    from MemLib.CredentialManager import CredentialManager, Credentials
 
     manager = CredentialManager('vault.kdbx', password='secret')
     creds = Credentials(name='MyAccount', e_mail='me@mail.com', password='pw123')
@@ -80,6 +80,10 @@ class CredentialManager:
     Parameters:
         filepath (Path | str): Path to the KeePass database file.
         password (str, optional): Master password for the database.
+
+    Note:
+        This module depends on the optional `pykeepass` package. Install it with
+        `pip install "MemLib[keepass]"`.
 
     Raises:
         ValueError: If the master password is invalid.

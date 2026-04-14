@@ -5,19 +5,24 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "MemLib"
 version = "1.7.6"
-description = "Library to interact with the Windows API and ctypes."
+description = "Windows-only Python toolkit for process memory access, binary scanning, and ctypes-based Win32 helpers."
 authors = [
     { name="Zvendson" }
 ]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = { file="LICENSE" }
 dependencies = [
     "psutil ~=5.9.6",
-    "pykeepass ~=4.1.0",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: Microsoft :: Windows",
     "License :: OSI Approved :: MIT License",
     "Development Status :: 4 - Beta",
@@ -25,3 +30,20 @@ classifiers = [
     "Topic :: Software Development :: Libraries"
 ]
 keywords = ["windows", "api", "ctypes", "memory", "keepass"]
+
+[project.urls]
+Homepage = "https://github.com/Zvendson/MemLib"
+Repository = "https://github.com/Zvendson/MemLib"
+Issues = "https://github.com/Zvendson/MemLib/issues"
+
+[project.optional-dependencies]
+keepass = [
+    "pykeepass ~=4.1.0",
+]
+test = [
+    "pytest>=8.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

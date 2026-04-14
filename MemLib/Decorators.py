@@ -10,7 +10,7 @@ This module provides reusable Python decorators for:
 The decorators are tailored for use in Windows-centric projects and integrate with custom exceptions from `MemLib.Exceptions`.
 
 Example:
-    from Decorators import func_timer, require_admin, deprecated
+    from MemLib.Decorators import func_timer, require_admin, deprecated
 
     @func_timer(print)
     def slow_func():

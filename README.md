@@ -1,56 +1,123 @@
 # MemLib
 
-**MemLib** is a Windows-only Python library for low-level memory manipulation, remote process introspection, and binary pattern scanning with native FASM-powered assembly code.
+`MemLib` is a Windows-only Python package for working with Win32 APIs through `ctypes`, with higher-level helpers for process inspection, remote memory access, binary scanning, runtime assembly generation, hooks, and shared memory.
 
-> ⚠️ Requires a 32-bit or 64-bit Windows OS with permissions to interact with other processes.
+## What It Covers
 
-## Features
-
-* 🧠 **Process Manipulation**
-
-  * Open, suspend, resume, terminate processes
-  * Read/write remote memory (raw, strings, structures)
-  * Enumerate modules and threads
-  * Remote thread injection
-
-* 🔍 **Pattern Scanning**
-
-  * Written in assembly
-  * High-speed binary scan using native x86/x64 routines
-  * Wildcard mask support (`55 EC ?? ?? 90 90`)
-  * Architecture-aware payload selection
-
-* 🪝 **Inline Hooking**
-
-  * JMP/CALL code hook installation
-  * Buffer-persisted recovery support
-  * Toggle, enable, disable hooks at runtime
-
-* 🧩 **Flat Assembler Integration**
-
-  * Compile raw x86/x64 assembly from Python at runtime
-  * Structured FASM error reporting with source context
-
-* 📦 **Struct Utilities**
-
-  * Colorized, pretty-printing `ctypes.Structure` base class wrapper
-  * Automatic identifier detection and layout display
-
----
+- Process, module, and thread wrappers over common Win32 APIs
+- Remote memory read/write helpers for raw bytes, strings, and structs
+- Binary pattern scanning with 32-bit and 64-bit FASM-backed payloads
+- Runtime assembly generation and compilation
+- Shared memory helpers for cross-process communication
+- Utility decorators, registry helpers, and structure formatting tools
 
 ## Installation
 
-WIP
+Base package:
 
----
+```powershell
+pip install MemLib
+```
+
+With KeePass support:
+
+```powershell
+pip install "MemLib[keepass]"
+```
+
+For local testing:
+
+```powershell
+pip install "MemLib[test]"
+```
 
 ## Requirements
 
-* Windows (32-bit or 64-bit)
-* Python 3.10+
+- Windows
+- Python 3.10+
 
----
+## Quick Start
+
+Top-level imports are available for the main public API:
+
+```python
+from MemLib import Process, SharedMemory, FASM, Hook, Struct
+```
+
+Open a process and inspect it:
+
+```python
+from MemLib import Process
+
+process = Process.get_first_process("notepad.exe")
+if process is None:
+    raise RuntimeError("notepad.exe is not running")
+
+print(process)
+print(process.get_main_module())
+print(process.get_threads())
+```
+
+Compile a small FASM snippet:
+
+```python
+from MemLib import FASM
+
+fasm = FASM()
+fasm.use64()
+fasm.write("entry:\n  nop\n  ret")
+fasm.export("entry")
+
+binary = fasm.compile()
+entry_address = fasm.get_export("entry")
+print(binary.hex())
+print(entry_address)
+```
+
+Work with a custom struct:
+
+```python
+from ctypes.wintypes import DWORD
+
+from MemLib import Struct
+
+
+class ExampleStruct(Struct):
+    value: DWORD
+
+
+example = ExampleStruct()
+example.value = 123
+print(example)
+print(example.prettify())
+```
+
+## Public API
+
+Main exports from `MemLib`:
+
+- `Process`, `Module`, `Thread`, `Priority`
+- `SharedMemory`, `SharedMemoryBuffer`, `close_shared_memory_connection`
+- `Pattern`, `BinaryScanner`
+- `FASM`, `compile_asm`, `get_version`, `get_version_string`
+- `Hook`, `HookBuffer`
+- `Struct`, `Stopwatch`
+- `func_timer`, `require_admin`, `require_32bit`, `require_64bit`, `deprecated`
+- `Win32Exception`
+- `windows`, `Constants`
+
+KeePass helpers live behind the optional `keepass` extra:
+
+```python
+from MemLib.CredentialManager import CredentialManager, Credentials
+```
+
+## Notes
+
+- This package is Windows-only and depends heavily on native Win32 behavior.
+- Some features require elevated privileges, depending on the target process.
+- The project ships native DLL and assembly assets used by the scanner and assembler helpers.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
