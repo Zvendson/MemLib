@@ -46,10 +46,60 @@ from MemLib.ANSI import (
 )
 
 
+_TYPE_NAME_MAP: tuple[tuple[tuple[type[Any], ...], str], ...] = (
+    ((c_byte,), "BYTE"),
+    ((c_ubyte,), "BYTE"),
+    ((c_ushort,), "WORD"),
+    ((c_ulong,), "DWORD"),
+    ((c_uint,), "UINT"),
+    ((c_longlong,), "LONGLONG"),
+    ((c_ulonglong,), "ULONGLONG"),
+    ((c_float,), "FLOAT"),
+    ((c_double,), "DOUBLE"),
+    ((c_long,), "BOOL"),
+    ((c_int,), "INT"),
+    ((c_char,), "CHAR"),
+    ((c_wchar,), "WCHAR"),
+    ((c_char_p,), "CHAR"),
+    ((c_wchar_p,), "WCHAR"),
+    ((c_void_p,), "VOID"),
+    ((c_size_t,), "SIZE_T"),
+)
+
+_HEX_FORMAT_TYPES: tuple[type[Any], ...] = (
+    c_ubyte,
+    c_ushort,
+    c_ulong,
+    c_void_p,
+    c_size_t,
+    c_ulonglong,
+)
+
+_DECIMAL_FORMAT_TYPES: tuple[type[Any], ...] = (
+    c_byte,
+    c_uint,
+    c_longlong,
+    c_long,
+    c_int,
+)
+
+_FLOAT_FORMAT_TYPES: tuple[type[Any], ...] = (
+    c_float,
+    c_double,
+)
+
+
+def _safe_issubclass(candidate: Any, parents: type[Any] | tuple[type[Any], ...]) -> bool:
+    """Returns False instead of raising when issubclass receives a non-type."""
+    try:
+        return issubclass(candidate, parents)
+    except TypeError:
+        return False
+
 
 class Struct(Structure):
     """
-    ctypes.Structure with automatic _fields_ population from type annotations.
+    ctypes.Structure with improved debug formatting helpers.
 
     Supports pretty-printing, byte conversion, and colorized debugging output.
 
@@ -66,8 +116,6 @@ class Struct(Structure):
         print(s)          # Human-readable summary
         print(s.prettify(colorized=True))  # Multiline, colored
 
-    Raises:
-        TypeError: If non-ctypes annotation is used.
     """
 
     IDENTIFIER: str | list[str] | tuple[str] = None
@@ -82,7 +130,51 @@ class Struct(Structure):
         """
         super(Struct, self).__init__(*args, **kw)
 
+    def _get_display_address(self, address_override: int | None = None) -> tuple[str, int]:
+        """Returns the label and address used for string output."""
+        if address_override is not None:
+            return "AddressEx", address_override
+
+        if self.ADDRESS_EX:
+            return "AddressEx", self.ADDRESS_EX
+
+        return "Address", addressof(self)
+
+    def _iter_identifier_fields(self) -> list[tuple[str, Any]]:
+        """Returns identifier fields that exist on the structure in display order."""
+        identifier = self.IDENTIFIER
+        if identifier is None:
+            return []
+
+        if isinstance(identifier, str):
+            names = [identifier]
+        elif isinstance(identifier, (list, tuple)):
+            names = list(identifier)
+        else:
+            return []
+
+        fields_by_name = {field_name: field_type for field_name, field_type in self.get_fields()}
+        seen: set[str] = set()
+        resolved: list[tuple[str, Any]] = []
+
+        for name in names:
+            if not isinstance(name, str) or name in seen:
+                continue
+
+            field_type = fields_by_name.get(name)
+            if field_type is None:
+                continue
+
+            seen.add(name)
+            resolved.append((name, field_type))
+
+        return resolved
+
     def to_string(self, colorized: bool = False) -> str:
+        """Returns a single-line string summary of the structure."""
+        return self._to_string(colorized)
+
+    def _to_string(self, colorized: bool = False, address_override: int | None = None) -> str:
         """Returns a single-line string summary of the structure.
 
         Args:
@@ -91,61 +183,45 @@ class Struct(Structure):
         Returns:
             str: One-line string representation of the structure.
         """
-        out: str = self.__class__.__name__
-        addr_name: str = "Address"
-        address: int = self.ADDRESS_EX
-
-        if self.ADDRESS_EX:
-            addr_name += "Ex"
-        else:
-            address = addressof(self)
+        addr_name, address = self._get_display_address(address_override)
 
         if colorized:
-            out = JADE + out + END + f"({FLAMENCO}{addr_name}{END}={BRINK_PINK}0" \
-                                     f"x{address:X}{END}"
+            out = (
+                f"{JADE}{self.__class__.__name__}{END}"
+                f"({FLAMENCO}{addr_name}{END}={BRINK_PINK}0x{address:X}{END}"
+            )
         else:
-            out += f'({addr_name}=0x{address:X}'
+            out = f"{self.__class__.__name__}({addr_name}=0x{address:X}"
 
-        if self.IDENTIFIER is not None:
+        for field_name, field_type in self._iter_identifier_fields():
+            value = _ctype_format_value(getattr(self, field_name, 0), field_type, colorized)
+            if colorized:
+                out += f", {FLAMENCO}{field_name}{END}={value}"
+            else:
+                out += f", {field_name}={value}"
 
-            if isinstance(self.IDENTIFIER, list) or isinstance(self.IDENTIFIER, tuple):
-                for key in self.IDENTIFIER:
-                    for var_name, var_type in self.get_fields():
-                        if key != var_name:
-                            continue
-
-                        value: Any = getattr(self, key, 0)
-                        value_str: str = _ctype_format_value(value, var_type, colorized)
-
-                        if colorized:
-                            out += f', {FLAMENCO}{key}{END}={value_str}'
-                        else:
-                            out += f', {key}={value_str}'
-
-            elif isinstance(self.IDENTIFIER, str):
-                for var_name, var_type in self.get_fields():
-                    if self.IDENTIFIER != var_name:
-                        continue
-
-                    value: Any = getattr(self, self.IDENTIFIER, 0)
-                    value = _ctype_format_value(value, var_type, colorized)
-
-                    if colorized:
-                        out += f', {FLAMENCO}{self.IDENTIFIER}{END}={value}'
-                    else:
-                        out += f', {self.IDENTIFIER}={value}'
-
-        size: int = sizeof(self)
-
+        size = sizeof(self)
         if colorized:
-            out += f', {FLAMENCO}Size{END}={ELECTRIC_BLUE}0x{size:X}{END}/' \
-                   f'{ELECTRIC_BLUE}{size}{END})'
+            out += (
+                f", {FLAMENCO}Size{END}={ELECTRIC_BLUE}0x{size:X}{END}/"
+                f"{ELECTRIC_BLUE}{size}{END})"
+            )
         else:
-            out += f', Size=0x{size}/{size})'
+            out += f", Size=0x{size:X}/{size})"
 
         return out
 
     def prettify(self, colorized: bool = False, indention: int = 0, start_offset: int = 0) -> str:
+        """Returns a pretty, multiline string of the structure and its fields."""
+        return self._prettify(colorized, indention, start_offset, self.ADDRESS_EX or None)
+
+    def _prettify(
+        self,
+        colorized: bool = False,
+        indention: int = 0,
+        start_offset: int = 0,
+        address_ex: int | None = None,
+    ) -> str:
         """Returns a pretty, multiline string of the structure and its fields.
 
         Args:
@@ -156,12 +232,17 @@ class Struct(Structure):
         Returns:
             str: Multi-line string representation of the structure.
         """
-        if self.ADDRESS_EX:
-            address: int = self.ADDRESS_EX + start_offset
+        if address_ex is not None:
+            address: int = address_ex + start_offset
         else:
             address: int = addressof(self)
 
         fields = self.get_fields()
+        if not fields:
+            if indention:
+                return f"// Empty: {self.to_string(colorized)}"
+
+            return self.to_string(colorized)
 
         # calc lengths
         var_names, var_types = zip(*fields)
@@ -184,7 +265,6 @@ class Struct(Structure):
             value: Any = getattr(self, var_name, 0)
 
             if issubclass(var_type, Struct):
-                value.ADDRESS_EX = self.ADDRESS_EX + offset
                 var_type_name: str = _ctype_get_name(var_type, colorized)
 
                 if colorized:
@@ -198,7 +278,7 @@ class Struct(Structure):
                     out += f"{address + local_offset:X}:{' ' * indention}    |{offset:04X}|  " \
                            f"{var_type_name:{var_type_len}s}   {var_name}\n"
 
-                out += value.prettify(colorized, indention + 5, offset) + "\n"
+                out += value._prettify(colorized, indention + 5, offset, address_ex) + "\n"
                 offset += sizeof(var_type)
                 local_offset += sizeof(var_type)
 
@@ -219,10 +299,14 @@ class Struct(Structure):
 
                 if is_first and indention:
                     is_first = False
+                    start_summary = self._to_string(
+                        colorized=colorized,
+                        address_override=(address_ex + start_offset) if address_ex is not None else None,
+                    )
                     if colorized:
-                        out = out.rstrip('\n') + f" {GREY}// Start: {self.to_string()}{END}\n"
+                        out = out.rstrip('\n') + f" {GREY}// Start: {start_summary}{END}\n"
                     else:
-                        out = out.rstrip('\n') + f" // Start: {self.to_string()}\n"
+                        out = out.rstrip('\n') + f" // Start: {start_summary}\n"
 
                 offset += sizeof(var_type)
                 local_offset += sizeof(var_type)
@@ -274,7 +358,7 @@ class Struct(Structure):
         Returns:
             str: The string representation of the structure.
         """
-        return self.prettify()
+        return self.to_string()
 
     def __str__(self) -> str:
         """Returns a human-readable summary string for the structure.
@@ -305,7 +389,7 @@ def _ctype_get_is_array(ctype) -> bool:
     Returns:
         Any: The element type of the array.
     """
-    return issubclass(ctype, Array)
+    return _safe_issubclass(ctype, Array)
 
 def _ctype_get_is_pointer(ctype) -> bool:
     """Checks if the given ctypes type is a pointer.
@@ -316,7 +400,7 @@ def _ctype_get_is_pointer(ctype) -> bool:
     Returns:
         bool: True if the type is a pointer, False otherwise.
     """
-    return issubclass(ctype, _Pointer) or ctype.__name__[0:2] == "LP"
+    return _safe_issubclass(ctype, _Pointer) or getattr(ctype, "__name__", "").startswith("LP")
 
 def _ctype_get_name(ctype, colorized: bool = False) -> str:
     """Gets the display name for a ctypes type, optionally colorized.
@@ -328,7 +412,7 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
     Returns:
         str: Readable (and optionally colorized) type name.
     """
-    if issubclass(ctype, Struct):
+    if _safe_issubclass(ctype, Struct):
         if colorized:
             return LIGHT_GREEN + ctype.__name__ + END
         else:
@@ -338,64 +422,44 @@ def _ctype_get_name(ctype, colorized: bool = False) -> str:
     is_array: bool = _ctype_get_is_array(ctype)
 
     if is_array:
-        arr_size: int = sizeof(ctype)
-        ctype: Any = _ctype_get_array_type(ctype)
+        count = getattr(ctype, "_length_", 0)
+        ctype = _ctype_get_array_type(ctype)
 
         if colorized:
-            extra = f'[{ELECTRIC_BLUE}{int(arr_size / sizeof(ctype))}{END}]'
+            extra = f'[{ELECTRIC_BLUE}{count}{END}]'
         else:
-            extra = f'[{int(arr_size / sizeof(ctype))}]'
+            extra = f'[{count}]'
 
-    # isinstance or issubclass doesnt work well
     is_pointer: bool = _ctype_get_is_pointer(ctype)
-    cname: str = ctype.__name__
     color: str = ""
     endcolor: str = ""
+    base_type = ctype
 
     if colorized:
         color = STRAW
         endcolor = END
 
-    if is_pointer:
-        cname = cname[3:]
+    if is_pointer and hasattr(ctype, "_type_") and isinstance(ctype._type_, type):
+        base_type = ctype._type_
 
-    if cname in c_byte.__name__:
-        name: str = color + 'BYTE' + endcolor
-    elif cname in c_ubyte.__name__:
-        name: str = color + 'BYTE' + endcolor
-    elif cname in c_ushort.__name__:
-        name: str = 'WORD'
-    elif cname in c_ulong.__name__:
-        name: str = 'DWORD'
-    elif cname in c_float.__name__:
-        name: str = 'FLOAT'
-    elif cname in c_long.__name__:
-        name: str = 'BOOL'
-    elif cname in c_void_p.__name__:
-        is_pointer = True
-        name: str = 'VOID'
-    elif cname in c_size_t.__name__:
-        name: str = 'SIZE_T'
-    elif cname in c_uint.__name__:
-        name: str = 'UINT'
-    elif cname in c_longlong.__name__:
-        name: str = 'LONGLONG'
-    elif cname in c_ulonglong.__name__:
-        name: str = 'ULONGLONG'
-    elif cname in c_char.__name__:
-        name: str = 'CHAR'
-    elif cname in c_wchar.__name__:
-        name: str = 'WCHAR'
-    elif cname in c_char_p.__name__:
-        is_pointer = True
-        name: str = 'CHAR'
-    elif cname in c_wchar_p.__name__:
-        is_pointer = True
-        name: str = 'WCHAR'
+    name = None
+    for type_group, display_name in _TYPE_NAME_MAP:
+        if _safe_issubclass(base_type, type_group):
+            name = display_name
+            if base_type in (c_char_p, c_wchar_p, c_void_p):
+                is_pointer = True
+            break
+
+    if name is None:
+        if is_pointer and getattr(ctype, "__name__", "").startswith("LP") and len(ctype.__name__) > 2:
+            name = ctype.__name__[2:]
+        else:
+            name = getattr(base_type, "__name__", str(base_type))
+
+    if colorized:
+        name = color + name + endcolor
     else:
-        name: str = ctype.__name__
-
-    name = color + name + endcolor
+        name = str(name)
 
     if is_pointer and colorized:
         name += BRINK_PINK + '*' + END
@@ -423,31 +487,11 @@ def _ctype_get_format(ctype, color: str = "") -> str:
     if _ctype_get_is_pointer(ctype):
         return color + '0x%X' + endcolor
 
-    if cname in c_byte.__name__:
+    if _safe_issubclass(ctype, _HEX_FORMAT_TYPES):
+        return color + '0x%X' + endcolor
+    if _safe_issubclass(ctype, _DECIMAL_FORMAT_TYPES):
         return color + '%d' + endcolor
-    if cname in c_ubyte.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_ushort.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_ulong.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_void_p.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_size_t.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_uint.__name__:
-        return color + '%d' + endcolor
-    if cname in c_longlong.__name__:
-        return color + '%d' + endcolor
-    if cname in c_ulonglong.__name__:
-        return color + '0x%X' + endcolor
-    if cname in c_long.__name__:
-        return color + '%d' + endcolor
-    if cname in c_int.__name__:
-        return color + '%d' + endcolor
-    if cname in c_float.__name__:
-        return color + '%f' + endcolor
-    if cname in c_double.__name__:
+    if _safe_issubclass(ctype, _FLOAT_FORMAT_TYPES):
         return color + '%f' + endcolor
 
     return color + f'%s' + endcolor
@@ -466,31 +510,9 @@ def _ctype_get_color(ctype) -> str:
     if _ctype_get_is_pointer(ctype):
         return BRINK_PINK
 
-    if c_byte.__name__ in cname:
+    if _safe_issubclass(ctype, _HEX_FORMAT_TYPES + _DECIMAL_FORMAT_TYPES):
         return ELECTRIC_BLUE
-    if c_ubyte.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_ushort.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_ulong.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_void_p.__name__ in cname:
-        return BRINK_PINK
-    if c_size_t.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_uint.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_longlong.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_ulonglong.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_long.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_int.__name__ in cname:
-        return ELECTRIC_BLUE
-    if c_float.__name__ in cname:
-        return HELIOTROPE
-    if c_double.__name__ in cname:
+    if _safe_issubclass(ctype, _FLOAT_FORMAT_TYPES):
         return HELIOTROPE
 
     return GRANNY_SMITH_APPLE
