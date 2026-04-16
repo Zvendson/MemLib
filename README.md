@@ -8,6 +8,7 @@
 - Remote memory read/write helpers for raw bytes, strings, and structs
 - Binary pattern scanning with 32-bit and 64-bit FASM-backed payloads
 - Runtime assembly generation and compilation
+- Simple inline JMP hooks for local or remote processes
 - Shared memory helpers for cross-process communication
 - Utility decorators, registry helpers, and structure formatting tools
 
@@ -112,11 +113,19 @@ KeePass helpers live behind the optional `keepass` extra:
 from MemLib.CredentialManager import CredentialManager, Credentials
 ```
 
+## Hook Notes
+
+- `Hook` is a simple inline jump hook helper, not a full detour engine.
+- On x86 and on nearby x64 targets, it uses a 5-byte `jmp rel32`.
+- On x64, when the destination is out of `rel32` range, it falls back to an absolute jump sequence via `RAX`.
+- `HookBuffer` stores the original bytes and hook metadata so a hook can be disabled or reconstructed from stored state.
+
 ## Notes
 
 - This package is Windows-only and depends heavily on native Win32 behavior.
 - Some features require elevated privileges, depending on the target process.
 - The project ships native DLL and assembly assets used by the scanner and assembler helpers.
+- Package metadata currently marks the project as `Beta`.
 
 ## License
 

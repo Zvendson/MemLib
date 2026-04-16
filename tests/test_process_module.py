@@ -207,7 +207,5 @@ def test_thread_destructor_swallows_cleanup_failures():
 
 
 def test_hook_rejects_relative_jump_out_of_range():
-    process = SimpleNamespace(is_64bit=True)
-
     with pytest.raises(ValueError, match="out of rel32 range"):
-        Hook(name="test", process=process, source=0x1000, destination=0x1_0000_0000)
+        Hook._build_jump_opcode(0x1000, 0x1_0000_0000)

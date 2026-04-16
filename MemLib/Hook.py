@@ -19,8 +19,8 @@ References:
 
 import struct
 from _ctypes import Array
-from ctypes.wintypes import BYTE
 from ctypes import c_uint64
+from ctypes.wintypes import BYTE
 
 from MemLib.Process import Process
 from MemLib.Structs import Struct
@@ -35,9 +35,10 @@ class HookBuffer(Struct):
     so the hook can be restored even after a crash or restart.
 
     Fields:
-        original_opcode (BYTE * 5):   Original bytes at the hook address.
+        original_opcode (BYTE * 16):  Original bytes at the hook address.
         source_address  (QWORD):      Address where the hook was installed.
         target_address  (QWORD):      Address where the jump/call redirects to.
+        opcode_size     (BYTE):       Number of bytes used by the installed hook opcode.
     """
 
     original_opcode: Array
@@ -46,9 +47,10 @@ class HookBuffer(Struct):
 
     _pack_ = 1
     _fields_ = [
-        ("original_opcode", BYTE * 5),  # type: ignore
+        ("original_opcode", BYTE * 16),  # type: ignore
         ("source_address", c_uint64),
         ("target_address", c_uint64),
+        ("opcode_size", BYTE),
     ]
 
     def has_contents(self) -> bool:
@@ -96,13 +98,20 @@ class Hook:
         self._process: Process = process
         self._src_address: int = source
         self._dst_address: int = destination
-        self._opcode: bytes = self._build_jump_opcode(source, destination)
+        self._opcode: bytes = self._build_jump_opcode_for_process(process, source, destination)
+        self._opcode_size: int = len(self._opcode)
         self._enabled: bool = False
         self._buffer_address: int = buffer
         self._buffer: HookBuffer | None = None
 
-        original_opcode: bytes = self._process.read(source, 5)
-        buffer_content: bytes = struct.pack('=5BQQ', *original_opcode, source, destination)
+        original_opcode: bytes = self._process.read(source, self._opcode_size)
+        if len(original_opcode) != self._opcode_size:
+            raise ValueError(
+                f"Could not read {self._opcode_size} bytes from hook source 0x{source:X}; "
+                f"got {len(original_opcode)} bytes."
+            )
+        original_opcode_padded = original_opcode.ljust(16, b"\x00")
+        buffer_content: bytes = struct.pack("=16sQQB", original_opcode_padded, source, destination, self._opcode_size)
 
         if buffer:
             self._buffer = self._process.read_struct(buffer, HookBuffer)
@@ -110,6 +119,13 @@ class Hook:
         if self._buffer is None or self._buffer.source_address == 0:
             self._buffer = HookBuffer.from_buffer_copy(buffer_content)
             self._buffer.ADDRESS_EX = buffer
+        elif self._buffer.opcode_size == 0:
+            self._buffer.opcode_size = self._opcode_size
+        elif self._buffer.opcode_size != self._opcode_size:
+            raise ValueError(
+                f"Stored hook buffer at 0x{buffer:X} has opcode size {self._buffer.opcode_size}, "
+                f"expected {self._opcode_size}."
+            )
 
         if original_opcode == self._opcode:
             self._enabled = True
@@ -143,7 +159,7 @@ class Hook:
 
     @staticmethod
     def _build_jump_opcode(source: int, destination: int) -> bytes:
-        """Build a near JMP opcode and reject addresses that cannot be encoded."""
+        """Build a near JMP rel32 opcode and reject addresses that cannot be encoded."""
         relative_offset = destination - source - 0x5
         if not -(2 ** 31) <= relative_offset <= (2 ** 31 - 1):
             raise ValueError(
@@ -151,6 +167,26 @@ class Hook:
             )
 
         return struct.pack("=Bi", 0xE9, relative_offset)
+
+    @staticmethod
+    def _build_long_jump_opcode(destination: int) -> bytes:
+        """Build an absolute x64 jump via RAX.
+
+        Assembly:
+            mov rax, <destination>  ; 48 B8 <imm64>
+            jmp rax                 ; FF E0
+        """
+        return b"\x48\xB8" + struct.pack("=Q", destination) + b"\xFF\xE0"
+
+    @classmethod
+    def _build_jump_opcode_for_process(cls, process: Process, source: int, destination: int) -> bytes:
+        """Build the shortest supported jump opcode for the target process."""
+        try:
+            return cls._build_jump_opcode(source, destination)
+        except ValueError:
+            if process.is_64bit:
+                return cls._build_long_jump_opcode(destination)
+            raise
 
     def __str__(self):
         """
@@ -256,7 +292,10 @@ class Hook:
         if not self._enabled:
             return
 
-        self._process.write(self._src_address, bytes(self._buffer.original_opcode))
+        self._process.write(
+            self._src_address,
+            bytes(self._buffer.original_opcode)[:self._buffer.opcode_size or self._opcode_size],
+        )
         self._enabled = False
 
     def toggle(self) -> bool:
