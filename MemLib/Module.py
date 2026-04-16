@@ -38,6 +38,17 @@ from MemLib.Structs import (
 from MemLib.windows import GetProcAddress, Win32Exception
 
 
+def _decode_snapshot_text(raw_value: bytes) -> str:
+    """Decode ANSI snapshot text using the active Windows code page."""
+    return raw_value.decode("mbcs", errors="replace")
+
+
+def _require_struct(value, message: str):
+    """Return a remotely-read structure or raise a stable runtime error."""
+    if value is None:
+        raise ValueError(message)
+    return value
+
 
 if TYPE_CHECKING:
     from MemLib.Process import Process
@@ -107,8 +118,8 @@ class Module:
         """
         self._handle: int = module.hModule
         self._process: Process = process
-        self._name: str = module.szModule.decode('ascii')
-        self._path: str = module.szExePath.decode('ascii')
+        self._name: str = _decode_snapshot_text(module.szModule)
+        self._path: str = _decode_snapshot_text(module.szExePath)
         self._base: int = module.modBaseAddr
         self._size: int = module.modBaseSize
         self._dos: IMAGE_DOS_HEADER | None = None
@@ -193,7 +204,10 @@ class Module:
                 The parsed DOS header structure for the loaded module.
         """
         if self._dos is None:
-            self._dos = self._process.read_struct(self._base, IMAGE_DOS_HEADER)
+            self._dos = _require_struct(
+                self._process.read_struct(self._base, IMAGE_DOS_HEADER),
+                f"Could not read DOS header for module '{self.name}' at 0x{self._base:X}.",
+            )
         return self._dos
 
     @property
@@ -217,10 +231,17 @@ class Module:
         if self._nt_headers is None:
             address: int = self._base + self.dos_header.e_lfanew
             if self._process.is_64bit:
-                nt_headers: IMAGE_NT_HEADERS64 = self._process.read_struct(address, IMAGE_NT_HEADERS64)
+                nt_headers: IMAGE_NT_HEADERS64 = _require_struct(
+                    self._process.read_struct(address, IMAGE_NT_HEADERS64),
+                    f"Could not read NT headers for module '{self.name}' at 0x{address:X}.",
+                )
             else:
-                nt_headers: IMAGE_NT_HEADERS32 = self._process.read_struct(address, IMAGE_NT_HEADERS32)
-            assert nt_headers.Signature == 0x4550
+                nt_headers: IMAGE_NT_HEADERS32 = _require_struct(
+                    self._process.read_struct(address, IMAGE_NT_HEADERS32),
+                    f"Could not read NT headers for module '{self.name}' at 0x{address:X}.",
+                )
+            if nt_headers.Signature != 0x4550:
+                raise ValueError(f"Invalid NT header signature for module '{self.name}': 0x{nt_headers.Signature:X}")
 
             self._nt_headers = nt_headers
 
@@ -247,10 +268,16 @@ class Module:
         """
         if self._process.is_64bit:
             opt_headers: IMAGE_OPTIONAL_HEADER64 = self.nt_headers.OptionalHeader
-            assert opt_headers.Magic == 0x20B
+            if opt_headers.Magic != 0x20B:
+                raise ValueError(
+                    f"Invalid optional header magic for 64-bit module '{self.name}': 0x{opt_headers.Magic:X}"
+                )
         else:
             opt_headers: IMAGE_OPTIONAL_HEADER32 = self.nt_headers.OptionalHeader
-            assert opt_headers.Magic == 0x10B
+            if opt_headers.Magic != 0x10B:
+                raise ValueError(
+                    f"Invalid optional header magic for 32-bit module '{self.name}': 0x{opt_headers.Magic:X}"
+                )
         return opt_headers
 
     def data_directory(self, index: int) -> IMAGE_DATA_DIRECTORY:
@@ -292,8 +319,13 @@ class Module:
         """
         if self._expo_dir is None:
             export_dir_entry: IMAGE_DATA_DIRECTORY = self.data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT)
+            if export_dir_entry.VirtualAddress == 0:
+                raise ValueError(f"Module '{self.name}' has no export directory.")
             address: int = self._base + export_dir_entry.VirtualAddress
-            self._expo_dir = self._process.read_struct(address, IMAGE_EXPORT_DIRECTORY)
+            self._expo_dir = _require_struct(
+                self._process.read_struct(address, IMAGE_EXPORT_DIRECTORY),
+                f"Could not read export directory for module '{self.name}' at 0x{address:X}.",
+            )
 
         return self._expo_dir
 
@@ -337,14 +369,17 @@ class Module:
             AssertionError: If the export directory or function address table is invalid, or the function does not exist.
         """
         export_dir = self.export_directory
-        assert export_dir.NumberOfFunctions > 0, "ExportDirectory has no function exports"
-        assert export_dir.AddressOfFunctions > 0, "ExportDirectory has no function address"
+        if export_dir.NumberOfFunctions <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no function exports.")
+        if export_dir.AddressOfFunctions <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no function address table.")
         func_index = ordinal - export_dir.Base
         if not (0 <= func_index < export_dir.NumberOfFunctions):
             raise IndexError(f"Ordinal {ordinal} (0x{ordinal:X}) (index {func_index}) is out of range")
 
         func_rva: int = self._process.read_dword(self._base + export_dir.AddressOfFunctions + func_index * 0x0004)
-        assert func_rva > 0, "Function ordinal does not exist"
+        if func_rva <= 0:
+            raise ValueError(f"Ordinal {ordinal} does not map to an exported function.")
 
         return self._base + func_rva
 
@@ -370,8 +405,10 @@ class Module:
         name_count: int = export_dir.NumberOfNames
         name_addr: int = export_dir.AddressOfNames
 
-        assert name_count > 0, "ExportDirectory has no name exports"
-        assert name_addr > 0, "ExportDirectory has no name address"
+        if name_count <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no named exports.")
+        if name_addr <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no name address table.")
 
         name_enc: bytes = name.encode("ascii")
         name_len: int = len(name_enc) + 1
@@ -452,8 +489,6 @@ class Module:
             func_ordinal = export_dir.Base + ordinal_index
             self._exports[f"Ordinal#{func_ordinal}"] = self._base + func_rva
 
-        assert len(self._exports) == total_count
-
         return self._exports
 
     def get_sections(self) -> list[IMAGE_SECTION_HEADER]:
@@ -477,7 +512,10 @@ class Module:
 
         for i in range(section_count):
             offset = section_start + i * section_size
-            section: IMAGE_SECTION_HEADER = self._process.read_struct(offset, IMAGE_SECTION_HEADER)
+            section: IMAGE_SECTION_HEADER = _require_struct(
+                self._process.read_struct(offset, IMAGE_SECTION_HEADER),
+                f"Could not read section header {i} for module '{self.name}' at 0x{offset:X}.",
+            )
 
             alignment: int = self.nt_headers.OptionalHeader.SectionAlignment
             rest_size: int = section.VirtualSize % alignment

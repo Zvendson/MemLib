@@ -19,7 +19,8 @@ References:
 
 import struct
 from _ctypes import Array
-from ctypes.wintypes import BYTE, DWORD
+from ctypes.wintypes import BYTE
+from ctypes import c_uint64
 
 from MemLib.Process import Process
 from MemLib.Structs import Struct
@@ -35,8 +36,8 @@ class HookBuffer(Struct):
 
     Fields:
         original_opcode (BYTE * 5):   Original bytes at the hook address.
-        source_address  (DWORD):      Address where the hook was installed.
-        target_address  (DWORD):      Address where the jump/call redirects to.
+        source_address  (QWORD):      Address where the hook was installed.
+        target_address  (QWORD):      Address where the jump/call redirects to.
     """
 
     original_opcode: Array
@@ -46,8 +47,8 @@ class HookBuffer(Struct):
     _pack_ = 1
     _fields_ = [
         ("original_opcode", BYTE * 5),  # type: ignore
-        ("source_address", DWORD),
-        ("target_address", DWORD),
+        ("source_address", c_uint64),
+        ("target_address", c_uint64),
     ]
 
     def has_contents(self) -> bool:
@@ -95,13 +96,13 @@ class Hook:
         self._process: Process = process
         self._src_address: int = source
         self._dst_address: int = destination
-        self._opcode: bytes = struct.pack('=Bi', 0xE9, destination - source - 0x0005)
+        self._opcode: bytes = self._build_jump_opcode(source, destination)
         self._enabled: bool = False
         self._buffer_address: int = buffer
         self._buffer: HookBuffer | None = None
 
         original_opcode: bytes = self._process.read(source, 5)
-        buffer_content: bytes = struct.pack('=5BII', *original_opcode, source, destination)
+        buffer_content: bytes = struct.pack('=5BQQ', *original_opcode, source, destination)
 
         if buffer:
             self._buffer = self._process.read_struct(buffer, HookBuffer)
@@ -140,6 +141,17 @@ class Hook:
             buffer=buffer_address,
         )
 
+    @staticmethod
+    def _build_jump_opcode(source: int, destination: int) -> bytes:
+        """Build a near JMP opcode and reject addresses that cannot be encoded."""
+        relative_offset = destination - source - 0x5
+        if not -(2 ** 31) <= relative_offset <= (2 ** 31 - 1):
+            raise ValueError(
+                f"Hook target 0x{destination:X} is out of rel32 range from source 0x{source:X}."
+            )
+
+        return struct.pack("=Bi", 0xE9, relative_offset)
+
     def __str__(self):
         """
         Returns a human-readable string representation of the hook.
@@ -147,8 +159,8 @@ class Hook:
         Returns:
             str: Human-readable summary.
         """
-        return f"{self._name}-Hook(Source=0x{self._src_address:08X}, Target=0x{self._dst_address:08X}, Storage=" \
-               f"0x{self._buffer.get_address():08X}, Hook='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
+        return f"{self._name}-Hook(Source=0x{self._src_address:X}, Target=0x{self._dst_address:X}, Storage=" \
+               f"0x{self._buffer.get_address():X}, Hook='{self._opcode.hex(' ').upper()}', OriginalOpcode" \
                f"='{bytes(self._buffer.original_opcode).hex(' ').upper()}', Process={self._process.process_id})"
 
     def __repr__(self):

@@ -42,6 +42,10 @@ from MemLib.Thread import Thread
 from MemLib.windows import IsWow64Process2, Win32Exception, is_32bit
 
 
+def _decode_snapshot_text(raw_value: bytes) -> str:
+    """Decode ANSI snapshot text using the active Windows code page."""
+    return raw_value.decode("mbcs", errors="replace")
+
 
 if TYPE_CHECKING:
     T = TypeVar('T')
@@ -108,11 +112,17 @@ class Process:
         Clears registered callbacks, unregisters process wait callbacks,
         and closes the process handle if it is still open.
         """
-        self._callbacks.clear()
-        self._unregister_wait()
+        try:
+            callbacks = getattr(self, "_callbacks", None)
+            if callbacks is not None:
+                callbacks.clear()
 
-        if self._handle:
-            self.close()
+            self._unregister_wait()
+
+            if getattr(self, "_handle", 0):
+                self.close()
+        except Exception:
+            pass
 
     def __str__(self) -> str:
         """
@@ -1072,12 +1082,12 @@ class Process:
         while process_found:
             if process_buffer.th32ProcessID and (
                     process_name == b"" or process_buffer.szExeFile.lower() == process_name):
-                try:
-                    process = Process(process_buffer.th32ProcessID)
-                except windows.Win32Exception:
-                    process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+                process = Process._open_discovered_process(process_buffer.th32ProcessID)
+                if process is None:
+                    process_found = windows.Process32Next(snapshot, byref(process_buffer))
+                    continue
 
-                process._name = process_buffer.szExeFile.decode('ascii')
+                process._name = _decode_snapshot_text(process_buffer.szExeFile)
 
                 if process.is_64bit:
                     process_list.append(process)
@@ -1118,12 +1128,12 @@ class Process:
         while process_found:
             if process_buffer.th32ProcessID and (
                     process_name == b"" or process_buffer.szExeFile.lower() == process_name):
-                try:
-                    process = Process(process_buffer.th32ProcessID)
-                except windows.Win32Exception:
-                    process = Process(process_buffer.th32ProcessID, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+                process = Process._open_discovered_process(process_buffer.th32ProcessID)
+                if process is None:
+                    process_found = windows.Process32Next(snapshot, byref(process_buffer))
+                    continue
 
-                process._name = process_buffer.szExeFile.decode('ascii')
+                process._name = _decode_snapshot_text(process_buffer.szExeFile)
                 break
 
             process_found = windows.Process32Next(snapshot, byref(process_buffer))
@@ -1148,6 +1158,17 @@ class Process:
             )
 
         return self._wait != 0
+
+    @staticmethod
+    def _open_discovered_process(process_id: int) -> Process | None:
+        """Open a discovered process, skipping entries that remain inaccessible."""
+        try:
+            return Process(process_id)
+        except windows.Win32Exception:
+            try:
+                return Process(process_id, 0, PROCESS_QUERY_LIMITED_INFORMATION)
+            except windows.Win32Exception:
+                return None
 
     def _unregister_wait(self) -> bool:
         """

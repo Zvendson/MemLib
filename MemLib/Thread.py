@@ -89,7 +89,10 @@ class Thread:
         """
         Destructor. Closes the thread handle if open.
         """
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def __enter__(self) -> Thread:
         """
