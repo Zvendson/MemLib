@@ -511,8 +511,11 @@ class Module:
         """
         Checks if two Module objects refer to the same loaded module in the same process.
 
-        :param other: Module to compare.
-        :return: True if both modules have the same handle and parent process, else False.
+        Args:
+            other (Module): Module to compare.
+
+        Returns:
+            bool: `True` when both modules refer to the same handle in the same process.
         """
         same_handle: bool = self._handle == other.handle
         same_process_id: bool = self._process.process_id == other._process.process_id
@@ -523,7 +526,8 @@ class Module:
         """
         Returns a readable string representation of the module and its process.
 
-        :return: String representation.
+        Returns:
+            str: Readable module summary.
         """
         return f"Module('{self.name}' in Process '{self._process.process_id}')"
 
@@ -531,6 +535,7 @@ class Module:
         """
         Returns the string representation (same as __str__).
 
-        :return: String representation.
+        Returns:
+            str: Readable module summary.
         """
         return str(self)

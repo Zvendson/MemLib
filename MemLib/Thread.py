@@ -178,7 +178,7 @@ class Thread:
             inherit (bool, optional): If child processes inherit this handle. Defaults to False.
 
         Returns:
-            int: Non-zero if successful, zero otherwise.
+            bool: `True` if the thread was opened successfully, otherwise `False`.
         """
         if self._handle != 0:
             self.close()

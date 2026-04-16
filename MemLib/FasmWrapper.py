@@ -1,6 +1,4 @@
 """
-FasmWrapper.py
-
 High-level Python wrapper for Flat Assembler (FASM) using the MemLib backend.
 
 This module provides a `FASM` class for generating, compiling, and managing
@@ -108,7 +106,7 @@ class FASM:
     @property
     def version_string(self) -> str:
         """
-        Returns the version string of the linked FASM library.
+        Returns a formatted version string for the linked FASM library.
 
         Returns:
             str: The version in the format 'Flat Assembler vMAJOR.MINOR'.
@@ -463,7 +461,7 @@ class FASM:
             name (str): Export symbol name.
 
         Returns:
-            int: The dereferenced value (e.g., function address) of the export.
+            int: The resolved value of the exported symbol.
 
         Raises:
             RuntimeError: If no binary was compiled yet.

@@ -76,17 +76,6 @@ class Hook:
 
     On construction, can immediately enable the hook and optionally store the original
     bytes and hook information in remote process memory for recovery.
-
-    Parameters:
-        name (str):        Identifier for the hook.
-        process (Process): The target process object.
-        source (int):      Address in the target process to patch (hook entry point).
-        destination (int): Address in the target process to jump/call to.
-        enable_hook (bool):If True, immediately installs the hook.
-        buffer (int):      Address in the target process for storing HookBuffer. If zero, persistence is skipped.
-
-    Usage:
-        hook = Hook(name="MyHook", process=proc, source=0x401000, destination=0x402000, enable_hook=True, buffer=0x500000)
     """
 
     def __init__(self, *, name: str, process: Process, source: int, destination: int, enable_hook: bool = False,
@@ -94,13 +83,13 @@ class Hook:
         """
         Initializes a new Hook instance.
 
-        Parameters:
-            name (str):        Name of the hook.
+        Args:
+            name (str): Name of the hook.
             process (Process): Target process.
-            source (int):      Hook address in the process.
-            destination (int): Jump/call target address.
-            enable_hook (bool):Enable the hook immediately.
-            buffer (int):      Remote address to store buffer struct (for crash recovery).
+            source (int): Hook address in the process.
+            destination (int): Jump or call target address.
+            enable_hook (bool, optional): If `True`, enables the hook immediately.
+            buffer (int, optional): Remote address used to persist the `HookBuffer`.
         """
         self._name: str = name
         self._process: Process = process
@@ -133,10 +122,10 @@ class Hook:
         """
         Creates a Hook instance using a stored HookBuffer in process memory.
 
-        Parameters:
-            name (str):         Name for the hook.
-            process (Process):  Target process.
-            buffer_address (int):Remote address containing the HookBuffer.
+        Args:
+            name (str): Name for the hook.
+            process (Process): Target process.
+            buffer_address (int, optional): Remote address containing the `HookBuffer`.
 
         Returns:
             Hook: New Hook instance restored from buffer.
@@ -276,7 +265,7 @@ class Hook:
         """
         Stores the buffer information at a specified address in the target process.
 
-        Parameters:
+        Args:
             buffer_address (int): Address to store the HookBuffer.
 
         Returns:

@@ -109,9 +109,6 @@ class Stopwatch:
 
         Args:
             new_time (float, optional): New expiration interval in seconds. If None, keeps the current watch_time.
-
-        Returns:
-            None
         """
         if new_time is not None:
             self._watch_time = new_time

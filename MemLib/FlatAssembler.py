@@ -78,10 +78,10 @@ def allocate_in_32bit_space(
 
 def get_version() -> tuple[int, int]:
     """
-    Returns the version string of the linked FASM library.
+    Returns the version of the linked FASM library.
 
     Returns:
-        str: The version in the format 'FASM vMAJOR.MINOR'.
+        tuple[int, int]: The `(major, minor)` version tuple.
     """
     fasm_version: int = _FASM.fasm_GetVersion()
     major: int = fasm_version & 0xFFFF
@@ -91,7 +91,7 @@ def get_version() -> tuple[int, int]:
 
 def get_version_string() -> str:
     """
-    Returns the version string of the linked FASM library.
+    Returns a formatted version string for the linked FASM library.
 
     Returns:
         str: The version in the format 'Flat Assembler vMAJOR.MINOR'.
@@ -113,7 +113,7 @@ def compile_asm(source_code: str, max_memory_size: int = 0x5E8000, max_iteration
         bytes: The compiled machine code as a bytes object.
 
     Raises:
-        FasmError: If assembly fails or FASM returns an error code.
+        FASMError: If assembly fails or FASM returns an error code.
     """
 
     src_bytes = source_code.encode('ascii') + b"\x00"
@@ -208,16 +208,11 @@ class FASMERR(IntEnum):
 class FASMError(Exception):
     def __init__(self, fasm_buffer: int = None, source_code: str = None):
         """
-        Initializes a FasmError with the provided output buffer and source code.
+        Initializes a `FASMError` from the assembler output buffer and source text.
 
         Args:
-            fasm_buffer (Array, optional): The raw ctypes buffer from FASM.dll.
+            fasm_buffer (int, optional): Address of the raw FASM output buffer.
             source_code (str, optional): The original assembly source code.
-
-        Populates:
-            self._error_code: The raw error code.
-            self._error_name: Human-readable error name.
-            self._error_msg: Detailed error message if available.
         """
 
         self._fasm_buffer: int = fasm_buffer
@@ -238,8 +233,7 @@ class FASMError(Exception):
 
     def _get_message(self) -> str:
         """
-        Retrieves a detailed, human-readable error message, including
-        the failing assembly line (if available).
+        Builds a detailed, human-readable error message for the failed assembly.
 
         Returns:
             str: Detailed error description, or empty string if not available.

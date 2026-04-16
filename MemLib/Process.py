@@ -5,7 +5,7 @@ Supports querying, opening, suspending/resuming, terminating, memory reading/wri
 module/thread enumeration, and memory management in remote processes via the Win32 API.
 
 Note:
-    - Only 32-bit processes are supported. (yet)
+    - The package is Windows-only.
     - Requires sufficient permissions to access the target process.
 
 Raises:
@@ -49,13 +49,10 @@ if TYPE_CHECKING:
 
 class Process:
     """
-    High-level, object-oriented wrapper for interacting with a Windows process (32-bit only).
+    High-level, object-oriented wrapper for interacting with a Windows process.
 
     Provides process handle management, memory operations, thread and module enumeration,
     and related Windows API features via `ctypes`.
-
-    Note:
-        64-bit processes are not supported.
 
     Attributes:
         _process_id (int): Process ID.
@@ -464,10 +461,10 @@ class Process:
 
     def get_module(self, name: str | None) -> Module | None:
         """
-        Gets the main module of the process (the executable itself).
+        Gets a module by name, or the main module when `name` is `None`.
 
         Returns:
-            Module: The main module object.
+            Module | None: The matching module, or `None` if it is not loaded.
 
         Raises:
             windows.Win32Exception: If the process is not opened, if the snapshot could not be created,
@@ -797,7 +794,7 @@ class Process:
 
     def read_string(self, address: int, length: int, strip: bool = True) -> bytes:
         """
-        Reads a UTF-8 string from the process memory.
+        Reads raw bytes from process memory and optionally strips the first null terminator.
 
         Args:
             address (int): Address to read from.
@@ -805,7 +802,7 @@ class Process:
             strip (bool, optional): If True, strip at first null byte.
 
         Returns:
-            bytes: The string read, or an empty bytes object on failure.
+            bytes: The bytes read, or an empty byte string on failure.
         """
         if not self.exists:
             return b''
@@ -820,7 +817,7 @@ class Process:
 
     def read_wide_string(self, address: int, length: int, strip: bool = True) -> str:
         """
-        Reads a UTF-16 (wide) string from the process memory.
+        Reads a UTF-16-LE string from process memory.
 
         Args:
             address (int): Address to read from.
@@ -1049,7 +1046,7 @@ class Process:
 
         Args:
             process_name (str, optional): Filter for process executable name (ASCII, case-insensitive).
-            exclude_32bit (bool, optional): If True, excludes 32 bit processes from the ouput.
+            exclude_32bit (bool, optional): If `True`, excludes 32-bit processes from the output.
 
         Returns:
             list[Process]: List of Process objects matching the filter.

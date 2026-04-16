@@ -69,7 +69,7 @@ class SharedMemoryBuffer(Struct):
 
     def is_valid(self):
         """
-        Checks if the shared memory buffer references are valid.
+        Checks whether the shared memory buffer references are valid.
 
         Returns:
             bool: True if the buffer is valid, False otherwise.
@@ -292,7 +292,7 @@ class SharedMemory:
 
         if len(errors):
             fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
-            raise Exception(f'Catched {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
+            raise Exception(f'Caught {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
 
         mapping.handle = HANDLE(0)
         mapping.handle_ex = HANDLE(0)
