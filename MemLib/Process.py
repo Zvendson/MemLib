@@ -932,34 +932,47 @@ class Process:
         """
         Temporarily makes a region writable, restoring the original protection on exit.
 
-        Only changes protection when the region is not already writable, and only
-        restores a protection value that was actually captured — passing the `0` that
-        :meth:`protect` returns on failure back to `VirtualProtectEx` would fail and
-        silently leave the pages readable/writable/executable.
+        Always requests write access rather than probing first: the query would cost an
+        extra syscall per write, and `VirtualProtectEx` is cheap when the protection is
+        already what we ask for. Only a protection value that was actually captured gets
+        restored — passing the `0` that :meth:`protect` returns on failure back to
+        `VirtualProtectEx` would fail and silently leave the pages
+        readable/writable/executable.
 
         Args:
             address (int): Start of the region.
             size (int): Size of the region in bytes.
+
+        Raises:
+            Win32Exception: If the original protection could not be restored. When the
+                wrapped operation also failed, that error is chained as the cause so
+                neither failure is lost.
         """
         if size <= 0:
             yield
             return
 
         old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
+        body_error: BaseException | None = None
         try:
             yield
+        except BaseException as error:
+            body_error = error
+            raise
         finally:
             # 0 means VirtualProtectEx failed; there is no previous value to restore
             # and re-applying 0 is an invalid protection constant.
             if old_protection:
                 restored: int = self.protect(address, size, old_protection)
                 if not restored:
+                    # Chain rather than replace: raising bare here would swallow an
+                    # exception from the write itself.
                     raise Win32Exception(
                         custom_message=(
                             f"Failed to restore page protection 0x{old_protection:X} at "
                             f"0x{address:X} (size 0x{size:X}); the region may still be writable."
                         )
-                    )
+                    ) from body_error
 
     def allocate(self, size: int, address: int = 0, allocation_type: int = MEM_COMMIT,
                  protect: int = PAGE_EXECUTE_READWRITE) -> int:

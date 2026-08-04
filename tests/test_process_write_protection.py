@@ -7,7 +7,7 @@ from MemLib.Constants import (
     MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READONLY, PAGE_READWRITE,
 )
 from MemLib.Process import Process
-from MemLib.windows import VirtualAlloc
+from MemLib.windows import VirtualAlloc, Win32Exception
 
 
 class _MEMORY_BASIC_INFORMATION(ctypes.Structure):
@@ -33,7 +33,11 @@ def _protection_of(address: int) -> int:
 
 @pytest.fixture
 def process() -> Process:
-    return Process(os.getpid())
+    target = Process(os.getpid())
+    try:
+        yield target
+    finally:
+        target.close()
 
 
 @pytest.fixture
@@ -145,3 +149,22 @@ def test_write_of_empty_payload_skips_protection_changes(process, readwrite_page
     process.write(readwrite_page, b"")
 
     assert calls == []
+
+
+def test_restore_failure_does_not_swallow_the_original_error(process, readwrite_page, monkeypatch):
+    """A failing restore must not hide why the wrapped operation blew up."""
+
+    def protect(address, size, protection):
+        # Succeed when widening, fail when restoring.
+        return PAGE_READWRITE if protection == PAGE_EXECUTE_READWRITE else 0
+
+    monkeypatch.setattr(process, "protect", protect)
+
+    with pytest.raises(Win32Exception) as caught:
+        with process._writable(readwrite_page, 16):
+            raise RuntimeError("the actual write failure")
+
+    assert "Failed to restore page protection" in str(caught.value)
+    assert isinstance(caught.value.__cause__, RuntimeError)
+    assert "the actual write failure" in str(caught.value.__cause__)
+
