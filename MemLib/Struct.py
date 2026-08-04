@@ -153,7 +153,7 @@ class Struct(Structure):
         else:
             return []
 
-        fields_by_name = {field_name: field_type for field_name, field_type in self.get_fields()}
+        fields_by_name = {field[0]: field[1] for field in self.get_fields()}
         seen: set[str] = set()
         resolved: list[tuple[str, Any]] = []
 
@@ -244,9 +244,10 @@ class Struct(Structure):
 
             return self.to_string(colorized)
 
-        # calc lengths
-        var_names, var_types = zip(*fields)
-        var_types = [_ctype_get_name(t) for t in var_types]
+        # calc lengths. A _fields_ entry is (name, ctype) or (name, ctype, bit_width) for
+        # bitfields, so unpack positionally rather than assuming a 2-tuple.
+        var_names = [field[0] for field in fields]
+        var_types = [_ctype_get_name(field[1]) for field in fields]
 
         var_type_len: int = len(max(var_types, key=len))
         var_name_len: int = len(max(var_names, key=len))

@@ -1,27 +1,35 @@
-from ctypes import c_ubyte, c_uint, c_ulong, c_ushort, sizeof
+from ctypes import c_ubyte, c_uint16, c_uint32, sizeof
 
 from MemLib.Struct import Struct
 
 
+# c_uint32 rather than c_ulong: c_ulong is 8 bytes on LP64 platforms, which changes the
+# padding and makes the expected offsets below platform-dependent.
 class UnpackedStruct(Struct):
     """ctypes inserts padding here: a=0, b=4, c=8 (sizeof 12)."""
 
-    _fields_ = [("a", c_ubyte), ("b", c_ulong), ("c", c_ushort)]
+    _fields_ = [("a", c_ubyte), ("b", c_uint32), ("c", c_uint16)]
 
 
 class PackedStruct(Struct):
     """No padding: a=0, b=1, c=5 (sizeof 7)."""
 
     _pack_ = 1
-    _fields_ = [("a", c_ubyte), ("b", c_ulong), ("c", c_ushort)]
+    _fields_ = [("a", c_ubyte), ("b", c_uint32), ("c", c_uint16)]
 
 
 class UnpackedChild(Struct):
-    _fields_ = [("x", c_ubyte), ("y", c_ulong)]
+    _fields_ = [("x", c_ubyte), ("y", c_uint32)]
 
 
 class UnpackedParent(Struct):
-    _fields_ = [("lead", c_ubyte), ("child", UnpackedChild), ("tail", c_uint)]
+    _fields_ = [("lead", c_ubyte), ("child", UnpackedChild), ("tail", c_uint32)]
+
+
+class BitfieldStruct(Struct):
+    """A `_fields_` entry with a bit width is a 3-tuple, not a 2-tuple."""
+
+    _fields_ = [("low", c_uint32, 3), ("high", c_uint32, 5)]
 
 
 def _offsets_from_ctypes(struct_type) -> dict[str, int]:
@@ -76,3 +84,25 @@ def test_prettify_nested_struct_uses_real_offsets():
     rendered = instance.prettify()
     child_offset = instance.get_field_offsets()["child"]
     assert f"|{child_offset:04X}|" in rendered
+
+
+def test_prettify_does_not_crash_on_bitfields():
+    """A 3-tuple `_fields_` entry used to raise ValueError from `zip(*fields)`."""
+    instance = BitfieldStruct()
+
+    rendered = instance.prettify()
+    assert "low" in rendered
+    assert "high" in rendered
+    assert instance.get_field_offsets() == {"low": 0, "high": 0}
+
+
+def test_identifier_lookup_does_not_crash_on_bitfields():
+    """The IDENTIFIER path unpacked 2-tuples too, so bitfields broke to_string()."""
+
+    class BitfieldWithIdentifier(BitfieldStruct):
+        IDENTIFIER = "low"
+
+    instance = BitfieldWithIdentifier()
+    instance.low = 5
+
+    assert "low" in instance.to_string()
