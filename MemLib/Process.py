@@ -426,10 +426,13 @@ class Process:
                 may not even be possible. Defaults to True.
 
         Returns:
-            bool: True if the process was closed successfully, False otherwise.
+            bool: True if the handle was closed, or was already closed (0/None handle).
+                False only when `raise_on_error` is False and CloseHandle failed; with
+                the default `raise_on_error=True` that failure raises instead.
 
         Raises:
-            windows.Win32Exception: If the handle could not be closed and `raise_on_error`.
+            windows.Win32Exception: If the handle could not be closed and `raise_on_error`
+                is True.
         """
         self._unregister_wait()
 

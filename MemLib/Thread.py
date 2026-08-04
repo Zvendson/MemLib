@@ -200,10 +200,12 @@ class Thread:
                 may not even be possible. Defaults to True.
 
         Returns:
-            bool: True if the handle was closed or already closed, False on error.
+            bool: True if the handle was closed, or was already closed (0 handle). False
+                only when `raise_on_error` is False and CloseHandle failed; with the
+                default `raise_on_error=True` that failure raises instead.
 
         Raises:
-            Win32Exception: If the handle could not be closed and `raise_on_error`.
+            Win32Exception: If the handle could not be closed and `raise_on_error` is True.
         """
         if self._handle == 0:
             return True

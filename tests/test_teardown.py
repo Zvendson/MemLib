@@ -91,9 +91,13 @@ def test_interpreter_shutdown_is_clean():
         "t.open()\n"
         "# leave both alive so they are collected during interpreter shutdown\n"
     )
-    result = subprocess.run([sys.executable, "-c", probe], capture_output=True)
+    result = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, errors="replace"
+    )
 
-    stderr = result.stderr.decode()
+    # errors="replace": the default codec can fail on Windows depending on the code page,
+    # which would turn an assertion failure into a UnicodeDecodeError.
+    stderr = result.stderr
     assert result.returncode == 0, stderr
     assert "must derive from BaseException" not in stderr
     assert "Exception ignored" not in stderr, stderr
