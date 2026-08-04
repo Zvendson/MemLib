@@ -261,8 +261,12 @@ class Struct(Structure):
         is_first: bool = True
 
         for field in fields:
-            var_name, var_type = field
+            var_name, var_type = field[0], field[1]
             value: Any = getattr(self, var_name, 0)
+
+            # Real ctypes offset, so alignment padding is reported correctly.
+            local_offset = self._field_offset(var_name)
+            offset = start_offset + local_offset
 
             if issubclass(var_type, Struct):
                 var_type_name: str = _ctype_get_name(var_type, colorized)
@@ -279,8 +283,6 @@ class Struct(Structure):
                            f"{var_type_name:{var_type_len}s}   {var_name}\n"
 
                 out += value._prettify(colorized, indention + 5, offset, address_ex) + "\n"
-                offset += sizeof(var_type)
-                local_offset += sizeof(var_type)
 
             else:
                 var_type_name: str = _ctype_get_name(var_type, colorized)
@@ -308,9 +310,6 @@ class Struct(Structure):
                     else:
                         out = out.rstrip('\n') + f" // Start: {start_summary}\n"
 
-                offset += sizeof(var_type)
-                local_offset += sizeof(var_type)
-
         if indention:
             if colorized:
                 return out.rstrip('\n') + f" {GREY}// End: {self.__class__.__name__ + END}"
@@ -327,6 +326,36 @@ class Struct(Structure):
             list[tuple[str, Any]]: List of (field_name, ctype) pairs for the structure.
         """
         return self._fields_
+
+    def _field_offset(self, field_name: str) -> int:
+        """Returns the real byte offset of a field, including alignment padding.
+
+        ctypes inserts padding between fields unless ``_pack_ = 1`` is set, so an offset
+        derived by accumulating ``sizeof()`` is wrong for any unpacked structure. The
+        descriptor on the class carries the authoritative offset.
+
+        Args:
+            field_name (str): Name of the field.
+
+        Returns:
+            int: Byte offset of the field from the start of the structure.
+        """
+        descriptor = getattr(type(self), field_name, None)
+        offset = getattr(descriptor, "offset", None)
+        if offset is None:
+            # Bitfields and exotic descriptors expose no offset; fall back to 0 rather
+            # than reporting a fabricated one.
+            return 0
+
+        return int(offset)
+
+    def get_field_offsets(self) -> dict[str, int]:
+        """Returns the real byte offset of every field, including alignment padding.
+
+        Returns:
+            dict[str, int]: Mapping of field name to its byte offset.
+        """
+        return {name: self._field_offset(name) for name, *_ in self.get_fields()}
 
     def get_size(self) -> int:
         """Returns the size of the structure in bytes.
