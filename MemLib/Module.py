@@ -545,12 +545,13 @@ class Module:
 
         raise ValueError(f"Section '{section_name}' not found in module '{self.name}'")
 
-    def __eq__(self, other: Module) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Checks if two Module objects refer to the same loaded module in the same process.
 
         Args:
-            other (Module): Module to compare.
+            other (object): The object to compare against; anything that is not a Module
+                yields `NotImplemented` so Python can try the reflected operation.
 
         Returns:
             bool: `True` when both modules refer to the same handle in the same process.

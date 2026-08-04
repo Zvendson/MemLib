@@ -27,6 +27,23 @@ def test_process_hash_is_consistent_with_equality(process):
     assert hash(process) == hash(same)
 
 
+def test_pid_equality_stays_container_consistent(process):
+    """Process == int is deliberate; __hash__ keeps it from splitting set membership."""
+    pid = os.getpid()
+
+    assert process == pid
+    assert pid == process  # reflected, via int.__eq__ returning NotImplemented
+    assert hash(process) == hash(pid)
+
+    # The failure mode this guards: a set holding both the PID and the Process.
+    assert len({pid, process}) == 1
+
+
+def test_process_equality_rejects_foreign_types(process):
+    assert process.__eq__("not a process") is NotImplemented
+    assert process != "not a process"
+
+
 def test_module_is_hashable_and_deduplicates(process):
     from MemLib.Module import Module
 
@@ -69,7 +86,8 @@ def test_module_and_thread_equality_reject_foreign_types(process):
 def test_process_context_manager_closes_the_handle():
     with Process(os.getpid()) as target:
         assert target.handle
-        assert target.read_dword(target.base) != 0 or True  # handle is usable
+        # The PE header starts with "MZ", so a usable handle reads a non-zero DWORD.
+        assert target.read_dword(target.base) != 0
 
     assert target.handle == 0
 

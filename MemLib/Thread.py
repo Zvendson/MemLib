@@ -273,12 +273,13 @@ class Thread:
         """
         return TerminateThread(self.handle, exit_code)
 
-    def __eq__(self, other: Thread) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Compares thread objects by ID and process.
 
         Args:
-            other (Thread): The other Thread object.
+            other (object): The object to compare against; anything that is not a Thread
+                yields `NotImplemented` so Python can try the reflected operation.
 
         Returns:
             bool: True if both refer to the same OS thread in the same process.

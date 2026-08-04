@@ -155,23 +155,32 @@ class Process:
         return (f"Process(Name={self.name}, PID={self.process_id}, Handle={self.handle}, Path="
                 f"{self.path}, AccessRights=0x{self.access_rights:X})")
 
-    def __eq__(self, other: Process | int) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Compares this Process instance to another Process or process ID.
 
+        Comparing equal to a bare PID is pre-existing, deliberate behaviour. It stays
+        container-safe because :meth:`__hash__` hashes the same process id, so
+        `hash(Process(pid)) == hash(pid)`: a set or dict sees the two as one key rather
+        than storing both. Types that are neither Process nor int yield `NotImplemented`
+        so Python falls back to the reflected comparison.
+
         Args:
-            other (Process | int): Another Process instance or a process ID.
+            other (object): Another Process instance, a process ID, or anything else.
 
         Returns:
             bool: True if both refer to the same process ID, otherwise False.
         """
-        if self is None or other is None:
+        if other is None:
             return False
 
         if isinstance(other, Process):
             return self._process_id == other.process_id
 
-        return self._process_id == other
+        if isinstance(other, int):
+            return self._process_id == other
+
+        return NotImplemented
 
     def __hash__(self) -> int:
         """
