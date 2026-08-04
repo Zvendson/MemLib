@@ -20,8 +20,6 @@ from ctypes.wintypes import BYTE, DWORD
 from pathlib import Path
 from typing import Callable, Literal, TYPE_CHECKING, Type, TypeVar
 
-import psutil
-
 from MemLib import windows
 from MemLib.Constants import (
     CREATE_SUSPENDED, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM, IMAGE_FILE_MACHINE_ARM64,
@@ -29,8 +27,8 @@ from MemLib.Constants import (
     MEM_RELEASE,
     NORMAL_PRIORITY_CLASS,
     PAGE_EXECUTE_READWRITE, PROCESS_ALL_ACCESS, PROCESS_QUERY_LIMITED_INFORMATION,
-    PROCESS_VM_READ, PROCESS_VM_WRITE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32,
-    TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WT_EXECUTEONLYONCE,
+    PROCESS_VM_READ, PROCESS_VM_WRITE, STILL_ACTIVE, TH32CS_SNAPMODULE, TH32CS_SNAPMODULE32,
+    TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, WAIT_FAILED, WAIT_OBJECT_0, WT_EXECUTEONLYONCE,
 )
 from MemLib.Module import Module
 from MemLib.Scanner import BinaryScanner
@@ -47,8 +45,9 @@ def _decode_snapshot_text(raw_value: bytes) -> str:
     return raw_value.decode("mbcs", errors="replace")
 
 
+T = TypeVar('T', bound=Struct)
+
 if TYPE_CHECKING:
-    T = TypeVar('T')
     WaitCallback = windows.WaitOrTimerCallback
 
 class Process:
@@ -187,12 +186,34 @@ class Process:
     @property
     def exists(self) -> bool:
         """
-        Checks whether the process exists.
+        Checks whether the process is still running.
+
+        Tests the *handle* rather than the process id: PIDs are recycled by Windows, so
+        a live PID does not imply this handle still refers to the process it was opened
+        for. A signalled process object means the process has exited.
 
         Returns:
-            bool: True if the process exists, False otherwise.
+            bool: True if the process is still running, False otherwise.
         """
-        return psutil.pid_exists(self._process_id)
+        if not self._handle:
+            return False
+
+        state: int = windows.WaitForSingleObject(self._handle, 0)
+        if state == WAIT_OBJECT_0:
+            return False
+
+        if state != WAIT_FAILED:
+            return True
+
+        # The handle lacks SYNCHRONIZE (e.g. opened with
+        # PROCESS_QUERY_LIMITED_INFORMATION); fall back to the exit code, which only
+        # needs query access. GetExitCodeProcess returns -1 when it cannot be read, so
+        # only a real, non-pending exit code counts as "gone".
+        exit_code: int = windows.GetExitCodeProcess(self._handle)
+        if exit_code == -1:
+            return True
+
+        return exit_code == STILL_ACTIVE
 
     def open(self, access: int = PROCESS_ALL_ACCESS, inherit: bool = False, process_id: int = 0) -> bool:
         """
@@ -719,9 +740,11 @@ class Process:
         Returns:
             bytes: The data read, or an empty byte string on failure.
         """
-        if not self.exists:
+        if length <= 0:
             return b''
 
+        # No liveness pre-check: ReadProcessMemory fails on a dead process anyway, and
+        # probing first would double the cost of every read.
         # noinspection PyCallingNonCallable
         buffer: Array = (BYTE * length)()  # type: ignore
         if windows.ReadProcessMemory(self._handle, address, byref(buffer), length, None):
@@ -729,20 +752,17 @@ class Process:
 
         return b''
 
-    def read_struct(self, address: int, struct_class: Type[T: Struct]) -> T | None:
+    def read_struct(self, address: int, struct_class: type[T]) -> T | None:
         """
         Reads a structure from the process memory.
 
         Args:
             address (int): Address to read from.
-            struct_class (Type[T]): The struct type (must inherit from Struct).
+            struct_class (type[T]): The struct type (must inherit from Struct).
 
         Returns:
             T | None: An instance of struct_class filled with data, or None on failure.
         """
-        if not self.exists:
-            return None
-
         buffer: T = struct_class()
 
         if windows.ReadProcessMemory(self._handle, address, byref(buffer), buffer.get_size(), None):
@@ -762,9 +782,6 @@ class Process:
         Returns:
             int: The value as an int, or 0 on failure.
         """
-        if not self.exists:
-            return 0
-
         result: bytes = self.read(address, 4)
         return int.from_bytes(result, endian)
 
@@ -779,9 +796,6 @@ class Process:
         Returns:
             int: The value as an int, or 0 on failure.
         """
-        if not self.exists:
-            return 0
-
         result: bytes = self.read(address, 2)
         return int.from_bytes(result, endian)
 
@@ -796,9 +810,6 @@ class Process:
         Returns:
             int: The value as an int, or 0 on failure.
         """
-        if not self.exists:
-            return 0
-
         result: bytes = self.read(address, 1)
         return int.from_bytes(result, endian)
 
@@ -814,9 +825,6 @@ class Process:
         Returns:
             bytes: The bytes read, or an empty byte string on failure.
         """
-        if not self.exists:
-            return b''
-
         result: bytes = self.read(address, length)
         if strip:
             termination = result.find(b'\x00')
@@ -837,9 +845,6 @@ class Process:
         Returns:
             str: The decoded string, or an empty string on failure.
         """
-        if not self.exists:
-            return ""
-
         result: bytes = self.read(address, length * 2)
         if strip:
             for i in range(0, len(result) - 1, 2):
