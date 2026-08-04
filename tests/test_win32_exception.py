@@ -33,7 +33,9 @@ def test_real_error_code_still_formats_the_windows_message():
     error = Win32Exception(5)  # ERROR_ACCESS_DENIED
 
     assert error.code == 5
-    assert "Access is denied" in error.message
+    # FormatMessageW is localized, so compare against what this system reports for 5
+    # rather than the English string.
+    assert ctypes.FormatError(5).strip() in error.message
 
 
 def test_custom_message_is_preserved():
@@ -90,7 +92,9 @@ def test_cleanup_error_is_catchable_as_exception():
 
 
 def test_close_connection_raises_cleanup_error_with_codes():
-    # 0x1 is never a valid handle or mapped view: both cleanup steps fail.
+    # 0x1 fails both cleanup steps: CloseHandle sets ERROR_INVALID_HANDLE and
+    # UnmapViewOfFile sets ERROR_INVALID_ADDRESS. Not the pseudo-handle -1, which means
+    # "current process" and makes CloseHandle *succeed*.
     with pytest.raises(SharedMemoryCleanupError) as caught:
         close_shared_memory_connection(handle=0x1, base_addr=0x1)
 
