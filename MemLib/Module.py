@@ -125,6 +125,7 @@ class Module:
         self._dos: IMAGE_DOS_HEADER | None = None
         self._nt_headers: IMAGE_NT_HEADERS32 | IMAGE_NT_HEADERS64 | None = None
         self._expo_dir: IMAGE_EXPORT_DIRECTORY | None = None
+        self._expo_range: tuple[int, int] | None = None
         self._exports: dict[str, int] = dict()
 
     @property
@@ -331,10 +332,14 @@ class Module:
 
     def get_proc_address(self, name: str) -> int:
         """
-        Retrieves the address of an exported function or variable by name from the loaded module.
+        Retrieves the address of an exported symbol using the local `GetProcAddress`.
 
-        This method uses the Win32 API `GetProcAddress` to obtain the address of the specified
-        exported function or symbol. If the export is not found, a `Win32Exception` is raised.
+        Warning:
+            `GetProcAddress` resolves addresses in the **calling** process. The result is
+            only meaningful when the module is loaded at the same base address here as
+            in the target, which is not guaranteed once relocation or ASLR differ. For a
+            module in another process use :meth:`get_export_by_name`, which parses the
+            remote export directory and returns an address valid in that process.
 
         Args:
             name (str):
@@ -342,7 +347,7 @@ class Module:
 
         Returns:
             int:
-                The address of the exported function or variable.
+                The address of the exported function or variable, in this process.
 
         Raises:
             Win32Exception:
@@ -353,6 +358,86 @@ class Module:
             raise Win32Exception()
 
         return handle
+
+    def _export_directory_range(self) -> tuple[int, int]:
+        """
+        Returns the (rva, size) span of the export directory, or (0, 0) if unknown.
+
+        The span comes from the PE data directory. When that cannot be read, (0, 0) is
+        returned and forwarder detection is skipped rather than failing the lookup.
+        """
+        if getattr(self, "_expo_range", None) is None:
+            try:
+                entry: IMAGE_DATA_DIRECTORY = self.data_directory(IMAGE_DIRECTORY_ENTRY_EXPORT)
+                self._expo_range = (entry.VirtualAddress, entry.Size)
+            except (ValueError, IndexError, AttributeError, Win32Exception):
+                self._expo_range = (0, 0)
+
+        return self._expo_range
+
+    def _is_forwarder(self, function_rva: int) -> bool:
+        """
+        Returns True when an export RVA points inside the export directory.
+
+        Such an entry is a *forwarder*: the RVA addresses an ASCII string like
+        "NTDLL.RtlAllocateHeap" rather than code. Returning `base + rva` for one of
+        these hands the caller a pointer to text, which would execute as garbage if
+        called.
+        """
+        directory_rva, directory_size = self._export_directory_range()
+        if not directory_rva or not directory_size:
+            return False
+
+        return directory_rva <= function_rva < directory_rva + directory_size
+
+    def get_forwarder(self, name: str) -> str | None:
+        """
+        Returns the forwarder target of an export, if it is forwarded.
+
+        Args:
+            name (str): The export name.
+
+        Returns:
+            str | None: A string such as "NTDLL.RtlAllocateHeap", or None when the
+                export resolves to real code in this module.
+        """
+        function_rva: int = self._function_rva_by_name(name)
+        if function_rva is None:
+            raise ValueError(f"Exported function '{name}' not found")
+
+        if not self._is_forwarder(function_rva):
+            return None
+
+        raw: bytes = self._process.read_string(self._base + function_rva, 512)
+        return raw.decode("ascii", errors="replace")
+
+    def _function_rva_by_name(self, name: str) -> int | None:
+        """Returns the raw function RVA for an export name, or None if absent."""
+        export_dir: IMAGE_EXPORT_DIRECTORY = self.export_directory
+        name_count: int = export_dir.NumberOfNames
+        name_addr: int = export_dir.AddressOfNames
+
+        if name_count <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no named exports.")
+        if name_addr <= 0:
+            raise ValueError(f"Module '{self.name}' export directory has no name address table.")
+
+        name_enc: bytes = name.encode("ascii")
+        name_len: int = len(name_enc) + 1
+
+        for i in range(name_count):
+            name_rva: int = self._process.read_dword(self._base + name_addr + i * 0x0004)
+            func_name: bytes = self._process.read_string(self._base + name_rva, name_len)
+            if func_name != name_enc:
+                continue
+
+            ordinal_index_addr: int = self._base + export_dir.AddressOfNameOrdinals + i * 0x0002
+            ordinal_index: int = self._process.read_word(ordinal_index_addr)
+
+            func_rva_addr: int = self._base + export_dir.AddressOfFunctions + ordinal_index * 0x0004
+            return self._process.read_dword(func_rva_addr)
+
+        return None
 
     def get_export_by_ordinal(self, ordinal: int) -> int:
         """
@@ -381,6 +466,14 @@ class Module:
         if func_rva <= 0:
             raise ValueError(f"Ordinal {ordinal} does not map to an exported function.")
 
+        if self._is_forwarder(func_rva):
+            forwarder: bytes = self._process.read_string(self._base + func_rva, 512)
+            raise ValueError(
+                f"Ordinal {ordinal} of module '{self.name}' is forwarded to "
+                f"'{forwarder.decode('ascii', errors='replace')}'; it has no address in "
+                f"this module. Resolve the target module instead."
+            )
+
         return self._base + func_rva
 
     def get_export_by_name(self, name: str) -> int:
@@ -391,63 +484,51 @@ class Module:
             name (str): The export name (ASCII).
 
         Returns:
-            int: The absolute address of the exported function.
+            int: The absolute address of the exported function, valid in the target process.
 
         Raises:
-            ValueError: If the function is not found or has an invalid RVA.
-            AssertionError: If the export directory is invalid or contains no names.
+            ValueError: If the function is not found, has an invalid RVA, or is a
+                forwarder (use :meth:`get_forwarder` to resolve those).
         """
         export: int | None = self._exports.get(name, None)
         if export is not None:
             return export
 
-        export_dir: IMAGE_EXPORT_DIRECTORY = self.export_directory
-        name_count: int = export_dir.NumberOfNames
-        name_addr: int = export_dir.AddressOfNames
+        func_rva: int | None = self._function_rva_by_name(name)
+        if func_rva is None:
+            raise ValueError(f"Exported function '{name}' not found")
 
-        if name_count <= 0:
-            raise ValueError(f"Module '{self.name}' export directory has no named exports.")
-        if name_addr <= 0:
-            raise ValueError(f"Module '{self.name}' export directory has no name address table.")
+        if func_rva == 0:
+            raise ValueError(f"Function '{name}' RVA is 0")
 
-        name_enc: bytes = name.encode("ascii")
-        name_len: int = len(name_enc) + 1
+        if self._is_forwarder(func_rva):
+            forwarder: bytes = self._process.read_string(self._base + func_rva, 512)
+            raise ValueError(
+                f"Export '{name}' of module '{self.name}' is forwarded to "
+                f"'{forwarder.decode('ascii', errors='replace')}'; it has no address in "
+                f"this module. Resolve the target module instead."
+            )
 
-        for i in range(name_count):
-            name_rva: int = self._process.read_dword(self._base + name_addr + i * 0x0004)
-            func_name: bytes = self._process.read_string(self._base + name_rva, name_len)
-            if func_name != name_enc:
-                continue
+        self._exports[name] = self._base + func_rva
+        return self._exports[name]
 
-            ordinal_index_addr: int = self._base + export_dir.AddressOfNameOrdinals + i * 0x0002
-            ordinal_index: int = self._process.read_word(ordinal_index_addr)
-
-            func_rva_addr: int = self._base + export_dir.AddressOfFunctions + ordinal_index * 0x0004
-            func_rva: int = self._process.read_dword(func_rva_addr)
-            if func_rva == 0:
-                raise ValueError(f"Function '{name}' RVA is 0")
-
-            self._exports[name] = self._base + func_rva
-            return self._base + func_rva
-
-        raise ValueError(f"Exported function '{name}' not found")
-
-    def get_exports(self) -> dict[str, int]:
+    def get_exports(self, include_forwarders: bool = False) -> dict[str, int]:
         """
         Parses and retrieves all exported functions from the module's export directory.
 
-        This method reads both named and ordinal-only exports from the PE export directory
-        of the loaded module. The result is a dictionary mapping export names (or ordinals
-        for unnamed exports) to their corresponding virtual addresses.
+        Forwarded exports are skipped by default: their RVA points at an ASCII string
+        inside the export directory rather than code, so the "address" is meaningless.
+        Use :meth:`get_forwarder` to resolve one, or pass `include_forwarders=True` to
+        include them anyway.
+
+        Args:
+            include_forwarders (bool, optional): Include forwarded exports, whose
+                addresses point at forwarder strings rather than code. Defaults to False.
 
         Returns:
             dict[str, int]:
                 A dictionary mapping each export name (or ordinal as "Ordinal#<number>")
                 to its absolute virtual address.
-
-        Raises:
-            AssertionError:
-                If the number of discovered exports does not match the expected count from the export directory.
         """
         export_dir: IMAGE_EXPORT_DIRECTORY = self.export_directory
         total_count: int = export_dir.NumberOfFunctions
@@ -473,8 +554,12 @@ class Module:
             if func_rva == 0:
                 continue
 
-            self._exports[func_name] = self._base + func_rva
             names_seen.add(ordinal_index)
+
+            if not include_forwarders and self._is_forwarder(func_rva):
+                continue
+
+            self._exports[func_name] = self._base + func_rva
 
         # Read ordinal-only exports (no name)
         for ordinal_index in range(total_count):
@@ -484,6 +569,9 @@ class Module:
             func_rva_addr: int = self._base + func_addr + ordinal_index * 4
             func_rva: int = self._process.read_dword(func_rva_addr)
             if func_rva == 0:
+                continue
+
+            if not include_forwarders and self._is_forwarder(func_rva):
                 continue
 
             func_ordinal = export_dir.Base + ordinal_index
