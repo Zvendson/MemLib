@@ -113,6 +113,21 @@ def test_try_read_of_zero_length_is_an_empty_success(process):
     assert process.try_read(ctypes.addressof(buffer), 0) == b""
 
 
+def test_lossy_string_reads_stay_tolerant_of_non_positive_lengths(process):
+    """The try_* variants raise on these; the legacy read* APIs must not start to.
+
+    read() has always returned b'' for length <= 0, and read_string/read_wide_string
+    inherited that. Delegating to try_read* without a guard turned it into ValueError.
+    """
+    buffer = ctypes.create_string_buffer(b"abc\x00", 8)
+    address = ctypes.addressof(buffer)
+
+    assert process.read_string(address, 0) == b""
+    assert process.read_string(address, -1) == b""
+    assert process.read_wide_string(address, 0) == ""
+    assert process.read_wide_string(address, -1) == ""
+
+
 def test_is_readable_probes_without_ambiguity(process, zero_dword):
     _value, address = zero_dword
 

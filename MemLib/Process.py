@@ -933,6 +933,11 @@ class Process:
             `b''` is also what a legitimately empty string reads as. Use
             :meth:`try_read_string` to tell the two apart.
         """
+        # Stay tolerant of non-positive lengths like :meth:`read` does; try_read_string
+        # raises for those, and this lossy API is documented to return b'' on failure.
+        if length <= 0:
+            return b''
+
         result: bytes | None = self.try_read_string(address, length, strip)
         if result is None:
             return b''
@@ -978,6 +983,11 @@ class Process:
             `""` is also what a legitimately empty string reads as. Use
             :meth:`try_read_wide_string` to tell the two apart.
         """
+        # Stay tolerant of non-positive lengths like :meth:`read` does; the try_* variant
+        # raises for those, and this lossy API is documented to return "" on failure.
+        if length <= 0:
+            return ""
+
         result: str | None = self.try_read_wide_string(address, length, strip)
         if result is None:
             return ""
