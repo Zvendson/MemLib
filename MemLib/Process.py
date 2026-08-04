@@ -100,7 +100,15 @@ class MemoryWindow:
             endian: Literal["little", "big"] = "little",
             signed: bool = False,
     ) -> int:
-        """Returns an integer of `size` bytes at `offset` within the window."""
+        """Returns an integer of `size` bytes at `offset` within the window.
+
+        Raises:
+            ValueError: If `size` is not positive; a 0-byte integer would decode to 0 and
+                hide an offset or size bug.
+        """
+        if size <= 0:
+            raise ValueError(f"size must be positive: {size}")
+
         return int.from_bytes(self._slice(offset, size), endian, signed=signed)
 
     def byte(self, offset: int) -> int:
@@ -138,7 +146,7 @@ class MemoryWindow:
                     raw = raw[:index]
                     break
 
-        return raw.decode(encoding="utf-16", errors="ignore")
+        return raw.decode(encoding="utf-16-le", errors="ignore")
 
     def struct(self, offset: int, struct_class: type[T]) -> T:
         """Materialises `struct_class` from the snapshot at `offset`."""
@@ -905,7 +913,14 @@ class Process:
 
         Returns:
             int | None: The value, or None if the read failed.
+
+        Raises:
+            ValueError: If `size` is not positive. A 0-byte integer is not meaningful and
+                would otherwise decode to 0, hiding an offset or size bug.
         """
+        if size <= 0:
+            raise ValueError(f"size must be positive: {size}")
+
         data: bytes | None = self.try_read(address, size)
         if data is None:
             return None
@@ -980,7 +995,9 @@ class Process:
 
         bytes_read: DWORD = DWORD(0)
         if windows.ReadProcessMemory(self._handle, address, byref(buffer), size, byref(bytes_read)):
-            return bytes_read.value or size
+            # Report what Windows actually wrote. Substituting `size` here would claim a
+            # full read from a call that reported none.
+            return bytes_read.value
 
         return 0
 
@@ -1193,7 +1210,7 @@ class Process:
                     result = result[:i]
                     break
 
-        return result.decode(encoding="utf-16", errors="ignore")
+        return result.decode(encoding="utf-16-le", errors="ignore")
 
     def write(self, address: int, binary_data: bytes) -> bool:
         """

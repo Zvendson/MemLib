@@ -175,3 +175,51 @@ def test_window_matches_field_by_field_reads(process, payload):
 
     for offset in range(0, 0x40, 4):
         assert window.dword(offset) == process.read_dword(address + offset)
+
+
+def test_read_into_reports_the_actual_byte_count(process, payload, monkeypatch):
+    """`bytes_read.value or size` claimed a full read when Windows reported none."""
+    _source, address, _raw = payload
+    buffer = ctypes.create_string_buffer(0x20)
+
+    assert process.read_into(address, buffer, 0x20) == 0x20
+    assert process.read_into(0x10, buffer, 0x20) == 0
+
+    # A call that succeeds but reports 0 bytes must not be rounded up to the request.
+    from MemLib import windows
+
+    monkeypatch.setattr(
+        windows, "ReadProcessMemory",
+        lambda handle, addr, buf, size, read: True,
+    )
+    assert process.read_into(address, buffer, 0x20) == 0
+
+
+def test_wide_string_decodes_as_little_endian_without_a_bom(process):
+    """Bare "utf-16" is BOM-driven; the API promises UTF-16-LE unconditionally.
+
+    A leading U+FEFF is real string data in a game struct, not an encoding marker.
+    Decoding as "utf-16" consumes it; "utf-16-le" keeps it.
+    """
+    raw = "MemLib".encode("utf-16-le") + b"\x00\x00"
+    window = MemoryWindow(0x1000, raw)
+    assert window.wide_string(0, 6) == "MemLib"
+
+    bom_first = "﻿MemLib".encode("utf-16-le") + b"\x00\x00"
+    assert MemoryWindow(0x1000, bom_first).wide_string(0, 7) == "﻿MemLib"
+
+    text = ctypes.create_unicode_buffer("﻿MemLib")
+    assert process.read_wide_string(ctypes.addressof(text), 7) == "﻿MemLib"
+
+
+def test_zero_width_integers_are_rejected_not_silently_zero(process, payload):
+    _source, address, _raw = payload
+    window = process.read_window(address, 0x40)
+    assert window is not None
+
+    with pytest.raises(ValueError):
+        window.integer(0, 0)
+
+    with pytest.raises(ValueError):
+        process.try_read_integer(address, 0)
+
