@@ -12,13 +12,23 @@ def test_py_typed_marker_exists():
 
 
 def test_py_typed_is_listed_in_manifest():
+    """A substring match would also accept a commented-out or unrelated mention."""
     manifest = (PACKAGE_ROOT.parent / "MANIFEST.in").read_text(encoding="utf-8")
-    assert "MemLib/py.typed" in manifest
+    directives = [line.strip() for line in manifest.splitlines()]
+
+    assert "include MemLib/py.typed" in directives
 
 
 def test_py_typed_is_declared_as_package_data():
+    """Checks the MemLib package-data entry, not just any mention of the filename."""
     pyproject = (PACKAGE_ROOT.parent / "pyproject.toml").read_text(encoding="utf-8")
-    assert "py.typed" in pyproject
+    entries = [
+        line.strip() for line in pyproject.splitlines()
+        if line.strip().startswith("MemLib = [")
+    ]
+
+    assert entries, "no MemLib package-data entry found"
+    assert any('"py.typed"' in entry for entry in entries)
 
 
 def test_package_is_importable_and_exports_its_public_names():
@@ -30,4 +40,4 @@ def test_package_is_importable_and_exports_its_public_names():
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True)
 
-    assert result.returncode == 0, result.stderr.decode()
+    assert result.returncode == 0, result.stderr.decode(errors="replace")
