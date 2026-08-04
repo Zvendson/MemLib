@@ -22,7 +22,8 @@ from typing import Callable, Literal, TYPE_CHECKING, Type, TypeVar
 
 from MemLib import windows
 from MemLib.Constants import (
-    CREATE_SUSPENDED, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM, IMAGE_FILE_MACHINE_ARM64,
+    CREATE_SUSPENDED, ERROR_INVALID_HANDLE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM,
+    IMAGE_FILE_MACHINE_ARM64,
     IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_IA64, INFINITE, INVALID_HANDLE_VALUE, MEM_COMMIT,
     MEM_RELEASE,
     NORMAL_PRIORITY_CLASS,
@@ -205,7 +206,13 @@ class Process:
         if state != WAIT_FAILED:
             return True
 
-        # The handle lacks SYNCHRONIZE (e.g. opened with
+        # WAIT_FAILED covers two very different cases. An invalid or stale handle is not
+        # a live process, so report it as gone rather than falling through to the exit
+        # code, which cannot be read either and would look like "still alive".
+        if windows.GetLastError() == ERROR_INVALID_HANDLE:
+            return False
+
+        # Otherwise the handle most likely lacks SYNCHRONIZE (e.g. opened with
         # PROCESS_QUERY_LIMITED_INFORMATION); fall back to the exit code, which only
         # needs query access. GetExitCodeProcess returns -1 when it cannot be read, so
         # only a real, non-pending exit code counts as "gone".

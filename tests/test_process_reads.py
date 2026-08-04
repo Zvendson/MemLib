@@ -32,7 +32,11 @@ def test_memlib_does_not_import_psutil():
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True)
 
-    assert result.returncode == 0, "MemLib still imports psutil"
+    # Exit code 1 is the real signal; anything else (e.g. an ImportError, exit 2) means
+    # the probe itself broke, so surface its output instead of blaming psutil.
+    stderr = result.stderr.decode(errors="replace")
+    assert result.returncode in (0, 1), f"probe failed to run: {stderr}"
+    assert result.returncode == 0, f"MemLib still imports psutil: {stderr}"
 
 
 def test_exists_is_true_for_a_live_process(process):
@@ -41,6 +45,16 @@ def test_exists_is_true_for_a_live_process(process):
 
 def test_exists_is_false_without_a_handle(process):
     process._handle = 0
+    assert process.exists is False
+
+
+def test_exists_is_false_for_an_invalid_handle(process):
+    """WAIT_FAILED + ERROR_INVALID_HANDLE is a dead handle, not a live process.
+
+    GetExitCodeProcess cannot read a bogus handle either and returns -1, which the
+    SYNCHRONIZE fallback treats as "still alive" -- so a stale handle reported True.
+    """
+    process._handle = 0xDEAD
     assert process.exists is False
 
 
@@ -83,7 +97,10 @@ def test_read_dword_respects_endianness(process, scratch_buffer):
 
 
 def test_reads_of_unmapped_memory_still_return_the_documented_fallbacks(process):
-    unmapped = 0x00010000
+    # 0x10 sits in the first 64KiB, which Windows permanently reserves as the NULL
+    # pointer guard region; it can never become a valid mapping. 0x10000 is merely
+    # unmapped right now and a later allocation could land there.
+    unmapped = 0x10
 
     assert process.read(unmapped, 4) == b""
     assert process.read_dword(unmapped) == 0
@@ -103,7 +120,7 @@ def test_zero_and_negative_lengths_do_not_call_into_windows(process, scratch_buf
 def test_read_struct_still_returns_none_on_failure(process):
     from MemLib.Structs import PROCESSENTRY32
 
-    assert process.read_struct(0x00010000, PROCESSENTRY32) is None
+    assert process.read_struct(0x10, PROCESSENTRY32) is None
 
 
 def test_read_struct_reads_a_real_structure(process, scratch_buffer):

@@ -57,6 +57,12 @@ INVALID_HANDLE_VALUE: int = -1
 Invalid handle sentinel value returned by some Win32 APIs.
 """
 
+ERROR_INVALID_HANDLE: int = 0x00000006
+"""
+The handle is invalid. Reported by GetLastError after a call fails because the handle
+does not refer to an open object.
+"""
+
 THREAD_PRIORITY_ERROR_RETURN: int = 0x7FFFFFFF
 """
 Error return value for GetThreadPriority.
