@@ -23,7 +23,12 @@ from MemLib.Module import Module
 from MemLib.Process import Process
 from MemLib.Registry import get_registry_value, set_registry_value
 from MemLib.Scanner import BinaryScanner, Pattern, generate_assembly_payload
-from MemLib.SharedMemory import SharedMemory, SharedMemoryBuffer, close_shared_memory_connection
+from MemLib.SharedMemory import (
+    SharedMemory,
+    SharedMemoryBuffer,
+    SharedMemoryCleanupError,
+    close_shared_memory_connection,
+)
 from MemLib.Stopwatch import Stopwatch
 from MemLib.Struct import Struct
 from MemLib.Thread import Priority, Thread
@@ -57,6 +62,7 @@ __all__ = [
     "Process",
     "SharedMemory",
     "SharedMemoryBuffer",
+    "SharedMemoryCleanupError",
     "Stopwatch",
     "Struct",
     "Thread",

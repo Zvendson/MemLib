@@ -81,6 +81,31 @@ class SharedMemoryBuffer(Struct):
 
         return True
 
+class SharedMemoryCleanupError(Exception):
+    """Raised when one or more shared-memory teardown steps fail.
+
+    The individual failures stay inspectable via :attr:`errors` so callers can react to
+    a specific code (for example ignoring ERROR_ACCESS_DENIED from an already-dead
+    target) instead of pattern-matching the formatted message.
+
+    Attributes:
+        errors (list[Win32Exception]): The failures collected during cleanup.
+    """
+
+    def __init__(self, errors: List[Win32Exception]) -> None:
+        self.errors: List[Win32Exception] = list(errors)
+
+        fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(self.errors)]
+        message: str = f'Caught {len(self.errors)} Win32Exception:\n' + '\n-> '.join(fmt_error)
+
+        super().__init__(message)
+
+    @property
+    def codes(self) -> list[int]:
+        """Returns the Windows error codes of every collected failure."""
+        return [error.code for error in self.errors]
+
+
 def close_shared_memory_connection(handle: int, base_addr: int) -> None:
     """
     Disconnects and cleans up resources for a shared memory region.
@@ -90,7 +115,8 @@ def close_shared_memory_connection(handle: int, base_addr: int) -> None:
         base_addr (int): Base address of the mapped view.
 
     Raises:
-        Exception: Aggregated Win32Exception(s) if cleanup fails.
+        SharedMemoryCleanupError: If cleanup fails. Inspect ``.errors`` for the
+            individual `Win32Exception` instances.
     """
     errors: List[Win32Exception] = list()
     if base_addr and not UnmapViewOfFile(base_addr):
@@ -100,8 +126,7 @@ def close_shared_memory_connection(handle: int, base_addr: int) -> None:
         errors.append(Win32Exception())
 
     if len(errors):
-        fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
-        raise Exception(f'Caught {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
+        raise SharedMemoryCleanupError(errors)
 
 class SharedMemory:
     """
@@ -264,7 +289,8 @@ class SharedMemory:
         Disconnects and releases all resources associated with the shared memory.
 
         Raises:
-            Exception: Aggregated Win32Exception(s) if cleanup fails.
+            SharedMemoryCleanupError: If cleanup fails. Inspect ``.errors`` for the
+                individual `Win32Exception` instances.
         """
         errors: List[Win32Exception] = list()
         if not self._owns_remote_resources:
@@ -291,8 +317,7 @@ class SharedMemory:
             errors.append(Win32Exception())
 
         if len(errors):
-            fmt_error: list[str] = [f'[Error {i + 1}] -> ' + str(error) for i, error in enumerate(errors)]
-            raise Exception(f'Caught {len(errors)} Win32Exception:\n' + '\n-> '.join(fmt_error))
+            raise SharedMemoryCleanupError(errors)
 
         mapping.handle = HANDLE(0)
         mapping.handle_ex = HANDLE(0)
