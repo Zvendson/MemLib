@@ -134,3 +134,31 @@ def test_get_export_by_ordinal_rejects_forwarders(process, kernel32):
         kernel32.get_export_by_ordinal(forwarded_ordinal)
 
     assert "forwarded" in str(caught.value)
+
+
+def test_cached_forwarder_is_still_rejected(process, kernel32):
+    """get_exports(include_forwarders=True) poisons the cache with forwarder entries.
+
+    The cache-hit path returned those verbatim, handing back a pointer into the export
+    directory and bypassing the rejection this PR added.
+    """
+    forwarded, _real = _split_exports(process, kernel32)
+    fresh = process_module(kernel32)
+
+    fresh.get_exports(include_forwarders=True)
+    assert forwarded[0] in fresh._exports, "expected the forwarder to be cached"
+
+    with pytest.raises(ValueError) as caught:
+        fresh.get_export_by_name(forwarded[0])
+
+    assert "forwarded" in str(caught.value)
+
+
+def test_get_forwarder_reports_a_zero_rva_instead_of_calling_it_real_code(kernel32, monkeypatch):
+    """RVA 0 is neither a forwarder nor an address; None would mean "not forwarded"."""
+    monkeypatch.setattr(kernel32, "_function_rva_by_name", lambda name: 0)
+
+    with pytest.raises(ValueError) as caught:
+        kernel32.get_forwarder("CreateFileW")
+
+    assert "RVA is 0" in str(caught.value)

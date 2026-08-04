@@ -400,10 +400,19 @@ class Module:
         Returns:
             str | None: A string such as "NTDLL.RtlAllocateHeap", or None when the
                 export resolves to real code in this module.
+
+        Raises:
+            ValueError: If the export does not exist, or if its slot exists but the RVA is
+                0. An RVA of 0 is neither a forwarder nor a usable address, so it is
+                reported rather than folded into the None return, which means "not
+                forwarded"; :meth:`get_export_by_name` rejects it the same way.
         """
-        function_rva: int = self._function_rva_by_name(name)
+        function_rva: int | None = self._function_rva_by_name(name)
         if function_rva is None:
             raise ValueError(f"Exported function '{name}' not found")
+
+        if function_rva == 0:
+            raise ValueError(f"Function '{name}' RVA is 0")
 
         if not self._is_forwarder(function_rva):
             return None
@@ -492,6 +501,16 @@ class Module:
         """
         export: int | None = self._exports.get(name, None)
         if export is not None:
+            # The cache can hold forwarder entries when get_exports(include_forwarders=True)
+            # populated it, so re-check before handing one back as a code address.
+            if self._is_forwarder(export - self._base):
+                forwarder: bytes = self._process.read_string(export, 512)
+                raise ValueError(
+                    f"Export '{name}' of module '{self.name}' is forwarded to "
+                    f"'{forwarder.decode('ascii', errors='replace')}'; it has no address in "
+                    f"this module. Resolve the target module instead."
+                )
+
             return export
 
         func_rva: int | None = self._function_rva_by_name(name)
