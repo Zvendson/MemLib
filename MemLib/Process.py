@@ -69,7 +69,7 @@ class Process:
     """
 
     def __init__(self, process_id: int, process_handle: int = 0, access: int = PROCESS_ALL_ACCESS,
-                 inherit: bool = False):
+                 inherit: bool = False, owns_handle: bool | None = None):
         """
         Initializes the Process object and opens the process handle if not provided.
 
@@ -78,6 +78,10 @@ class Process:
             process_handle (int): An existing process handle (optional).
             access (int): Desired access mask (default: PROCESS_ALL_ACCESS).
             inherit (bool): Whether the handle is inheritable.
+            owns_handle (bool | None): Whether this instance is responsible for closing
+                `process_handle`. Defaults to None, meaning "own it only if we opened
+                it ourselves". Pass False to borrow a handle whose lifetime is managed
+                elsewhere; the handle is then never closed by this instance.
 
         Raises:
             ValueError: If process_id is 0 or the process does not exist.
@@ -98,12 +102,20 @@ class Process:
         self._peb: PEB | None = None
         self._main_module: Module | None = None
         self._is64bit: bool | None = None
+        # A handle passed in belongs to the caller unless they say otherwise; closing a
+        # borrowed handle invalidates it for whoever else still holds it.
+        self._owns_handle: bool = (not process_handle) if owns_handle is None else bool(owns_handle)
 
         if not self._handle:
             self.open(access, self._inherit, self._process_id)
 
         if not self.exists:
             raise ValueError(f"Process {self._process_id} does not exist.")
+
+    @property
+    def owns_handle(self) -> bool:
+        """Whether this instance will close its process handle."""
+        return self._owns_handle
 
     def __del__(self):
         """
@@ -160,6 +172,34 @@ class Process:
             return self._process_id == other.process_id
 
         return self._process_id == other
+
+    def __hash__(self) -> int:
+        """
+        Hashes on the process id, consistent with `__eq__`.
+
+        Defining `__eq__` without `__hash__` sets `__hash__` to None, which makes the
+        class unusable in sets and as a dict key.
+
+        Returns:
+            int: Hash of the process id.
+        """
+        return hash(self._process_id)
+
+    def __enter__(self) -> Process:
+        """
+        Context manager entry. Opens the handle if it is not already open.
+
+        Returns:
+            Process: Self reference.
+        """
+        if not self._handle:
+            self.open(self._access, self._inherit, self._process_id)
+
+        return self
+
+    def __exit__(self, exception_type, exception_value, exception_traceback) -> None:
+        """Context manager exit. Closes the process handle."""
+        self.close()
 
     @property
     def is_32bit(self) -> bool:
@@ -222,11 +262,18 @@ class Process:
         if not self._handle:
             raise windows.Win32Exception()
 
+        # We opened it, so we are responsible for closing it.
+        self._owns_handle = True
+
         return self._handle != 0
 
     def close(self) -> bool:
         """
         Closes the process handle and unregisters any wait callbacks.
+
+        A handle that was borrowed (passed to `__init__` with `owns_handle=False`) is
+        released from this instance but not closed, since its lifetime belongs to
+        whoever created it.
 
         Returns:
             bool: True if the process was closed successfully, False otherwise.
@@ -235,6 +282,13 @@ class Process:
             windows.Win32Exception: If the process handle could not be closed.
         """
         self._unregister_wait()
+
+        if not self._handle:
+            return True
+
+        if not self._owns_handle:
+            self._handle = 0
+            return True
 
         if windows.CloseHandle(self._handle):
             self._handle = 0
@@ -370,11 +424,12 @@ class Process:
 
         try:
             module: Module = self.get_main_module()
-        except windows.Win32Exception as e:
-            self._name = None
-        else:
-            self._name = module.name
+        except windows.Win32Exception:
+            # Not cached: the module list may become readable later (for example once
+            # the target finishes initialising), and the declared return type is str.
+            return ""
 
+        self._name = module.name
         return self._name
 
     @property
