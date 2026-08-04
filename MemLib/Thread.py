@@ -90,7 +90,7 @@ class Thread:
         Destructor. Closes the thread handle if open.
         """
         try:
-            self.close()
+            self.close(raise_on_error=False)
         except Exception:
             pass
 
@@ -190,12 +190,20 @@ class Thread:
 
         return self._handle != 0
 
-    def close(self) -> bool:
+    def close(self, raise_on_error: bool = True) -> bool:
         """
         Closes the thread handle if it is open.
 
+        Args:
+            raise_on_error (bool, optional): Raise `Win32Exception` when CloseHandle
+                fails. Set to False on teardown paths, where raising is unhelpful and
+                may not even be possible. Defaults to True.
+
         Returns:
             bool: True if the handle was closed or already closed, False on error.
+
+        Raises:
+            Win32Exception: If the handle could not be closed and `raise_on_error`.
         """
         if self._handle == 0:
             return True
@@ -204,7 +212,14 @@ class Thread:
             self._handle = 0
             return True
 
-        raise Win32Exception()
+        # Drop the reference either way: retrying a handle that will not close just
+        # repeats the failure, and leaking the attribute keeps the object alive.
+        self._handle = 0
+
+        if raise_on_error:
+            raise Win32Exception()
+
+        return False
 
     def suspend(self) -> bool:
         """
