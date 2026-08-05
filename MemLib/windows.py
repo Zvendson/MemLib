@@ -206,7 +206,7 @@ def _nt_ok(nt_status: int) -> bool:
     if nt_status == STATUS_SUCCESS:
         return True
 
-    _SetLastError(_RtlNtStatusToDosError(nt_status))
+    SetLastError(RtlNtStatusToDosError(nt_status))
     return False
 
 # noinspection PyPep8Naming

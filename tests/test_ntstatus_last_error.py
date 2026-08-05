@@ -13,15 +13,15 @@ from MemLib.windows import (
     GetLastError, NtUnmapViewOfSection, RtlNtStatusToDosError, SetLastError, Win32Exception, _nt_ok,
 )
 
-# STATUS_CONFLICTING_ADDRESSES: what NtUnmapViewOfSection returns for an address that is
-# not the base of a mapped view. Translates to ERROR_INVALID_ADDRESS (487).
-STATUS_CONFLICTING_ADDRESSES: int = 0xC0000019
+# What NtUnmapViewOfSection returns for an address that is not the base of a mapped
+# view. Translates to ERROR_INVALID_ADDRESS (487).
+STATUS_NOT_MAPPED_VIEW: int = 0xC0000019
 ERROR_INVALID_ADDRESS: int = 487
 UNMAPPED_ADDRESS: int = 0xDEAD0000
 
 
 def test_status_translates_to_the_matching_win32_code():
-    assert RtlNtStatusToDosError(STATUS_CONFLICTING_ADDRESSES) == ERROR_INVALID_ADDRESS
+    assert RtlNtStatusToDosError(STATUS_NOT_MAPPED_VIEW) == ERROR_INVALID_ADDRESS
     assert RtlNtStatusToDosError(0xC0000008) == 6  # STATUS_INVALID_HANDLE -> ERROR_INVALID_HANDLE
     assert RtlNtStatusToDosError(0xC000000D) == 87  # STATUS_INVALID_PARAMETER -> ERROR_INVALID_PARAMETER
 
@@ -37,7 +37,7 @@ def test_nt_ok_leaves_last_error_alone_on_success():
 def test_nt_ok_publishes_the_translated_failure():
     SetLastError(0)
 
-    assert _nt_ok(STATUS_CONFLICTING_ADDRESSES) is False
+    assert _nt_ok(STATUS_NOT_MAPPED_VIEW) is False
     assert GetLastError() == ERROR_INVALID_ADDRESS
 
 
