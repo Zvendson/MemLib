@@ -156,6 +156,61 @@ def GetLastError() -> int:
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
+def SetLastError(error_code: int) -> None:
+    """
+    Sets the last-error code for the calling thread.
+
+    Args:
+        error_code (int): The last-error code to publish.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-setlasterror
+    """
+    _SetLastError(error_code)
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
+def RtlNtStatusToDosError(nt_status: int) -> int:
+    """
+    Converts an NTSTATUS code into the equivalent Win32 error code.
+
+    Args:
+        nt_status (int): The NTSTATUS value to translate.
+
+    Returns:
+        int: The matching Win32 error code, or ERROR_MR_MID_NOT_FOUND (317) if the
+            status has no Win32 equivalent.
+
+    See also:
+        https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-rtlntstatustodoserror
+    """
+    return _RtlNtStatusToDosError(nt_status)
+
+def _nt_ok(nt_status: int) -> bool:
+    """
+    Converts an NTSTATUS return value into a bool, publishing the failure via SetLastError.
+
+    NTSTATUS routines report failure in their return value and do not call SetLastError.
+    Collapsing one to a bool therefore discards the only copy of the error: a following
+    ``Win32Exception()`` reads whatever the *previous* call left in the thread-local
+    last-error slot, which is 0 on a fresh thread ("The operation completed successfully")
+    and a stale, unrelated code otherwise. Translating the status keeps the real failure
+    reachable at the call site.
+
+    Args:
+        nt_status (int): The NTSTATUS value returned by the routine.
+
+    Returns:
+        bool: True if the status is STATUS_SUCCESS, otherwise False.
+    """
+    if nt_status == STATUS_SUCCESS:
+        return True
+
+    _SetLastError(_RtlNtStatusToDosError(nt_status))
+    return False
+
+# noinspection PyPep8Naming
+# pylint: disable=invalid-name
 def FormatMessage(
         flags: int,
         source: object,
@@ -1075,7 +1130,7 @@ def NtMapViewOfSection(
         win32_protect
     )
 
-    return nt_status == STATUS_SUCCESS
+    return _nt_ok(nt_status)
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1095,7 +1150,7 @@ def NtUnmapViewOfSection(process_handle: int, base_address: int) -> bool:
         https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-zwunmapviewofsection
     """
     nt_status: int = _NtUnmapViewOfSection(process_handle, base_address)
-    return nt_status == STATUS_SUCCESS
+    return _nt_ok(nt_status)
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1127,7 +1182,7 @@ def NtQueryInformationProcess(
         process_information_length,
         0
     )
-    return nt_status == STATUS_SUCCESS
+    return _nt_ok(nt_status)
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1145,7 +1200,7 @@ def NtSuspendProcess(process_handle: int) -> bool:
         https://cyberstoph.org/posts/2021/05/fun-with-processes-suspend-and-resume/
     """
     nt_status: int = _NtSuspendProcess(process_handle)
-    return nt_status == STATUS_SUCCESS
+    return _nt_ok(nt_status)
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1163,7 +1218,7 @@ def NtResumeProcess(process_handle: int) -> bool:
         https://cyberstoph.org/posts/2021/05/fun-with-processes-suspend-and-resume/
     """
     nt_status: int = _NtResumeProcess(process_handle)
-    return nt_status == STATUS_SUCCESS
+    return _nt_ok(nt_status)
 
 # noinspection PyPep8Naming
 # pylint: disable=invalid-name
@@ -1731,6 +1786,14 @@ def MessageBoxW(window_handle: int, text: str, caption: str, type_flags: int) ->
 _GetLastError = windll.kernel32.GetLastError
 _GetLastError.argtypes = []
 _GetLastError.restype = DWORD
+
+_SetLastError = windll.kernel32.SetLastError
+_SetLastError.argtypes = [DWORD]
+_SetLastError.restype = None
+
+_RtlNtStatusToDosError = windll.ntdll.RtlNtStatusToDosError
+_RtlNtStatusToDosError.argtypes = [ULONG]
+_RtlNtStatusToDosError.restype = ULONG
 
 _FormatMessageA = windll.kernel32.FormatMessageA
 _FormatMessageA.argtypes = [DWORD, LPVOID, DWORD, DWORD, LPSTR, DWORD, LPVOID]
