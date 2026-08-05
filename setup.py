@@ -12,9 +12,7 @@ setup(
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     python_requires='>=3.10',
-    install_requires=[
-        'psutil~=5.9.6',
-    ],
+    install_requires=[],
     extras_require={
         'keepass': ['pykeepass~=4.1.0'],
         'test': ['pytest>=8.0'],

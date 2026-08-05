@@ -12,9 +12,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 license = { file="LICENSE" }
-dependencies = [
-    "psutil ~=5.9.6",
-]
+dependencies = []
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
