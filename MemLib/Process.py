@@ -15,6 +15,7 @@ Raises:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from ctypes import Array, byref, create_unicode_buffer, pointer, sizeof
 from ctypes.wintypes import BYTE, DWORD
 from pathlib import Path
@@ -853,6 +854,9 @@ class Process:
         """
         Writes raw bytes to the process at the specified address.
 
+        Temporarily grants write access if the target pages are not already writable,
+        and restores the previous protection afterwards.
+
         Args:
             address (int): The address to write to.
             binary_data (bytes): The data to write.
@@ -864,21 +868,36 @@ class Process:
             return False
 
         size: int = len(binary_data)
-        old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
+        with self._writable(address, size):
+            return windows.WriteProcessMemory(self._handle, address, binary_data, size, None)
 
-        success: bool = windows.WriteProcessMemory(self._handle, address, binary_data, size, None)
+    def write_raw(self, address: int, binary_data: bytes) -> bool:
+        """
+        Writes raw bytes without touching page protection.
 
-        self.protect(address, size, old_protection)
+        Use this when the target pages are known to be writable already (for example a
+        shared-memory region or a previously allocated RW buffer). Avoids two
+        `VirtualProtectEx` round trips per write.
 
-        return success
+        Args:
+            address (int): The address to write to.
+            binary_data (bytes): The data to write.
 
-    def write_struct(self, address: int, data: Type[T: Struct]) -> bool:
+        Returns:
+            bool: True if successful, False otherwise.
+        """
+        if not self.exists:
+            return False
+
+        return windows.WriteProcessMemory(self._handle, address, binary_data, len(binary_data), None)
+
+    def write_struct(self, address: int, data: Struct) -> bool:
         """
         Writes a structure to the process at the specified address.
 
         Args:
             address (int): The address to write to.
-            data (Type[T]): The structure instance to write.
+            data (Struct): The structure instance to write.
 
         Returns:
             bool: True if successful, False otherwise.
@@ -887,12 +906,8 @@ class Process:
             return False
 
         size: int = data.get_size()
-        old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool = windows.WriteProcessMemory(self._handle, address, byref(data), size, None)
-
-        self.protect(address, size, old_protection)
-
-        return success
+        with self._writable(address, size):
+            return windows.WriteProcessMemory(self._handle, address, byref(data), size, None)
 
     def zero_memory(self, address: int, size: int) -> bool:
         """
@@ -908,12 +923,56 @@ class Process:
         if not self.exists:
             return False
 
+        # One protection window for the whole operation: write_raw does not add its own.
+        with self._writable(address, size):
+            return self.write_raw(address, b'\x00' * size)
+
+    @contextmanager
+    def _writable(self, address: int, size: int):
+        """
+        Temporarily makes a region writable, restoring the original protection on exit.
+
+        Always requests write access rather than probing first: the query would cost an
+        extra syscall per write, and `VirtualProtectEx` is cheap when the protection is
+        already what we ask for. Only a protection value that was actually captured gets
+        restored — passing the `0` that :meth:`protect` returns on failure back to
+        `VirtualProtectEx` would fail and silently leave the pages
+        readable/writable/executable.
+
+        Args:
+            address (int): Start of the region.
+            size (int): Size of the region in bytes.
+
+        Raises:
+            Win32Exception: If the original protection could not be restored. When the
+                wrapped operation also failed, that error is chained as the cause so
+                neither failure is lost.
+        """
+        if size <= 0:
+            yield
+            return
+
         old_protection: int = self.protect(address, size, PAGE_EXECUTE_READWRITE)
-        success: bool = self.write(address, b'\x00' * size)
-
-        self.protect(address, size, old_protection)
-
-        return success
+        body_error: BaseException | None = None
+        try:
+            yield
+        except BaseException as error:
+            body_error = error
+            raise
+        finally:
+            # 0 means VirtualProtectEx failed; there is no previous value to restore
+            # and re-applying 0 is an invalid protection constant.
+            if old_protection:
+                restored: int = self.protect(address, size, old_protection)
+                if not restored:
+                    # Chain rather than replace: raising bare here would swallow an
+                    # exception from the write itself.
+                    raise Win32Exception(
+                        custom_message=(
+                            f"Failed to restore page protection 0x{old_protection:X} at "
+                            f"0x{address:X} (size 0x{size:X}); the region may still be writable."
+                        )
+                    ) from body_error
 
     def allocate(self, size: int, address: int = 0, allocation_type: int = MEM_COMMIT,
                  protect: int = PAGE_EXECUTE_READWRITE) -> int:
