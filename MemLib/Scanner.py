@@ -17,16 +17,20 @@ Example:
     print(f"Pattern found at virtual address: 0x{addr:X}")
 """
 
-from ctypes import CFUNCTYPE, POINTER, byref, c_uint32, c_uint64, create_string_buffer
+from ctypes import CFUNCTYPE, POINTER, byref, c_uint32, c_uint64, create_string_buffer, string_at
 from ctypes.wintypes import BYTE, CHAR, DWORD, LPVOID
 from typing import Callable, Literal
 
 from _ctypes import Array
 
-from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE
+from MemLib.Constants import MEM_COMMIT, MEM_RELEASE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE
 from MemLib.FlatAssembler import compile_asm
 from MemLib.Structs import Struct
 from MemLib.windows import VirtualAlloc, VirtualFree, Win32Exception, is_32bit
+
+
+_MASK_WILDCARD: int = ord("?")
+"""Mask byte marking a wildcard position in a :class:`Pattern`."""
 
 
 
@@ -220,6 +224,11 @@ class BinaryScanner:
             VirtualFree(self._handler_address, 0, MEM_RELEASE)
             self._handler_address = 0
 
+        if self._buffer.base:
+            VirtualFree(self._buffer.base, 0, MEM_RELEASE)
+            self._buffer.base = 0  # type: ignore
+            self._buffer.end = 0  # type: ignore
+
     def set_buffer(self, new_buffer: bytes, base: int = 0) -> None:
         """
         Sets the buffer to scan and its associated base address.
@@ -235,9 +244,12 @@ class BinaryScanner:
 
         if self._buffer.base:
             VirtualFree(self._buffer.base, 0, MEM_RELEASE)
+            self._buffer.base = 0  # type: ignore
+            self._buffer.end = 0  # type: ignore
 
         self._base = base
-        self._buffer.base = VirtualAlloc(0, size, MEM_COMMIT, PAGE_EXECUTE_READWRITE)  # type: ignore
+        # Scan data is only ever compared, never executed: no need for PAGE_EXECUTE_*.
+        self._buffer.base = VirtualAlloc(0, size, MEM_COMMIT, PAGE_READWRITE)  # type: ignore
         if not self._buffer.base:
             raise Win32Exception()
 
@@ -256,6 +268,11 @@ class BinaryScanner:
         Returns:
             int: RVA (offset) where the pattern is found, or 0 if not found.
 
+        Note:
+            A return value of ``0`` is ambiguous: it means either "not found" or
+            "found at offset 0". Use :meth:`find` (which resolves the ambiguity) or
+            :meth:`matches_at` when the distinction matters.
+
         Raises:
             RuntimeError: If scanner is uninitialized.
             ValueError: If the pattern is invalid.
@@ -271,6 +288,44 @@ class BinaryScanner:
 
         return self._handler(byref(pattern), byref(self._buffer))
 
+    def matches_at(self, pattern: str | Pattern, rva: int = 0) -> bool:
+        """
+        Checks whether `pattern` matches the buffer at the given RVA.
+
+        Used to disambiguate a :meth:`find_rva` result of ``0``, which can mean either
+        "not found" or "found at offset 0".
+
+        Args:
+            pattern (str | Pattern): Pattern string or Pattern object.
+            rva (int, optional): Offset into the buffer to test. Defaults to 0.
+
+        Returns:
+            bool: True if the pattern matches at `rva`, False otherwise.
+        """
+        if isinstance(pattern, str):
+            pattern = Pattern(pattern)
+
+        if not isinstance(pattern, Pattern) or not pattern.is_valid():
+            raise ValueError("Invalid Pattern: " + str(pattern))
+
+        length: int = pattern.length
+        start: int = int(self._buffer.base or 0) + rva
+        if not start or rva < 0:
+            return False
+
+        if start + length > int(self._buffer.end or 0):
+            return False
+
+        data: bytes = string_at(start, length)
+
+        for index in range(length):
+            if pattern.mask[index] & 0xFF == _MASK_WILDCARD:
+                continue
+            if data[index] != pattern.binary[index] & 0xFF:
+                return False
+
+        return True
+
     def find(self, pattern: str | Pattern) -> int:
         """
         Finds a pattern and returns the absolute (virtual) address.
@@ -281,7 +336,13 @@ class BinaryScanner:
         Returns:
             int: Virtual address (base + offset), or 0 if not found.
         """
-        rva = self.find_rva(pattern)
+        if isinstance(pattern, str):
+            pattern = Pattern(pattern)
+
+        rva: int = self.find_rva(pattern)
+        if not rva and not self.matches_at(pattern, 0):
+            return 0
+
         return self._base + rva
 
 if __name__ == '__main__':
