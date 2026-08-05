@@ -273,20 +273,36 @@ class Thread:
         """
         return TerminateThread(self.handle, exit_code)
 
-    def __eq__(self, other: Thread) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Compares thread objects by ID and process.
 
         Args:
-            other (Thread): The other Thread object.
+            other (object): The object to compare against; anything that is not a Thread
+                yields `NotImplemented` so Python can try the reflected operation.
 
         Returns:
             bool: True if both refer to the same OS thread in the same process.
         """
+        if not isinstance(other, Thread):
+            return NotImplemented
+
         same_id: bool = self._threadId == other.id
         same_process_id: bool = self._process.process_id == other._process.process_id
 
         return same_id and same_process_id
+
+    def __hash__(self) -> int:
+        """
+        Hashes on (process id, thread id), consistent with `__eq__`.
+
+        Defining `__eq__` without `__hash__` sets `__hash__` to None, which makes the
+        class unusable in sets and as a dict key.
+
+        Returns:
+            int: Hash of the identifying pair.
+        """
+        return hash((self._process.process_id, self._threadId))
 
     def __str__(self) -> str:
         """

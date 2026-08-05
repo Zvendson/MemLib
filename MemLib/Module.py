@@ -545,20 +545,36 @@ class Module:
 
         raise ValueError(f"Section '{section_name}' not found in module '{self.name}'")
 
-    def __eq__(self, other: Module) -> bool:
+    def __eq__(self, other: object) -> bool:
         """
         Checks if two Module objects refer to the same loaded module in the same process.
 
         Args:
-            other (Module): Module to compare.
+            other (object): The object to compare against; anything that is not a Module
+                yields `NotImplemented` so Python can try the reflected operation.
 
         Returns:
             bool: `True` when both modules refer to the same handle in the same process.
         """
+        if not isinstance(other, Module):
+            return NotImplemented
+
         same_handle: bool = self._handle == other.handle
         same_process_id: bool = self._process.process_id == other._process.process_id
 
         return same_handle and same_process_id
+
+    def __hash__(self) -> int:
+        """
+        Hashes on (process id, module handle), consistent with `__eq__`.
+
+        Defining `__eq__` without `__hash__` sets `__hash__` to None, which makes the
+        class unusable in sets and as a dict key.
+
+        Returns:
+            int: Hash of the identifying pair.
+        """
+        return hash((self._process.process_id, self._handle))
 
     def __str__(self) -> str:
         """
