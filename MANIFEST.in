@@ -2,3 +2,4 @@ include MemLib/fasm32.dll
 include MemLib/fasm64.dll
 include MemLib/Scanner32.asm
 include MemLib/Scanner64.asm
+include MemLib/py.typed
