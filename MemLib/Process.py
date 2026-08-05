@@ -747,8 +747,44 @@ class Process:
 
         Returns:
             bytes: The data read, or an empty byte string on failure.
+
+        Note:
+            An empty result is ambiguous: it means either "the read failed" or
+            "zero bytes requested". Use :meth:`try_read` when the caller needs to
+            tell a failed read from valid data.
         """
         if length <= 0:
+            return b''
+
+        data: bytes | None = self.try_read(address, length)
+        if data is None:
+            return b''
+
+        return data
+
+    def try_read(self, address: int, length: int) -> bytes | None:
+        """
+        Reads raw bytes, returning None when the read fails.
+
+        The `read*` methods report failure with a value that is also a legitimate
+        result (`b''`, `0`, `""`), which makes a failed read indistinguishable from
+        real data. That matters when walking pointer chains, where 0 is a meaningful
+        value: "this pointer is NULL" and "the read failed" demand different handling.
+
+        Args:
+            address (int): Address to read from.
+            length (int): Number of bytes to read.
+
+        Returns:
+            bytes | None: The bytes read, or None if the read failed.
+
+        Raises:
+            ValueError: If `length` is negative.
+        """
+        if length < 0:
+            raise ValueError(f"length cannot be negative: {length}")
+
+        if length == 0:
             return b''
 
         # No liveness pre-check: ReadProcessMemory fails on a dead process anyway, and
@@ -758,7 +794,63 @@ class Process:
         if windows.ReadProcessMemory(self._handle, address, byref(buffer), length, None):
             return bytes(buffer)
 
-        return b''
+        return None
+
+    def try_read_integer(
+            self,
+            address: int,
+            size: int,
+            endian: Literal["little", "big"] = "little",
+            signed: bool = False,
+    ) -> int | None:
+        """
+        Reads an integer of `size` bytes, returning None when the read fails.
+
+        Args:
+            address (int): Address to read from.
+            size (int): Width of the integer in bytes.
+            endian (Literal["little", "big"], optional): Byte order. Defaults to "little".
+            signed (bool, optional): Interpret the value as two's-complement. Defaults to False.
+
+        Returns:
+            int | None: The value, or None if the read failed.
+        """
+        data: bytes | None = self.try_read(address, size)
+        if data is None:
+            return None
+
+        return int.from_bytes(data, endian, signed=signed)
+
+    def try_read_dword(self, address: int, endian: Literal["little", "big"] = "little") -> int | None:
+        """Reads a DWORD, returning None when the read fails (0 is then a real value)."""
+        return self.try_read_integer(address, 4, endian)
+
+    def try_read_word(self, address: int, endian: Literal["little", "big"] = "little") -> int | None:
+        """Reads a WORD, returning None when the read fails (0 is then a real value)."""
+        return self.try_read_integer(address, 2, endian)
+
+    def try_read_byte(self, address: int, endian: Literal["little", "big"] = "little") -> int | None:
+        """Reads a BYTE, returning None when the read fails (0 is then a real value)."""
+        return self.try_read_integer(address, 1, endian)
+
+    def is_readable(self, address: int, length: int = 1) -> bool:
+        """
+        Checks whether a region can currently be read from the target process.
+
+        Useful for validating a pointer before dereferencing it, without having to
+        interpret an ambiguous zero result.
+
+        Args:
+            address (int): Address to probe.
+            length (int, optional): Number of bytes that must be readable. Defaults to 1.
+
+        Returns:
+            bool: True if the whole region could be read, False otherwise.
+        """
+        if not address or length <= 0:
+            return False
+
+        return self.try_read(address, length) is not None
 
     def read_struct(self, address: int, struct_class: type[T]) -> T | None:
         """
@@ -789,9 +881,13 @@ class Process:
 
         Returns:
             int: The value as an int, or 0 on failure.
+
+        Note:
+            0 is indistinguishable from a successful read of a zero DWORD. When walking
+            pointer chains, prefer :meth:`try_read_dword`, which returns None on failure.
         """
-        result: bytes = self.read(address, 4)
-        return int.from_bytes(result, endian)
+        value: int | None = self.try_read_integer(address, 4, endian)
+        return 0 if value is None else value
 
     def read_word(self, address: int, endian: Literal["little", "big"] = "little") -> int:
         """
@@ -803,9 +899,13 @@ class Process:
 
         Returns:
             int: The value as an int, or 0 on failure.
+
+        Note:
+            0 is indistinguishable from a successful read of a zero WORD. See
+            :meth:`try_read_word`.
         """
-        result: bytes = self.read(address, 2)
-        return int.from_bytes(result, endian)
+        value: int | None = self.try_read_integer(address, 2, endian)
+        return 0 if value is None else value
 
     def read_byte(self, address: int, endian: Literal["little", "big"] = "little") -> int:
         """
@@ -817,9 +917,13 @@ class Process:
 
         Returns:
             int: The value as an int, or 0 on failure.
+
+        Note:
+            0 is indistinguishable from a successful read of a zero byte. See
+            :meth:`try_read_byte`.
         """
-        result: bytes = self.read(address, 1)
-        return int.from_bytes(result, endian)
+        value: int | None = self.try_read_integer(address, 1, endian)
+        return 0 if value is None else value
 
     def read_string(self, address: int, length: int, strip: bool = True) -> bytes:
         """
@@ -832,8 +936,38 @@ class Process:
 
         Returns:
             bytes: The bytes read, or an empty byte string on failure.
+
+        Note:
+            `b''` is also what a legitimately empty string reads as. Use
+            :meth:`try_read_string` to tell the two apart.
         """
-        result: bytes = self.read(address, length)
+        # Stay tolerant of non-positive lengths like :meth:`read` does; try_read_string
+        # raises for those, and this lossy API is documented to return b'' on failure.
+        if length <= 0:
+            return b''
+
+        result: bytes | None = self.try_read_string(address, length, strip)
+        if result is None:
+            return b''
+
+        return result
+
+    def try_read_string(self, address: int, length: int, strip: bool = True) -> bytes | None:
+        """
+        Reads raw bytes, returning None when the read fails rather than `b''`.
+
+        Args:
+            address (int): Address to read from.
+            length (int): Number of bytes to read.
+            strip (bool, optional): If True, strip at first null byte.
+
+        Returns:
+            bytes | None: The bytes read, or None if the read failed.
+        """
+        result: bytes | None = self.try_read(address, length)
+        if result is None:
+            return None
+
         if strip:
             termination = result.find(b'\x00')
             if termination != -1:
@@ -852,8 +986,38 @@ class Process:
 
         Returns:
             str: The decoded string, or an empty string on failure.
+
+        Note:
+            `""` is also what a legitimately empty string reads as. Use
+            :meth:`try_read_wide_string` to tell the two apart.
         """
-        result: bytes = self.read(address, length * 2)
+        # Stay tolerant of non-positive lengths like :meth:`read` does; the try_* variant
+        # raises for those, and this lossy API is documented to return "" on failure.
+        if length <= 0:
+            return ""
+
+        result: str | None = self.try_read_wide_string(address, length, strip)
+        if result is None:
+            return ""
+
+        return result
+
+    def try_read_wide_string(self, address: int, length: int, strip: bool = True) -> str | None:
+        """
+        Reads a UTF-16-LE string, returning None when the read fails rather than `""`.
+
+        Args:
+            address (int): Address to read from.
+            length (int): Number of characters to read.
+            strip (bool, optional): If True, strip at first null wide character.
+
+        Returns:
+            str | None: The decoded string, or None if the read failed.
+        """
+        result: bytes | None = self.try_read(address, length * 2)
+        if result is None:
+            return None
+
         if strip:
             for i in range(0, len(result) - 1, 2):
                 if result[i:i + 2] == b'\x00\x00':
