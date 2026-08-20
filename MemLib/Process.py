@@ -240,7 +240,7 @@ class Process:
             self._unregister_wait()
 
             if getattr(self, "_handle", 0):
-                self.close()
+                self.close(raise_on_error=False)
         except Exception:
             pass
 
@@ -412,7 +412,7 @@ class Process:
 
         return self._handle != 0
 
-    def close(self) -> bool:
+    def close(self, raise_on_error: bool = True) -> bool:
         """
         Closes the process handle and unregisters any wait callbacks.
 
@@ -420,11 +420,19 @@ class Process:
         released from this instance but not closed, since its lifetime belongs to
         whoever created it.
 
+        Args:
+            raise_on_error (bool, optional): Raise `Win32Exception` when CloseHandle
+                fails. Set to False on teardown paths, where raising is unhelpful and
+                may not even be possible. Defaults to True.
+
         Returns:
-            bool: True if the process was closed successfully, False otherwise.
+            bool: True if the handle was closed, or was already closed (0/None handle).
+                False only when `raise_on_error` is False and CloseHandle failed; with
+                the default `raise_on_error=True` that failure raises instead.
 
         Raises:
-            windows.Win32Exception: If the process handle could not be closed.
+            windows.Win32Exception: If the handle could not be closed and `raise_on_error`
+                is True.
         """
         self._unregister_wait()
 
@@ -439,7 +447,14 @@ class Process:
             self._handle = 0
             return True
 
-        raise windows.Win32Exception()
+        # Drop the reference either way: retrying a handle that will not close just
+        # repeats the failure.
+        self._handle = 0
+
+        if raise_on_error:
+            raise windows.Win32Exception()
+
+        return False
 
     def suspend(self) -> bool:
         """
