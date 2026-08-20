@@ -1405,11 +1405,19 @@ class Win32Exception(RuntimeError):
             error_code (int, optional): The Windows error code. If None, the result of GetLastError() will be used.
             custom_message (str, optional): A custom message. If None, a message will be retrieved using FormatMessageW.
         """
-        self._error_code: int = GetLastError() if (error_code is None) else error_code
+        self._error_code: int = GetLastError() if (error_code is None) else int(error_code)
         self._message: str = custom_message
 
         if custom_message is None:
             self.__format_message()
+
+        # Populate RuntimeError.args so the exception survives pickling, logging and
+        # str()/repr() round-trips through code that only looks at `args`.
+        super().__init__(self._message, self._error_code)
+
+    def __reduce__(self):
+        """Supports pickling without re-reading the (by then unrelated) thread-local last error."""
+        return self.__class__, (self._error_code, self._message)
 
     @property
     def code(self) -> int:
@@ -1457,6 +1465,15 @@ class Win32Exception(RuntimeError):
         or a maximum buffer size is reached. If the message cannot be retrieved,
         sets the message to 'Unknown Error'.
         """
+        if self._error_code == 0:
+            # FormatMessageW(0) yields "The operation completed successfully.", which
+            # is actively misleading inside a raised exception. Callers that construct
+            # Win32Exception() after a falsy return without checking GetLastError()
+            # land here; say so plainly instead.
+            self._message = 'No error reported by Windows (GetLastError() == 0); ' \
+                            'the call failed without setting an error code'
+            return
+
         size: int = 256
 
         while size < 0x10000:  # Found 0x10000 in C# std lib
